@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "公司需求知识库 MCP 模板。这是 .example（不会被自动加载）。",
+    "填入真实启动方式后，重命名为 .mcp.json（放在插件根目录）即随插件分发给团队。",
+    "server 名（这里是 company-req-kb）必须与 .hikspine/config.json 的 requirement_sources[].server 一致。",
+    "下面给了 stdio 和 http 两种常见形态，按你们的 MCP 实际情况二选一并删掉另一个。"
+  ],
+  "mcpServers": {
+    "company-req-kb": {
+      "command": "node",
+      "args": ["/abs/path/to/your/req-kb-mcp/server.js"],
+      "env": {
+        "REQ_KB_TOKEN": "${REQ_KB_TOKEN}"
+      }
+    },
+    "_company-req-kb-http-variant": {
+      "type": "http",
+      "url": "https://req-kb.your-company.internal/mcp",
+      "headers": {
+        "Authorization": "Bearer ${REQ_KB_TOKEN}"
+      }
+    }
+  }
+}

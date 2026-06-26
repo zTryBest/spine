@@ -1,0 +1,88 @@
+{
+  "name": "feature",
+  "description": "Full workflow, brainstorm-first hybrid: design -> open -> build -> verify -> archive. Each phase lists ordered provider 'steps' (role -> skill) — swap a step's skill via .hikspine/config.json providers, or insert a capability (CodeGraph, company scaffold) via a preset step or config.extra_steps.",
+  "defaults": {
+    "build_mode": null,
+    "build_pause": null,
+    "subagent_dispatch": null,
+    "tdd_mode": null,
+    "review_mode": null,
+    "isolation": null,
+    "verify_mode": null,
+    "design_doc": null,
+    "plan": null
+  },
+  "phases": [
+    {
+      "id": "design",
+      "skill": "hikspine-design",
+      "steps": [
+        { "role": "clarify", "skill": "openspec-explore", "note": "OpenSpec 简单澄清（先快速对齐问题空间）" },
+        { "role": "brainstorm", "skill": "brainstorming", "note": "Superpowers 深度头脑风暴（比 openspec 澄清更深，出技术方案）" }
+      ],
+      "guard": { "state": { "design_doc": "exists" } },
+      "onComplete": "open"
+    },
+    {
+      "id": "open",
+      "skill": "hikspine-open",
+      "steps": [
+        { "role": "formalize", "skill": "openspec-propose", "note": "OpenSpec 形式化为 proposal/design/tasks/delta-spec（spec 内容丰富、可维护）" }
+      ],
+      "guard": { "artifacts": ["proposal.md", "tasks.md", "design.md"] },
+      "onComplete": "build"
+    },
+    {
+      "id": "build",
+      "skill": "hikspine-build",
+      "steps": [
+        { "role": "plan", "skill": "writing-plans", "note": "Superpowers 计划" },
+        { "role": "implement", "skill": "executing-plans", "note": "Superpowers 执行（subagent-driven-development 由 build_mode 决定）" },
+        { "role": "tdd", "skill": "test-driven-development", "note": "Superpowers TDD（tdd_mode=tdd 时）" },
+        { "role": "review", "skill": "requesting-code-review", "note": "Superpowers 代码审查（review_mode standard/thorough 时）" }
+      ],
+      "guard": {
+        "state": {
+          "isolation": ["branch", "worktree"],
+          "build_mode": ["subagent-driven-development", "executing-plans", "direct"],
+          "tdd_mode": ["tdd", "direct"],
+          "review_mode": ["off", "standard", "thorough"]
+        }
+      },
+      "onComplete": "verify",
+      "onCompleteSet": {
+        "verify_result": "pending",
+        "verification_report": "null",
+        "branch_status": "pending"
+      }
+    },
+    {
+      "id": "verify",
+      "skill": "hikspine-verify",
+      "steps": [
+        { "role": "verify", "skill": "verification-before-completion", "note": "Superpowers 验证方法论" },
+        { "role": "spec-verify", "skill": "openspec-verify-change", "note": "OpenSpec 规格覆盖验证（完整验证时）" },
+        { "role": "finish", "skill": "finishing-a-development-branch", "note": "Superpowers 分支收尾" }
+      ],
+      "guard": {
+        "state": {
+          "verification_report": "exists",
+          "branch_status": "handled"
+        }
+      },
+      "onComplete": "archive",
+      "onCompleteSet": { "verify_result": "pass", "verified_at": "@date" },
+      "onFail": "build",
+      "onFailSet": { "verify_result": "fail" }
+    },
+    {
+      "id": "archive",
+      "skill": "hikspine-archive",
+      "steps": [
+        { "role": "archive", "skill": "openspec-archive-change", "note": "OpenSpec 合并 delta spec 进主 spec 并归档（spec 生命周期/可维护）" }
+      ],
+      "terminal": true,
+      "onCompleteSet": { "archived": "true" }
+    }
+  ]
+}

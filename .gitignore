@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.DS_Store
+.tmp/
+hikspine-vendor-*/
+
+# Vendored skills (skills/ from upstream) ARE committed on purpose —
+# they are the pinned, team-shared snapshot. Do not ignore them.

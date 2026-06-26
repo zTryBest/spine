@@ -1,0 +1,16 @@
+{
+  "name": "hikspine",
+  "owner": {
+    "name": "Your Team"
+  },
+  "metadata": {
+    "description": "Internal Claude Code workflow plugin marketplace."
+  },
+  "plugins": [
+    {
+      "name": "hikspine",
+      "source": "./",
+      "description": "Phase-guarded, preset-driven dev workflow. Unified entry: /hikspine (alias /hs)."
+    }
+  ]
+}

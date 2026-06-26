@@ -1,0 +1,43 @@
+{
+  "_comment": "hikspine 项目配置。复制到项目根目录 .hikspine/config.json。这一层负责行为调参 + 集成声明 + 步骤插入，大多数定制改这里即可，无需 fork 插件或改 skill。带 _ 前缀的键是文档/示例，不会被读取。",
+
+  "auto_transition": true,
+  "review_mode": "standard",
+
+  "_flow_mode_doc": "体验档位：guided（默认，逐项确认，最严谨）| fast（把 build 的隔离/执行/TDD/审查四项合并成一个'用推荐设置?'确认）。设计确认、verify 失败、归档确认等高风险阻塞点在任何档位都保留。",
+  "flow_mode": "guided",
+
+  "_commands_doc": "项目构建/验证命令（供未来的 build/verify 命令守卫使用；Maven 示例如下）。",
+  "build_command": "mvn -q compile",
+  "verify_command": "mvn -q test",
+
+  "_providers_doc": "覆盖某个 role 默认绑定的 skill。优先级（最具体者胜）：'<workflow>.<phase>.<role>' > '<phase>.<role>' > '<role>'。留空用预设默认。",
+  "_providers_example": {
+    "clarify": "brainstorming",
+    "feature.build.implement": "subagent-driven-development"
+  },
+  "providers": {},
+
+  "_extra_steps_doc": "项目级插入步骤，不改预设、不 fork 插件。键：'<phase>.start' | '<phase>.before_<role>' | '<phase>.after_<role>' | '<phase>.end'。值为 step 列表。各阶段 skill 会按解析出的顺序执行（公司能力 skill 应自检幂等，已就绪则 no-op）。",
+  "_extra_steps_example": {
+    "design.after_clarify": [
+      { "role": "index", "skill": "codegraph-search", "note": "CodeGraph 语义索引代码库，给 brainstorm/plan 提供代码上下文" }
+    ],
+    "build.before_implement": [
+      { "role": "scaffold", "skill": "company-scaffold", "note": "公司脚手架：按模板生成骨架（skill 自检，已建则只补缺）" }
+    ]
+  },
+  "extra_steps": {},
+
+  "_requirement_sources_doc": "hikspine-design 澄清前查询的需求知识源，用历史需求/相似规格减少提问轮次。只有确实连接了对应 MCP 时才填进 requirement_sources（默认空，避免引用不存在的源）。",
+  "_requirement_sources_example": [
+    {
+      "type": "mcp",
+      "server": "company-req-kb",
+      "tools": ["search_requirements", "get_similar_specs"],
+      "when": "clarify",
+      "note": "公司需求知识库：检索历史需求/相似规格"
+    }
+  ],
+  "requirement_sources": []
+}

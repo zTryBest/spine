@@ -1,0 +1,41 @@
+{
+  "_comment": "Upstream skill sources vendored into hikspine. Re-run scripts/sync-upstream.sh to refresh. These dirs are read-only mirrors — never edit vendored skills by hand; layer customizations as separate hikspine skills.",
+  "vendors": [
+    {
+      "name": "superpowers",
+      "type": "skills-cli",
+      "source": "obra/superpowers",
+      "ref": "latest",
+      "stageCmd": ["skills", "add", "obra/superpowers", "-y", "--agent", "claude-code"],
+      "capture": [
+        { "from": ".claude/skills", "to": "skills" }
+      ]
+    },
+    {
+      "name": "openspec",
+      "type": "openspec-init",
+      "source": "@fission-ai/openspec",
+      "ref": "latest",
+      "tools": "claude",
+      "profile": "custom",
+      "_profileNote": "Expanded workflow profile. The 'workflows' list drives which openspec-* skills get generated. 'core' would give only explore/propose/apply/archive/sync; the list below adds new/continue/ff/verify/bulk-archive/onboard (notably openspec-new-change and openspec-verify-change).",
+      "workflows": [
+        "propose",
+        "explore",
+        "new",
+        "continue",
+        "apply",
+        "ff",
+        "sync",
+        "archive",
+        "bulk-archive",
+        "verify",
+        "onboard"
+      ],
+      "capture": [
+        { "from": ".claude/skills", "to": "skills" },
+        { "from": ".claude/commands", "to": "commands" }
+      ]
+    }
+  ]
+}

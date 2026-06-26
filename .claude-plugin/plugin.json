@@ -1,0 +1,15 @@
+{
+  "name": "hikspine",
+  "version": "0.1.0",
+  "description": "Phase-guarded, preset-driven development workflow for Claude Code. Wraps OpenSpec (WHAT) and Superpowers (HOW) behind a unified /hikspine entry with a generic state machine.",
+  "author": {
+    "name": "Your Team"
+  },
+  "keywords": [
+    "workflow",
+    "openspec",
+    "superpowers",
+    "state-machine",
+    "preset"
+  ]
+}
