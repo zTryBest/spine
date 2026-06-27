@@ -78,6 +78,10 @@ Agent 再调 next
 
 Claude Code 的无路径规则通常在 session 启动时进入上下文，所以如果 `.claude/rules` 是当前 session 开始后才由 `next` 创建的，不要假设它会自动立即生效。`next --json` 会返回 `projectRules.readNow`，Agent 应该立刻读取这些文件，让本次 session 也吃到规则。
 
+如果 `next` 返回了 `nextSkill`，Agent 应立即加载并执行这个 skill，再进行节点内的手工工作。如果某个 skill 出现在 `requiredSkills` 中，不要用手写内容近似替代；读取完对应 `requiredInputs` 后应尽快执行该必需 skill。必需 skill 没有执行时，应该视为流程阻塞，而不是可选建议。
+
+如果 `next` 返回 `agent.requiresUser: true`，Agent 必须停下来问用户，不能自己写确认产物。如果同时返回 `agent.requiredQuestions`，必须逐项询问或让用户明确确认这些决策主题，尤其是技术栈、架构边界、数据/实时链路等关键选择。
+
 ## 语言规则
 
 根据用户当前触发工作流的输入语言决定 Agent 执行语言。面向用户的解释、澄清问题、阶段总结和工作流产物默认使用同一种语言；如果用户后续显式切换语言，以最新用户语言为准。代码标识符、命令、文件路径、API 名称和引用原文保持原样。
@@ -108,19 +112,25 @@ agent:
   rules:
     - Read proposal.md, tasks.md, and specs/ before running brainstorming.
     - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+    - Stop for user confirmation after brainstorming before moving to build.
 outputs:
   - key: design_doc
     path: openspec/changes/{change}/design.md
 exit:
   checks:
     - file.exists: openspec/changes/{change}/design.md
-    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions, User Confirmation] }
+    - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
 ```
 
 `inputs.required` 是给 Agent 的上下文依赖要求；`skills.required` 是给 Agent 的强执行要求。如果没有 Claude Code 原生 skill 调用 trace，引擎不会假装自己能验证“skill 是否真的调用”。真正阻塞流转的是 `exit.checks` 里的机器检查。
+
+内置 `feature` 和 `new-project` 会把设计拆成两个节点：先进入 `design.brainstorm`，此时 `nextSkill` 明确返回 `brainstorming`；通过头脑风暴产物后，再进入 `design.confirm`，要求 Agent 停下来让用户确认方案。只有 `design.md` 中包含 `User Confirmation`，且有 `Confirmed by user:` 记录后，才允许进入 build。这个确认记录必须来自用户回复，不能由 Agent 自己编造。
+
+设计确认不只是泛泛确认。`design.confirm` 还会要求 `User Decisions`，并检查 `Technology stack:`、`Architecture/integration:` 或 `Architecture/scaffold:`、`Data/realtime path:` 等记录。已有项目也要让用户确认“沿用现有技术栈”，不能由 Agent 静默假设。
 
 后续阶段也沿用同一个 YAML 约定，不要在引擎里给每个阶段写兜底。比如 build 节点应该把 `design.md` 声明为 planning 的输入，再给 planning step 写 `exit.checks`，这样实现步骤不会早于计划产物开始。如果后续阶段依赖前序阶段的产物契约，就在后续阶段 YAML 里重复关键检查；这样恢复会话或升级 workflow 时，行为仍然显式，而不是写死在引擎里。
 
@@ -146,6 +156,12 @@ openspec/changes/<change>/design.md 存在
 包含 Selected Direction
 包含 Company Constraints
 包含 Open Questions
+包含 User Decisions
+包含 Technology stack: 用户决策记录
+包含 Architecture/integration: 或 Architecture/scaffold: 用户决策记录
+包含 Data/realtime path: 用户决策记录
+包含 User Confirmation
+包含 Confirmed by user: 确认记录
 包含 proposal.md、tasks.md 和 specs 路径引用
 ```
 

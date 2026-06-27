@@ -165,19 +165,23 @@ agent:
   rules:
     - Read proposal.md, tasks.md, and specs/ before running brainstorming.
     - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+    - Stop for user confirmation after brainstorming before moving to build.
 outputs:
   - key: design_doc
     path: openspec/changes/{change}/design.md
 exit:
   checks:
     - file.exists: openspec/changes/{change}/design.md
-    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions, User Confirmation] }
+    - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
 ```
 
 `inputs.required` 告诉 Agent 某个 skill 运行前必须读取哪些上下文。`skills.required` 告诉 Agent 必须使用什么能力。如果 Claude Code 没有暴露 skill 调用 trace，引擎不会假装自己能验证“skill 是否真的被调用”。真正阻塞流转的是 `exit.checks` 里的可观测产物契约。
+
+内置 `feature` 和 `new-project` 会把设计拆成 `design.brainstorm` 和 `design.confirm`。第一个节点的 `nextSkill` 明确返回 `brainstorming`；第二个节点要求 Agent 停下来让用户确认或调整方案。确认节点会通过 `agent.requiredQuestions` 要求询问技术栈、架构/集成边界等主题。只有 `design.md` 包含 `User Decisions`、`User Confirmation`，并记录 `Technology stack:`、`Confirmed by user:` 等具体用户决策后，build 才会解锁。
 
 后续阶段也沿用同一个约定，不要在引擎里给每个阶段写兜底。比如 build 节点应该把 `design.md` 声明为 planning 的输入，再给 planning step 写 `exit.checks`，这样实现步骤不会早于计划产物开始。如果后续阶段依赖前序阶段的产物契约，就在后续阶段 YAML 里重复关键检查；这样恢复会话或升级 workflow 时，行为仍然显式，而不是写死在引擎里。
 
@@ -203,6 +207,8 @@ openspec/changes/<change>/design.md 存在
 包含 Selected Direction
 包含 Company Constraints
 包含 Open Questions
+包含 User Confirmation
+包含 Confirmed by user: 确认记录
 包含 proposal.md、tasks.md 和 specs 路径引用
 ```
 

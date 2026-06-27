@@ -76,7 +76,11 @@ Read the JSON fields:
 - `outputs`: files or directories the node expects.
 - `missing`: machine-checkable exit checks that are still failing.
 - `projectRules.readNow`: project rule files synced during this `next` call; read them immediately so they affect this session.
+- `agent.requiresUser`: stop and ask the user before producing the confirmation artifact.
+- `agent.requiredQuestions`: specific decision topics that must be asked or explicitly confirmed with the user.
 - `agent.rules`: natural-language execution rules for the current node.
+
+If `nextSkill` is present, immediately load and use that skill before doing manual work for the node. If a skill appears in `requiredSkills`, do not replace it with a handwritten approximation; use the required skill as soon as its `requiredInputs` are read. Treat missing required skill execution as blocked work, not as optional guidance.
 
 First read every `requiredInputs` item, especially entries whose `useBefore` names the skill you are about to run. Then do the work with the relevant skills and produce the expected artifacts. Call `next` again; the engine will inspect the artifacts and move forward if the checks pass.
 
@@ -96,6 +100,11 @@ openspec/changes/<change>/specs
 
 Then run brainstorming from those inputs before selecting the design direction, and write the questions, options, tradeoffs, and conclusions back into OpenSpec design.md through the OpenSpec design/propose skill.
 
+The builtin `feature` workflow uses two design nodes:
+
+- `design.brainstorm`: `nextSkill` is `brainstorming`; use that skill before writing the design conclusions.
+- `design.confirm`: stop and ask the user to confirm or change the selected direction, including technology stack and major integration choices, before moving to build.
+
 The engine does not judge whether the design is "good" and does not trust self-reported semantic done flags. It checks that this file exists:
 
 ```text
@@ -113,9 +122,13 @@ and that it contains these headings:
 ## Selected Direction
 ## Company Constraints
 ## Open Questions
+## User Decisions
+## User Confirmation
 ```
 
 `Inputs Reviewed` must reference the proposal, tasks, and specs paths so the engine can verify that brainstorming was grounded in the open-phase artifacts.
+`User Decisions` must record the user's answers with lines beginning `Technology stack:`, `Architecture/integration:`, and `Data/realtime path:`. If the project stack already exists, ask the user to confirm it and record that confirmation.
+`User Confirmation` must include a line beginning with `Confirmed by user:` after the user has actually confirmed the design direction. Do not fabricate this line.
 
 Use `company.knowledge` before making claims about company frameworks, components, platforms, middleware, permissions, monitoring, release, or historical systems. Use `company.platform-design` when platform or scaffold decisions are material.
 

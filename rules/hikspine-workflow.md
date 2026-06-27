@@ -5,8 +5,11 @@ These project rules are distributed from the Hikspine plugin into `.claude/rules
 - Treat `/hs` as a natural-language trigger for the `hikspine` skill, not as a slash-command file.
 - Use `next` as the only Hikspine workflow protocol.
 - Read `requiredInputs` before running the skill named by `nextSkill`, especially when `useBefore` names that skill.
-- Use `requiredSkills` before considering the current node complete.
+- If `nextSkill` is present, immediately load and use that skill before doing manual work for the node.
+- Use every `requiredSkills` entry before considering the current node complete; do not replace required skill execution with a handwritten approximation.
 - Produce the files declared in `outputs` and satisfy the machine-checkable `missing` items before moving on.
+- When a node has `agent.requiresUser: true`, stop and ask the user before writing the confirmation artifact. Do not fabricate user confirmation.
+- When `agent.requiredQuestions` is present, ask or explicitly confirm each listed decision topic with the user, including technology stack decisions.
 - Do not rely on self-reported semantic completion. Hikspine advances when observable `exit.checks` pass.
 - Do not write source files while the current phase guard forbids `write-source`.
 - Match the user's current workflow language for explanations, questions, summaries, and workflow artifacts unless the user explicitly requests another language or the project artifact convention clearly differs.

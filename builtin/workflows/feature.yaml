@@ -1,5 +1,5 @@
 id: feature
-version: 2
+version: 4
 name: Feature Development
 
 phases:
@@ -36,10 +36,12 @@ phases:
     guard:
       forbid: [write-source]
     nodes:
-      - id: design.explore
-        type: agent-loop
+      - id: design.brainstorm
+        type: skill
         required: true
-        objective: Compare approaches, resolve open questions, and write the selected direction into OpenSpec design.md.
+        skill: brainstorming
+        task: Read OpenSpec artifacts, explore options, questions, and tradeoffs, then write the brainstorming result into design.md.
+        objective: Compare approaches, resolve open questions, and write the brainstorming result into OpenSpec design.md.
         inputs:
           required:
             - key: proposal
@@ -61,8 +63,8 @@ phases:
             - Treat OpenSpec open-phase artifacts as the source of truth for brainstorming.
             - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
             - Consult company.knowledge before making company framework, component, platform, middleware, permission, monitoring, release, or historical-system claims.
-            - Write inputs reviewed, questions from OpenSpec, options considered, tradeoffs, selected direction, company constraints, and open questions into OpenSpec design.md.
-            - Ask the user before moving on if meaningful open questions remain.
+            - Write inputs reviewed, brainstorming notes, questions from OpenSpec, options considered, tradeoffs, draft selected direction, company constraints, and open questions into OpenSpec design.md.
+            - Do not create User Confirmation yourself during this node.
         outputs:
           - key: design_doc
             path: openspec/changes/{change}/design.md
@@ -70,6 +72,48 @@ phases:
           checks:
             - file.exists: openspec/changes/{change}/design.md
             - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
+
+      - id: design.confirm
+        type: agent-loop
+        required: true
+        objective: Present the brainstorming result to the user, ask for confirmation or changes, and record the confirmed direction in design.md.
+        inputs:
+          required:
+            - key: design_doc
+              path: openspec/changes/{change}/design.md
+              useBefore: [user-confirmation]
+        skills:
+          output: [openspec.design]
+        agent:
+          requiresUser: true
+          requiredQuestions:
+            - technology_stack
+            - architecture_and_integration
+            - data_realtime_and_video_path
+            - company_constraints
+          rules:
+            - Stop and ask the user to choose or confirm the technology stack before moving to build.
+            - Ask about architecture/integration boundaries, data and realtime transport choices, and video/streaming choices when relevant.
+            - If the project has an existing stack, ask the user to confirm using that stack instead of silently assuming it.
+            - Summarize options, tradeoffs, company constraints, and open questions when asking.
+            - If the user requests changes, update design.md and ask again.
+            - Record the user's answers in a User Decisions section with lines for Technology stack, Architecture/integration, Data/realtime path, and Company constraints.
+            - Only after the user confirms, add a User Confirmation section to design.md with a line starting with "Confirmed by user:".
+            - Do not fabricate confirmation text.
+        outputs:
+          - key: design_doc
+            path: openspec/changes/{change}/design.md
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/design.md
+            - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions, User Decisions, User Confirmation] }
+            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Technology stack:\\s*.+" }
+            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Architecture/integration:\\s*.+" }
+            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Data/realtime path:\\s*.+" }
+            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
             - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
             - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
             - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
@@ -106,7 +150,11 @@ phases:
             task: Create an implementation plan from design.md, proposal.md, tasks.md, and specs/.
             exit:
               checks:
-                - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+                - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions, User Decisions, User Confirmation] }
+                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Technology stack:\\s*.+" }
+                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Architecture/integration:\\s*.+" }
+                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Data/realtime path:\\s*.+" }
+                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
                 - file.exists: openspec/changes/{change}/implementation.md
                 - file.contains_headings: { path: openspec/changes/{change}/implementation.md, headings: [Inputs Reviewed, Implementation Plan, Source Change Plan, Verification Plan] }
                 - file.contains: { path: openspec/changes/{change}/implementation.md, text: openspec/changes/{change}/design.md }

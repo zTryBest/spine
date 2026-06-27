@@ -167,19 +167,23 @@ agent:
   rules:
     - Read proposal.md, tasks.md, and specs/ before running brainstorming.
     - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+    - Stop for user confirmation after brainstorming before moving to build.
 outputs:
   - key: design_doc
     path: openspec/changes/{change}/design.md
 exit:
   checks:
     - file.exists: openspec/changes/{change}/design.md
-    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions, User Confirmation] }
+    - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
     - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
 ```
 
 `inputs.required` tells Agent what context must be read before a skill runs. `skills.required` tells Agent what must be used. If Claude Code does not expose a skill invocation trace, the engine does not pretend it can verify that call. The hard gate is the observable artifact contract in `exit.checks`.
+
+For builtin `feature` and `new-project`, design is split into `design.brainstorm` and `design.confirm`. The first node returns `nextSkill: brainstorming`; the second node requires Agent to stop and ask the user to confirm or change the selected direction. The confirmation node includes `agent.requiredQuestions` for topics such as technology stack and integration choices. Build remains blocked until `design.md` contains `User Decisions`, `User Confirmation`, and concrete records such as `Technology stack:` and `Confirmed by user:`.
 
 Use the same convention for later phases instead of adding engine-specific fallbacks. For example, a build node should declare `design.md` as an input for planning, then put step-level checks on the planning step so implementation cannot start before the plan artifact exists. If a later phase depends on an earlier phase's contract, repeat the relevant artifact checks in the later phase's YAML; this keeps resume/upgrade behavior explicit without hardcoding phase-specific logic in the engine.
 

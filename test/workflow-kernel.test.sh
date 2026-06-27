@@ -104,7 +104,8 @@ mkdir -p "$T/openspec/changes/entrance-monitor/specs"
 printf 'proposal\n' > "$T/openspec/changes/entrance-monitor/proposal.md"
 printf -- '- [ ] initial task\n' > "$T/openspec/changes/entrance-monitor/tasks.md"
 eq "open artifacts advance to design" "$(run next entrance-monitor --json | json_get 'j.phase')" "design"
-eq "design next is agent-loop" "$(run next entrance-monitor --json | json_get 'j.nodeType')" "agent-loop"
+eq "design starts with brainstorming node" "$(run next entrance-monitor --json | json_get 'j.node')" "design.brainstorm"
+eq "design next skill is brainstorming" "$(run next entrance-monitor --json | json_get 'j.nextSkill.id')" "brainstorming"
 eq "feature design requires brainstorming" "$(run next entrance-monitor --json | json_get 'j.requiredSkills.some(s=>s.id==="brainstorming") ? "yes" : "no"')" "yes"
 eq "design passes OpenSpec inputs to brainstorming" "$(run next entrance-monitor --json | json_get 'j.requiredInputs.some(i=>i.key==="proposal" && i.path==="openspec/changes/entrance-monitor/proposal.md" && i.useBefore.includes("brainstorming")) ? "yes" : "no"')" "yes"
 
@@ -172,7 +173,22 @@ No special platform blocker found.
 ## Open Questions
 None.
 MD
-eq "design artifacts advance to build" "$(run next entrance-monitor --json | json_get 'j.phase')" "build"
+eq "brainstorming artifact advances to user confirmation" "$(run next entrance-monitor --json | json_get 'j.node')" "design.confirm"
+eq "user confirmation node requires user" "$(run next entrance-monitor --json | json_get 'j.agent.requiresUser ? "yes" : "no"')" "yes"
+eq "user confirmation asks technology stack" "$(run next entrance-monitor --json | json_get 'j.agent.requiredQuestions.includes("technology_stack") ? "yes" : "no"')" "yes"
+eq "design blocks without user confirmation" "$(run next entrance-monitor --json | json_get 'j.missing.some(m=>m.missingHeadings && m.missingHeadings.includes("User Confirmation")) ? "yes" : "no"')" "yes"
+cat >> "$T/openspec/changes/entrance-monitor/design.md" <<'MD'
+
+## User Decisions
+Technology stack: User confirmed Vue 3 frontend and Spring Boot backend.
+Architecture/integration: User confirmed a dashboard UI backed by realtime API integration.
+Data/realtime path: User confirmed WebSocket push for realtime records.
+Company constraints: User confirmed no additional company platform blocker.
+
+## User Confirmation
+Confirmed by user: Approved option A and confirmed no open design questions.
+MD
+eq "confirmed design advances to build" "$(run next entrance-monitor --json | json_get 'j.phase')" "build"
 eq "build reads design before planning" "$(run next entrance-monitor --json | json_get 'j.requiredInputs.some(i=>i.key==="design_doc" && i.path==="openspec/changes/entrance-monitor/design.md" && i.useBefore.includes("superpowers.plan")) ? "yes" : "no"')" "yes"
 eq "build starts with planning step" "$(run next entrance-monitor --json | json_get 'j.nextSkill.id')" "superpowers.plan"
 cat > "$T/openspec/changes/entrance-monitor/implementation.md" <<'MD'
