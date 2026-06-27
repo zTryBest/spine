@@ -1,191 +1,234 @@
 # hikspine
 
-Phase-guarded, preset-driven development workflow — distributed as a single
-**Claude Code plugin**. Wraps **OpenSpec** (WHAT) and **Superpowers** (HOW)
-behind a unified `/hikspine` entry (alias `/hs`) with a generic, preset-driven
-state machine.
+Skill-first workflow kernel for Claude Code.
 
-> Derived from the design ideas of [comet](https://github.com/rpamis/comet),
-> rebuilt as a Claude-Code-only plugin with a generalized preset state machine.
+Chinese docs: [README.zh-CN.md](README.zh-CN.md)
 
-## Status
+Hikspine keeps AI coding work on rails by making the current phase, workflow node, expected skills, and machine-checkable exit checks explicit. It is packaged as a Claude Code plugin, but the user-facing entry is a **skill**, not a slash-command file.
 
-Early scaffolding. Implemented so far:
+## Current Shape
 
-- Plugin manifest + marketplace (`.claude-plugin/`)
-- Unified entry commands `/hikspine` and `/hs`
-- Upstream vendoring (`scripts/sync-upstream.sh` + `vendor.config.json`)
-- **Generic preset-driven state machine** (`skills/hikspine/scripts/`):
-  `hikspine-state.sh` reads the phase graph, exit guards, and transition side
-  effects from `presets/*.json` — adding a workflow is adding a preset file, no
-  code change. Verified end-to-end by `test/state-machine.test.sh` (16 checks).
-- **Orchestrator + 7 phase skills (中文)**: `hikspine` (entry brain) plus
-  `hikspine-open/design/build/verify/archive/hotfix/tweak`. Each preset phase
-  routes to its skill via `hikspine-state.sh next`. Skills wrap the vendored
-  OpenSpec/Superpowers skills and advance via `transition <name> complete|fail`.
+```text
+skills/hikspine/SKILL.md
+  User-facing entry. Trigger it with text such as "/hs ..." or "use hikspine ...".
 
-- **Phase-write guard hook** (`hooks/hooks.json` + `hikspine-hook-guard.sh`):
-  a PreToolUse hook blocks source writes during design/open/archive phases and
-  catches illegal phase jumps (feature build without a Design Doc). Invoked via
-  `bash "${CLAUDE_PLUGIN_ROOT}/.../hikspine-hook-guard.sh"` so it works on
-  Windows Git Bash / WSL too. Verified by `test/hook-guard.test.sh` (11 checks).
+bin/hikspine.mjs
+  Thin public CLI. Agent-facing protocol is `next`.
 
-  > ⚠️ **The guard is a workflow guardrail, not a security sandbox.** It matches
-  > `Write|Edit` to keep the agent in the right phase. It does **not** stop shell
-  > redirection, `patch`/`sed`-type tools, or future tools with other names — and
-  > is not a permission boundary. Use Claude Code's own permission/sandbox
-  > settings for real isolation.
+lib/store.mjs
+  Config, workflow loading, state file placement, and active change handling.
 
-Not yet implemented: `hikspine-guard.sh` wrapper (auto-running build/verify
-commands), deterministic design handoff package + SHA256 tracing, one-command
-archive automation, auto scale assessment, and structured context-recovery
-output. These are noted as "后续增强" inline in the skills; the flow is
-functional without them.
+lib/checks.mjs
+  Machine-checkable exit checks and guard decisions.
 
-## Requirements
+lib/transitions.mjs
+  Automatic node/phase advancement.
 
-- **Node.js 20.19.0+** (OpenSpec CLI requirement)
-- Git; a Bash-compatible shell (Git Bash on Windows, or WSL)
+lib/rules.mjs
+  Idempotent distribution of plugin-authored Markdown rules into project `.claude/rules`.
 
-## Install (team)
+builtin/workflows/
+  Builtin workflow recipes: feature, simple-fix, hotfix, new-project.
+
+rules/
+  Plugin-authored project rules that are copied into `.claude/rules`.
+
+hooks/guard.mjs
+  Claude Code PreToolUse bridge. Calls the guard logic directly.
+```
+
+There are no Claude command files. Treat `/hs` as a natural-language convention that triggers the `hikspine` skill.
+
+## Install
+
+Install this repository as a Claude Code plugin through your team's plugin marketplace or local plugin source.
+
+OpenSpec still needs its CLI on PATH if your workflow uses OpenSpec-backed artifacts.
+
+There is no project init step. On the first `hikspine next` call in a project, Hikspine creates `.claude/rules` and copies Markdown rules from the plugin `rules/` directory. Managed files are updated when the plugin copy changes, but locally edited project rules are not overwritten.
+
+Claude Code loads unscoped `.claude/rules` at session startup, so rules created after the current session has started should be read explicitly. `next --json` returns `projectRules.readNow` when it copies or updates rule files; the `hikspine` skill instructs the Agent to read those paths immediately.
+
+## How Users Work With It
+
+A user can start directly in Claude Code:
+
+```text
+/hs start entrance-monitor with workflow <workflow-id>
+```
+
+Claude should load the `hikspine` skill, source the runtime locator, then run:
 
 ```bash
-# in Claude Code
-/plugin marketplace add <internal-git-url-or-path>
-/plugin install hikspine@hikspine
+_hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
+_hs_env_file=""
+for r in "${HIKSPINE_PLUGIN_ROOT:-}" "${CLAUDE_PLUGIN_ROOT:-}" "$(pwd)" "$(git rev-parse --show-toplevel 2>/dev/null || true)"; do
+  r="$(_hs_norm_root "$r")"
+  if [ -n "$r" ] && [ -f "$r/skills/hikspine/scripts/hikspine-env.sh" ]; then
+    _hs_env_file="$r/skills/hikspine/scripts/hikspine-env.sh"
+    break
+  fi
+done
+if [ -z "$_hs_env_file" ]; then
+  for b in "${HOME:-}" "${USERPROFILE:-}" "${APPDATA:-}" "${LOCALAPPDATA:-}" "/mnt/c/Users" "/mnt/d" "/mnt/e"; do
+    [ -n "$b" ] || continue
+    f="$(find "$b" -maxdepth 10 -path '*/skills/hikspine/scripts/hikspine-env.sh' -print -quit 2>/dev/null || true)"
+    if [ -n "$f" ]; then _hs_env_file="$f"; break; fi
+  done
+fi
+[ -n "$_hs_env_file" ] || { echo "ERROR: cannot locate hikspine-env.sh; set HIKSPINE_PLUGIN_ROOT to the hikspine plugin root." >&2; exit 1; }
+. "$_hs_env_file" || exit 1
+unset _hs_env_file f r b
+unset -f _hs_norm_root
+node "$HIKSPINE_ENGINE" next entrance-monitor --workflow <workflow-id> --json
 ```
 
-OpenSpec also needs its CLI on PATH (binary cannot be bundled in a plugin):
+No project init is required. If the state does not exist, `next <change> --workflow <id>` creates it lazily.
+Run the locator and `next` in the same Bash invocation; exported variables do not persist across separate tool calls.
+
+The same `next` call also ensures project rules exist at `.claude/rules`.
+If rule files were copied or updated during this call, the JSON response includes `projectRules.readNow`.
+
+## The `next` Protocol
+
+`next` is the main loop:
+
+```text
+Agent calls next
+Engine observes files/directories/checks
+Engine auto-advances completed nodes
+Engine returns the next blocked node
+Agent uses the relevant skills and produces artifacts
+Agent calls next again
+```
+
+The engine no longer asks Agent to write facts such as `no_open_questions=true` or to call `complete/advance`. Flow only advances when machine-checkable `exit.checks` pass.
+
+## Builtin Workflows
+
+- `feature`: `open -> design -> build -> review -> verify -> archive`
+- `simple-fix`: `inspect -> fix -> verify`
+- `hotfix`: `inspect -> patch -> verify`
+- `new-project`: `open -> design -> scaffold -> build -> review -> verify`
+
+Custom workflows are first-class. Put a workflow at:
+
+```text
+.hikspine/workflows/<workflow-id>.yaml
+```
+
+Then run:
 
 ```bash
-npm i -g @fission-ai/openspec@<pinned-version>   # Node 20.19.0+
+node "$HIKSPINE_ENGINE" next <change> --workflow <workflow-id> --json
 ```
 
-## First run (what it looks like)
+Or set a project default:
 
-```
-> /hs 给订单列表加一个按状态筛选的功能
-
-1. 命名      → hikspine 给 2-3 个 kebab-case 名，你选一个（如 order-status-filter）
-2. design    → OpenSpec 简单澄清 → Superpowers 深度 brainstorming → 你确认设计方案 → 生成 Design Doc
-3. open      → OpenSpec 把方案形式化为 proposal / design / tasks → 你确认产物
-4. build     → 选隔离/执行/TDD/审查方式 → 按 plan 实现（TDD）→ 代码审查
-5. verify    → 验证 + 处理分支 → 写验证报告
-6. archive   → 你确认归档 → 合并 delta spec 进主 spec，change 移入 archive
+```yaml
+# .hikspine/config.yaml
+version: 1
+defaultWorkflow: <workflow-id>
 ```
 
-中途任何时候关掉，再敲 `/hs`（或 `/hikspine`）即可——它读 `.hikspine.yaml` 自动检测当前阶段并续传。各阶段的 ✋ 阻塞点会停下等你确认，其余自动推进。
+`feature` and `new-project` are OpenSpec-backed by default and store state at:
 
-## Extensibility model (three stable layers)
+```text
+openspec/changes/<change>/.hikspine.yaml
+```
 
-Most customization should land in the first two layers — **without editing phase
-skills**:
+`simple-fix` and `hotfix` are lightweight by default and store state at:
 
-| Layer | File(s) | Change this to… |
-|-------|---------|-----------------|
-| **Workflow shape** | `skills/hikspine/presets/*.json` | add/reorder/remove phases, swap a phase's skill, change guards |
-| **Behavior & integrations** | project `.hikspine/config.json` | tune `auto_transition`/`review_mode`, override step `providers`, insert `extra_steps`, declare requirement sources / MCP integrations |
-| **Phase behavior** | `skills/hikspine-*/SKILL.md` | rarely — only to change what a phase *does* internally |
+```text
+.hikspine/changes/<change>.yaml
+```
 
-Phase skills expose **generic extension points** (e.g. "consult configured
-requirement sources before asking the user"), so adding an integration is a
-config edit, not a skill edit. See `templates/hikspine-config.example.yaml`.
+## Workflow v2
 
-### Provider steps: swap a skill, or insert a capability
+Workflow recipes separate Agent guidance from engine gates:
 
-Each preset phase declares an ordered list of **provider steps** (`steps` in the
-preset JSON) — each step binds a *role* to a default *skill*. The `feature`
-preset is a curated **hybrid** (the same best-of-both split comet uses):
+```yaml
+inputs:
+  required:
+    - key: proposal
+      path: openspec/changes/{change}/proposal.md
+      useBefore: [brainstorming]
+    - key: tasks
+      path: openspec/changes/{change}/tasks.md
+      useBefore: [brainstorming]
+    - key: specs
+      path: openspec/changes/{change}/specs
+      useBefore: [brainstorming]
+skills:
+  required: [brainstorming]
+  recommended: [company.knowledge, company.platform-design]
+  output: [openspec.design]
+agent:
+  rules:
+    - Read proposal.md, tasks.md, and specs/ before running brainstorming.
+    - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+outputs:
+  - key: design_doc
+    path: openspec/changes/{change}/design.md
+exit:
+  checks:
+    - file.exists: openspec/changes/{change}/design.md
+    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
+```
 
-| Phase | Steps (role → default skill) | Why |
-|-------|------------------------------|-----|
-| design | `clarify`→`openspec-explore`, `brainstorm`→`brainstorming` | OpenSpec quick clarify, then Superpowers deep brainstorming |
-| open | `formalize`→`openspec-propose` | OpenSpec rich, maintainable specs |
-| build | `plan`→`writing-plans`, `implement`→`executing-plans`, `tdd`→`test-driven-development`, `review`→`requesting-code-review` | Superpowers planning + TDD |
-| verify | `verify`→`verification-before-completion`, `spec-verify`→`openspec-verify-change`, `finish`→`finishing-a-development-branch` | both |
-| archive | `archive`→`openspec-archive-change` | OpenSpec spec lifecycle |
+`inputs.required` tells Agent what context must be read before a skill runs. `skills.required` tells Agent what must be used. If Claude Code does not expose a skill invocation trace, the engine does not pretend it can verify that call. The hard gate is the observable artifact contract in `exit.checks`.
 
-Two cheap extension moves, neither edits a phase skill:
+Use the same convention for later phases instead of adding engine-specific fallbacks. For example, a build node should declare `design.md` as an input for planning, then put step-level checks on the planning step so implementation cannot start before the plan artifact exists. If a later phase depends on an earlier phase's contract, repeat the relevant artifact checks in the later phase's YAML; this keeps resume/upgrade behavior explicit without hardcoding phase-specific logic in the engine.
 
-- **Swap the skill bound to a role** (e.g. when a framework improves a step):
-  add an entry under `providers` in `.hikspine/config.json`. Resolution is
-  most-specific-wins, so teams keep the simple form but can target precisely:
-  `"<workflow>.<phase>.<role>"` › `"<phase>.<role>"` › `"<role>"`. The resolver
-  (`hikspine-state.sh provider <change> <phase> <role>`) applies the override;
-  the phase skill runs whatever it resolves to.
-- **Insert a new capability** (e.g. **CodeGraph** semantic indexing, or a
-  **company code-scaffold skill**) — two ways, neither edits a phase skill:
-  - **Plugin-level**: add a step to the phase's `steps` in the preset JSON.
-  - **Project-level (no fork)**: add to `extra_steps` in `.hikspine/config.json`
-    at a named position — `"<phase>.start"`, `"<phase>.before_<role>"`,
-    `"<phase>.after_<role>"`, `"<phase>.end"` — e.g.
-    `"build.before_implement": [{ "role": "scaffold", "skill": "company-scaffold" }]`.
+## Supported Checks
 
-  **All phase skills are step-driven** — they run
-  `hikspine-state.sh steps <change> <phase>` (which merges preset steps +
-  `extra_steps` and applies `providers` overrides) and execute each step in
-  order, so the new capability runs without touching any skill or forking the
-  plugin. Company-capability skills should be **idempotent/self-checking** (e.g.
-  a scaffold skill that no-ops when the scaffold already exists).
+Current checks include:
 
-> Today the curated hybrid is fixed per phase. "All-Superpowers" / "All-OpenSpec"
-> presets are deliberately deferred — frameworks keep fixing their own weak
-> spots, so a per-step hybrid that you can swap point-by-point ages better.
+- `file.exists`
+- `dir.exists`
+- `artifact.exists`
+- `file.contains`
+- `file.contains_regex`
+- `file.contains_heading`
+- `file.contains_headings`
+- `git.has_changes`
+- `git.has_source_changes`
+- `always.false`
 
-### Connecting a requirement-knowledge MCP
+## Project Customization
 
-The clarification step of `hikspine-design` consults requirement sources declared
-in `.hikspine/config.json` to reduce manual Q&A. Wiring is **config only** — no
-skill edit when you add/swap/remove a source:
+Optional project config:
 
-1. **Connect the MCP.** Copy `.mcp.json.example` → `.mcp.json` (plugin root) and
-   fill in your requirement-KB MCP's launch command/URL. Because it ships inside
-   the plugin, the whole team gets it on `/plugin install`. (MCP tools are
-   ambient — the agent can call them once connected; you do not name the MCP in
-   any skill.)
-2. **Declare it as a source.** In `.hikspine/config.json`, add the server under
-   `requirement_sources` with the tools to query. The `server` name must match
-   `.mcp.json`.
-3. Done. To add another source later, add another `requirement_sources` entry —
-   skills stay untouched.
+```yaml
+# .hikspine/config.yaml
+version: 1
+defaultWorkflow: <workflow-id>
+registries:
+  - .hikspine/registries/company.yaml
+guard:
+  sourceRoots:
+    - src/
+    - app/
+```
 
-> Note: the exact plugin MCP-manifest field is evolving; confirm `.mcp.json`
-> auto-load vs a `mcpServers` key in `plugin.json` against current Claude Code
-> docs when you wire the real server.
+Optional company registry:
 
-## Vendoring upstream skills
+```yaml
+# .hikspine/registries/company.yaml
+id: company
+version: 1
+skills:
+  company.knowledge:
+    ref: company-knowledge
+    description: Query company knowledge and platform rules.
+    sideEffects: []
+```
 
-OpenSpec and Superpowers are open source but distribute through their own
-installers, not plain git subpaths. `sync-upstream.sh` stages each via its
-official installer into a throwaway `.claude/`, then snapshots the generated
-skill/command dirs into this repo. Re-running picks up upstream's latest.
+## Verification
 
 ```bash
-npm run sync            # refresh all vendored skills, update VENDOR.lock.json
-npm run sync:check      # report whether upstream changed, write nothing
-bash scripts/sync-upstream.sh superpowers   # one vendor only
+npm test
 ```
-
-**Vendored dirs under `skills/` are read-only mirrors.** Never hand-edit them —
-the next sync overwrites. Layer any customization as a separate hikspine skill.
-Pinned versions are recorded in `VENDOR.lock.json`; source refs live in
-`vendor.config.json` (set a vendor's `ref` to a tag/commit to pin, or `latest`
-to track upstream).
-
-**OpenSpec profile**: `vendor.config.json` requests OpenSpec's expanded
-(`custom`) profile via a `workflows` list, so the sync pulls the full skill set —
-including `openspec-new-change` and `openspec-verify-change`. Drop the
-`workflows` field (or set `profile: core`) for the minimal explore/propose set.
-
-## Workflow model
-
-A run is a sequence of phases. Each **preset** (under
-`skills/hikspine/presets/*.json`) declares the phase order, which skill owns each
-phase, the guard that must pass to leave it, and the next/failure transitions.
-The shell state machine is a generic interpreter of these presets — adding a
-workflow means adding a preset file, not changing code.
-
-The bundled `feature` preset is **brainstorm-first**:
-`design → open → build → verify → archive` (Superpowers brainstorming runs first,
-then OpenSpec formalizes the result). `hotfix`/`tweak` skip design:
-`open → build → verify → archive`.

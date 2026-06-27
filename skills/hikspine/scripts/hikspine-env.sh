@@ -1,26 +1,44 @@
 #!/bin/bash
-# hikspine script locator — source this file to export paths to bundled scripts.
+# hikspine runtime locator; source this file to export paths to bundled scripts.
 #
 # Usage:
-#   . "${CLAUDE_PLUGIN_ROOT}/skills/hikspine/scripts/hikspine-env.sh"
+#   If you already know the plugin root:
+#     HIKSPINE_PLUGIN_ROOT="/path/to/hikspine"
+#     . "$HIKSPINE_PLUGIN_ROOT/skills/hikspine/scripts/hikspine-env.sh"
+#   If CLAUDE_PLUGIN_ROOT may be empty, use the locator snippet in
+#   skills/hikspine/SKILL.md.
 #
-# Unlike comet (which scanned the filesystem with `find`), hikspine is a Claude
-# Code plugin: scripts self-locate from this file's own directory, and callers
-# can use ${CLAUDE_PLUGIN_ROOT} to reach this file. Do not set global shell
-# options here (this file is sourced).
+# Hikspine's engine is plugin-level runtime code under bin/, not skill-level
+# code. This file remains as a tiny compatibility locator for skills/hooks.
 
 _hs_env_source="${BASH_SOURCE[0]:-$0}"
 _hs_dir="$(cd "$(dirname "$_hs_env_source")" && pwd -P)"
+_hs_plugin_root="$(cd "${_hs_dir}/../../.." && pwd -P)"
 _hs_env_sourced=0
 (return 0 2>/dev/null) && _hs_env_sourced=1
 
-export HIKSPINE_STATE="${HIKSPINE_STATE:-${_hs_dir}/hikspine-state.sh}"
-export HIKSPINE_GUARD="${HIKSPINE_GUARD:-${_hs_dir}/hikspine-guard.sh}"
-export HIKSPINE_PRESET_JS="${HIKSPINE_PRESET_JS:-${_hs_dir}/hikspine-preset.mjs}"
-export HIKSPINE_CONFIG_JS="${HIKSPINE_CONFIG_JS:-${_hs_dir}/hikspine-config.mjs}"
-export HIKSPINE_PRESETS_DIR="${HIKSPINE_PRESETS_DIR:-$(cd "${_hs_dir}/.." && pwd -P)/presets}"
+_hs_normalize_root() {
+  local root="$1"
+  root="${root//\\//}"
+  while [ "${#root}" -gt 1 ]; do
+    case "$root" in
+      */) root="${root%/}" ;;
+      *) break ;;
+    esac
+  done
+  printf '%s\n' "$root"
+}
 
-# --- Resolve a usable bash (Windows Git Bash quirks mirror comet's logic) ---
+_hs_root_input="${HIKSPINE_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$_hs_plugin_root}}"
+_hs_root_norm="$(_hs_normalize_root "$_hs_root_input")"
+
+export HIKSPINE_PLUGIN_ROOT="$_hs_root_norm"
+export HIKSPINE_ENGINE="${HIKSPINE_ENGINE:-${HIKSPINE_PLUGIN_ROOT}/bin/hikspine.mjs}"
+export HIKSPINE_GUARD="${HIKSPINE_GUARD:-${HIKSPINE_PLUGIN_ROOT}/hooks/guard.mjs}"
+export HIKSPINE_WORKFLOWS_DIR="${HIKSPINE_WORKFLOWS_DIR:-${HIKSPINE_PLUGIN_ROOT}/builtin/workflows}"
+export HIKSPINE_RULES_DIR="${HIKSPINE_RULES_DIR:-${HIKSPINE_PLUGIN_ROOT}/rules}"
+
+# Resolve a usable bash on Windows, Git Bash, WSL, and Unix-like shells.
 
 _hs_bash_is_usable() {
   local cand="$1"
@@ -51,7 +69,7 @@ if [ -z "$HIKSPINE_BASH" ]; then
   echo "ERROR: usable bash not found. Install Git Bash or set HIKSPINE_BASH." >&2
   _hs_env_missing=1
 fi
-for _hs_script in "$HIKSPINE_STATE" "$HIKSPINE_PRESET_JS" "$HIKSPINE_CONFIG_JS"; do
+for _hs_script in "$HIKSPINE_ENGINE"; do
   if [ ! -f "$_hs_script" ]; then
     echo "ERROR: hikspine script not found: $_hs_script" >&2
     echo "Ensure the hikspine plugin is installed completely." >&2
@@ -61,11 +79,11 @@ for _hs_script in "$HIKSPINE_STATE" "$HIKSPINE_PRESET_JS" "$HIKSPINE_CONFIG_JS";
 done
 
 if [ "$_hs_env_missing" -ne 0 ]; then
-  unset _hs_env_source _hs_dir _hs_script _hs_env_missing
-  unset -f _hs_bash_is_usable _hs_resolve_bash
+  unset _hs_env_source _hs_dir _hs_plugin_root _hs_root_input _hs_root_norm _hs_script _hs_env_missing
+  unset -f _hs_bash_is_usable _hs_resolve_bash _hs_normalize_root
   if [ "$_hs_env_sourced" -eq 1 ]; then unset _hs_env_sourced; return 1; fi
   exit 1
 else
-  unset _hs_env_source _hs_dir _hs_script _hs_env_missing _hs_env_sourced
-  unset -f _hs_bash_is_usable _hs_resolve_bash
+  unset _hs_env_source _hs_dir _hs_plugin_root _hs_root_input _hs_root_norm _hs_script _hs_env_missing _hs_env_sourced
+  unset -f _hs_bash_is_usable _hs_resolve_bash _hs_normalize_root
 fi

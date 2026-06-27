@@ -33,8 +33,7 @@
         "onboard"
       ],
       "capture": [
-        { "from": ".claude/skills", "to": "skills" },
-        { "from": ".claude/commands", "to": "commands" }
+        { "from": ".claude/skills", "to": "skills" }
       ]
     }
   ]

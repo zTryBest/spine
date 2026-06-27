@@ -2,12 +2,13 @@
   "name": "hikspine",
   "version": "0.1.0",
   "private": true,
-  "description": "Phase-guarded, preset-driven Claude Code workflow plugin (not published to npm)",
+  "description": "Skill-first Claude Code workflow kernel plugin (not published to npm)",
   "type": "module",
   "scripts": {
     "sync": "bash scripts/sync-upstream.sh",
     "sync:check": "bash scripts/sync-upstream.sh --check",
-    "test": "bash test/state-machine.test.sh && bash test/hook-guard.test.sh"
+    "test": "bash test/workflow-kernel.test.sh",
+    "test:engine": "bash test/workflow-kernel.test.sh"
   },
   "engines": {
     "node": ">=20.19.0"

@@ -1,0 +1,259 @@
+# hikspine
+
+面向 Claude Code 的 skill-first 工作流内核。
+
+Hikspine 用来降低 AI 编程流程漂移：它会明确当前阶段、当前节点、建议或必须使用的 skill，以及哪些机器可检查的产物契约还没满足。它以 Claude Code plugin 形式分发，但用户入口是 **skill**，不是 slash-command 文件。
+
+## 当前结构
+
+```text
+skills/hikspine/SKILL.md
+  用户入口。用户可以输入 "/hs ..." 或 "用 hikspine ..." 触发这个 skill。
+
+bin/hikspine.mjs
+  很薄的公开 CLI。Agent 主协议只有 next。
+
+lib/store.mjs
+  配置、workflow 加载、状态文件位置、active change。
+
+lib/checks.mjs
+  机器可检查的 exit checks 和 guard 判断。
+
+lib/transitions.mjs
+  自动节点/阶段流转。
+
+lib/rules.mjs
+  把插件内置 Markdown 规则幂等分发到项目 `.claude/rules`。
+
+builtin/workflows/
+  内置工作流：feature、simple-fix、hotfix、new-project。
+
+rules/
+  插件作者维护的项目规则，会被复制到 `.claude/rules`。
+
+hooks/guard.mjs
+  Claude Code PreToolUse hook 桥接，直接调用 guard 逻辑。
+```
+
+仓库里不再提供 Claude command 文件。`/hs` 只是触发 `hikspine` skill 的文本约定。
+
+## 安装
+
+通过团队的 Claude Code plugin marketplace 或本地 plugin source 安装这个仓库。
+
+如果工作流使用 OpenSpec 产物，OpenSpec CLI 仍需要在 PATH 中可用。
+
+不需要项目初始化。用户第一次在项目里调用 `hikspine next` 时，Hikspine 会创建 `.claude/rules`，并把插件 `rules/` 目录下的 Markdown 规则复制进去。插件规则更新时，未被本地修改过的托管规则会自动更新；项目侧手改过的规则不会被覆盖。
+
+Claude Code 的无路径 `.claude/rules` 通常在 session 启动时加载，所以如果规则是在当前 session 开始后才创建的，不能只依赖自动加载。`next --json` 在复制或更新规则时会返回 `projectRules.readNow`；`hikspine` skill 会要求 Agent 立刻读取这些路径，让当前 session 也生效。
+
+## 用户怎么用
+
+用户可以直接在 Claude Code 里说：
+
+```text
+/hs start entrance-monitor with workflow <workflow-id>
+```
+
+Claude 应加载 `hikspine` skill，然后运行：
+
+```bash
+_hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
+_hs_env_file=""
+for r in "${HIKSPINE_PLUGIN_ROOT:-}" "${CLAUDE_PLUGIN_ROOT:-}" "$(pwd)" "$(git rev-parse --show-toplevel 2>/dev/null || true)"; do
+  r="$(_hs_norm_root "$r")"
+  if [ -n "$r" ] && [ -f "$r/skills/hikspine/scripts/hikspine-env.sh" ]; then
+    _hs_env_file="$r/skills/hikspine/scripts/hikspine-env.sh"
+    break
+  fi
+done
+if [ -z "$_hs_env_file" ]; then
+  for b in "${HOME:-}" "${USERPROFILE:-}" "${APPDATA:-}" "${LOCALAPPDATA:-}" "/mnt/c/Users" "/mnt/d" "/mnt/e"; do
+    [ -n "$b" ] || continue
+    f="$(find "$b" -maxdepth 10 -path '*/skills/hikspine/scripts/hikspine-env.sh' -print -quit 2>/dev/null || true)"
+    if [ -n "$f" ]; then _hs_env_file="$f"; break; fi
+  done
+fi
+[ -n "$_hs_env_file" ] || { echo "ERROR: cannot locate hikspine-env.sh; set HIKSPINE_PLUGIN_ROOT to the hikspine plugin root." >&2; exit 1; }
+. "$_hs_env_file" || exit 1
+unset _hs_env_file f r b
+unset -f _hs_norm_root
+node "$HIKSPINE_ENGINE" next entrance-monitor --workflow <workflow-id> --json
+```
+
+注意：Bash 工具每次调用都是新的 shell。定位 runtime 和执行 `node "$HIKSPINE_ENGINE" ...` 必须放在同一次 Bash 调用里；不要先单独 source，再在下一次 Bash 调用里读取环境变量。
+
+不需要项目初始化。如果状态不存在，`next <change> --workflow <id>` 会懒创建状态。
+同一次 `next` 调用也会确保项目 `.claude/rules` 已存在并包含插件分发的规则。
+如果本次调用复制或更新了规则，JSON 响应会包含 `projectRules.readNow`。
+
+## next 协议
+
+主循环只有 `next`：
+
+```text
+Agent 调 next
+引擎观察文件、目录和检查项
+引擎自动推进已经完成的节点
+引擎返回当前卡住的节点
+Agent 使用相关 skill 并产生产物
+Agent 再调 next
+```
+
+引擎不再要求 Agent 写 `no_open_questions=true` 这类语义事实，也不需要 Agent 调 `complete/advance`。流程只根据机器可检查的 `exit.checks` 推进。
+
+## 内置工作流
+
+- `feature`：`open -> design -> build -> review -> verify -> archive`
+- `simple-fix`：`inspect -> fix -> verify`
+- `hotfix`：`inspect -> patch -> verify`
+- `new-project`：`open -> design -> scaffold -> build -> review -> verify`
+
+自定义 workflow 是一等入口。把 workflow 放到：
+
+```text
+.hikspine/workflows/<workflow-id>.yaml
+```
+
+然后运行：
+
+```bash
+node "$HIKSPINE_ENGINE" next <change> --workflow <workflow-id> --json
+```
+
+也可以设置项目默认：
+
+```yaml
+# .hikspine/config.yaml
+version: 1
+defaultWorkflow: <workflow-id>
+```
+
+`feature` 和 `new-project` 默认基于 OpenSpec，状态文件放在：
+
+```text
+openspec/changes/<change>/.hikspine.yaml
+```
+
+`simple-fix` 和 `hotfix` 默认更轻量，状态文件放在：
+
+```text
+.hikspine/changes/<change>.yaml
+```
+
+## Workflow v2
+
+工作流把 Agent 指导和引擎硬门禁分开：
+
+```yaml
+inputs:
+  required:
+    - key: proposal
+      path: openspec/changes/{change}/proposal.md
+      useBefore: [brainstorming]
+    - key: tasks
+      path: openspec/changes/{change}/tasks.md
+      useBefore: [brainstorming]
+    - key: specs
+      path: openspec/changes/{change}/specs
+      useBefore: [brainstorming]
+skills:
+  required: [brainstorming]
+  recommended: [company.knowledge, company.platform-design]
+  output: [openspec.design]
+agent:
+  rules:
+    - Read proposal.md, tasks.md, and specs/ before running brainstorming.
+    - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+outputs:
+  - key: design_doc
+    path: openspec/changes/{change}/design.md
+exit:
+  checks:
+    - file.exists: openspec/changes/{change}/design.md
+    - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
+    - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
+```
+
+`inputs.required` 告诉 Agent 某个 skill 运行前必须读取哪些上下文。`skills.required` 告诉 Agent 必须使用什么能力。如果 Claude Code 没有暴露 skill 调用 trace，引擎不会假装自己能验证“skill 是否真的被调用”。真正阻塞流转的是 `exit.checks` 里的可观测产物契约。
+
+后续阶段也沿用同一个约定，不要在引擎里给每个阶段写兜底。比如 build 节点应该把 `design.md` 声明为 planning 的输入，再给 planning step 写 `exit.checks`，这样实现步骤不会早于计划产物开始。如果后续阶段依赖前序阶段的产物契约，就在后续阶段 YAML 里重复关键检查；这样恢复会话或升级 workflow 时，行为仍然显式，而不是写死在引擎里。
+
+## Feature 设计阶段
+
+`feature` 的 design 阶段要求：
+
+- 先运行 brainstorming，再选择设计方向。
+- brainstorming 前必须先读取 `proposal.md`、`tasks.md` 和 `specs/`。
+- 涉及公司框架、组件、平台、中间件、权限、监控、发布或历史系统时，先咨询 `company.knowledge`。
+- 需要平台或脚手架判断时，使用 `company.platform-design`。
+- 把头脑风暴结论、备选方案、最终方向、公司约束和开放问题写入 OpenSpec design.md。
+
+引擎只检查：
+
+```text
+openspec/changes/<change>/design.md 存在
+包含 Inputs Reviewed
+包含 Brainstorming
+包含 Questions From OpenSpec
+包含 Options Considered
+包含 Tradeoffs
+包含 Selected Direction
+包含 Company Constraints
+包含 Open Questions
+包含 proposal.md、tasks.md 和 specs 路径引用
+```
+
+引擎不判断内容好坏，只判断契约是否落地。
+
+## 支持的检查
+
+当前支持：
+
+- `file.exists`
+- `dir.exists`
+- `artifact.exists`
+- `file.contains`
+- `file.contains_regex`
+- `file.contains_heading`
+- `file.contains_headings`
+- `git.has_changes`
+- `git.has_source_changes`
+- `always.false`
+
+## 项目自定义
+
+可选项目配置：
+
+```yaml
+# .hikspine/config.yaml
+version: 1
+defaultWorkflow: <workflow-id>
+registries:
+  - .hikspine/registries/company.yaml
+guard:
+  sourceRoots:
+    - src/
+    - app/
+```
+
+可选公司 skill registry：
+
+```yaml
+# .hikspine/registries/company.yaml
+id: company
+version: 1
+skills:
+  company.knowledge:
+    ref: company-knowledge
+    description: Query company knowledge and platform rules.
+    sideEffects: []
+```
+
+## 验证
+
+```bash
+npm test
+```

@@ -34,8 +34,7 @@
         "skills/openspec-onboard",
         "skills/openspec-propose",
         "skills/openspec-sync-specs",
-        "skills/openspec-verify-change",
-        "commands/opsx"
+        "skills/openspec-verify-change"
       ]
     }
   }

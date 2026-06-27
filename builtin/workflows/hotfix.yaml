@@ -1,0 +1,65 @@
+id: hotfix
+version: 2
+name: Hotfix
+
+phases:
+  - id: inspect
+    goal: Confirm the production issue and patch scope.
+    nodes:
+      - id: inspect.hotfix
+        type: agent-loop
+        required: true
+        objective: Confirm urgency, root symptom, affected area, and rollback/risk constraints.
+        skills:
+          recommended: [superpowers.inspect, company.knowledge]
+        agent:
+          rules:
+            - Consult company.knowledge when the issue touches production systems, release rules, monitoring, permissions, or historical incidents.
+        outputs:
+          - key: inspect_notes
+            path: .hikspine/changes/{change}.inspect.md
+        exit:
+          checks:
+            - file.exists: .hikspine/changes/{change}.inspect.md
+
+  - id: patch
+    goal: Apply the smallest production-safe patch.
+    nodes:
+      - id: patch.apply
+        type: skill
+        required: true
+        skill: superpowers.implement
+        task: Apply the smallest production-safe patch.
+        outputs:
+          - key: patch_notes
+            path: .hikspine/changes/{change}.patch.md
+        exit:
+          checks:
+            - file.exists: .hikspine/changes/{change}.patch.md
+
+  - id: verify
+    goal: Verify the patch and release readiness.
+    nodes:
+      - id: verify.hotfix
+        type: skill-sequence
+        required: true
+        skills:
+          recommended: [company.security]
+          required: [superpowers.verify]
+        steps:
+          - skill: company.security
+            task: Check quick hotfix risk when relevant.
+          - skill: superpowers.verify
+            task: Run focused verification.
+        outputs:
+          - key: verify_report
+            path: .hikspine/changes/{change}.verify.md
+        exit:
+          checks:
+            - file.exists: .hikspine/changes/{change}.verify.md
+
+fallbacks:
+  - from: verify
+    when:
+      file.contains_regex: { path: .hikspine/changes/{change}.verify.md, pattern: "result:\\s*fail" }
+    to: patch

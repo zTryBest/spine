@@ -1,0 +1,23 @@
+id: company
+version: 1
+
+skills:
+  company.knowledge:
+    ref: company-knowledge
+    description: Query company knowledge, platform rules, historical decisions, and business terminology.
+    sideEffects: []
+
+  company.platform-design:
+    ref: company-platform-design
+    description: Check framework, component reuse, scaffold, API, data, permissions, monitoring, release, and platform constraints.
+    sideEffects: []
+
+  company.review:
+    ref: company-review
+    description: Review code against company engineering standards.
+    sideEffects: []
+
+  company.security:
+    ref: company-security
+    description: Review security, compliance, permission, data, logging, and interface risks.
+    sideEffects: []

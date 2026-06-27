@@ -1,0 +1,193 @@
+id: feature
+version: 2
+name: Feature Development
+
+phases:
+  - id: open
+    goal: Clarify the change and create OpenSpec artifacts.
+    guard:
+      forbid: [write-source]
+    nodes:
+      - id: open.openspec
+        type: skill-sequence
+        required: true
+        skills:
+          required: [openspec-explore, openspec-propose]
+        steps:
+          - skill: openspec-explore
+            task: Clarify requirements and unknowns.
+          - skill: openspec-propose
+            task: Create or update proposal.md, tasks.md, and specs.
+        outputs:
+          - key: proposal
+            path: openspec/changes/{change}/proposal.md
+          - key: tasks
+            path: openspec/changes/{change}/tasks.md
+          - key: specs
+            path: openspec/changes/{change}/specs
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/proposal.md
+            - file.exists: openspec/changes/{change}/tasks.md
+            - dir.exists: openspec/changes/{change}/specs
+
+  - id: design
+    goal: Explore the technical path and document an implementable design.
+    guard:
+      forbid: [write-source]
+    nodes:
+      - id: design.explore
+        type: agent-loop
+        required: true
+        objective: Compare approaches, resolve open questions, and write the selected direction into OpenSpec design.md.
+        inputs:
+          required:
+            - key: proposal
+              path: openspec/changes/{change}/proposal.md
+              useBefore: [brainstorming]
+            - key: tasks
+              path: openspec/changes/{change}/tasks.md
+              useBefore: [brainstorming]
+            - key: specs
+              path: openspec/changes/{change}/specs
+              useBefore: [brainstorming]
+        skills:
+          required: [brainstorming]
+          recommended: [company.knowledge, company.platform-design]
+          output: [openspec.design]
+        agent:
+          rules:
+            - Read proposal.md, tasks.md, and specs/ before running brainstorming.
+            - Treat OpenSpec open-phase artifacts as the source of truth for brainstorming.
+            - Run brainstorming before selecting a design direction; derive questions, options, and tradeoffs from the required inputs.
+            - Consult company.knowledge before making company framework, component, platform, middleware, permission, monitoring, release, or historical-system claims.
+            - Write inputs reviewed, questions from OpenSpec, options considered, tradeoffs, selected direction, company constraints, and open questions into OpenSpec design.md.
+            - Ask the user before moving on if meaningful open questions remain.
+        outputs:
+          - key: design_doc
+            path: openspec/changes/{change}/design.md
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/design.md
+            - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
+            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
+
+  - id: build
+    goal: Implement the design and self-check the result.
+    nodes:
+      - id: build.implement
+        type: skill-sequence
+        required: true
+        inputs:
+          required:
+            - key: design_doc
+              path: openspec/changes/{change}/design.md
+              useBefore: [superpowers.plan, superpowers.implement]
+            - key: proposal
+              path: openspec/changes/{change}/proposal.md
+              useBefore: [superpowers.plan]
+            - key: tasks
+              path: openspec/changes/{change}/tasks.md
+              useBefore: [superpowers.plan]
+            - key: specs
+              path: openspec/changes/{change}/specs
+              useBefore: [superpowers.plan]
+        skills:
+          required: [superpowers.plan, superpowers.implement]
+        agent:
+          rules:
+            - Read design.md and OpenSpec artifacts before creating an implementation plan.
+            - Do not write source before implementation.md contains the implementation plan.
+            - Treat design.md selected direction and tradeoffs as the build source of truth.
+        steps:
+          - skill: superpowers.plan
+            task: Create an implementation plan from design.md, proposal.md, tasks.md, and specs/.
+            exit:
+              checks:
+                - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Questions From OpenSpec, Options Considered, Tradeoffs, Selected Direction, Company Constraints, Open Questions] }
+                - file.exists: openspec/changes/{change}/implementation.md
+                - file.contains_headings: { path: openspec/changes/{change}/implementation.md, headings: [Inputs Reviewed, Implementation Plan, Source Change Plan, Verification Plan] }
+                - file.contains: { path: openspec/changes/{change}/implementation.md, text: openspec/changes/{change}/design.md }
+                - file.contains: { path: openspec/changes/{change}/implementation.md, text: openspec/changes/{change}/tasks.md }
+          - skill: superpowers.implement
+            task: Implement the plan and update OpenSpec tasks when appropriate.
+            exit:
+              checks:
+                - file.contains_heading: { path: openspec/changes/{change}/implementation.md, heading: Implementation Notes }
+        outputs:
+          - key: implementation_notes
+            path: openspec/changes/{change}/implementation.md
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/implementation.md
+            - file.contains_headings: { path: openspec/changes/{change}/implementation.md, headings: [Inputs Reviewed, Implementation Plan, Source Change Plan, Implementation Notes, Verification Plan] }
+
+  - id: review
+    goal: Review the implementation before final verification.
+    nodes:
+      - id: review.quality
+        type: skill-sequence
+        required: true
+        skills:
+          required: [superpowers.review]
+          recommended: [company.review, company.security]
+        steps:
+          - skill: superpowers.review
+            task: Review correctness and maintainability.
+          - skill: company.review
+            task: Review against company engineering standards when relevant.
+          - skill: company.security
+            task: Review security and compliance risks when relevant.
+        outputs:
+          - key: review_report
+            path: openspec/changes/{change}/review.md
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/review.md
+
+  - id: verify
+    goal: Verify behavior, OpenSpec coverage, and branch readiness.
+    nodes:
+      - id: verify.acceptance
+        type: skill-sequence
+        required: true
+        skills:
+          required: [superpowers.verify, openspec.verify]
+        steps:
+          - skill: superpowers.verify
+            task: Run focused verification.
+          - skill: openspec.verify
+            task: Verify the OpenSpec change.
+        outputs:
+          - key: verification_report
+            path: openspec/changes/{change}/verification.md
+        exit:
+          checks:
+            - file.exists: openspec/changes/{change}/verification.md
+
+  - id: archive
+    goal: Archive the completed change after user confirmation.
+    guard:
+      forbid: [write-source]
+    nodes:
+      - id: archive.openspec
+        type: skill
+        required: true
+        skill: openspec.archive
+        task: Archive the OpenSpec change after user confirmation.
+        exit:
+          checks:
+            - always.false: "Archive requires explicit user confirmation and is not auto-completed by Hikspine."
+
+fallbacks:
+  - from: review
+    when:
+      file.contains_regex: { path: openspec/changes/{change}/review.md, pattern: "result:\\s*fail" }
+    to: build
+
+  - from: verify
+    when:
+      file.contains_regex: { path: openspec/changes/{change}/verification.md, pattern: "result:\\s*fail" }
+    to: build

@@ -10,7 +10,7 @@
     {
       "name": "hikspine",
       "source": "./",
-      "description": "Phase-guarded, preset-driven dev workflow. Unified entry: /hikspine (alias /hs)."
+      "description": "Skill-first workflow kernel for phased AI coding in Claude Code."
     }
   ]
 }

@@ -1,143 +1,147 @@
 ---
 name: hikspine
-description: "hikspine — 预设驱动、阶段守卫的开发流程，封装 OpenSpec（WHAT）与 Superpowers（HOW）。用 /hikspine（别名 /hs）启动，自动检测阶段并分发。阶段序列来自当前 change 的预设（feature/hotfix/tweak），不写死在脚本里。"
+description: "Use when the user says /hs, hikspine, or asks to run a phased AI coding workflow. Hikspine is a Claude Code skill workflow kernel: it decides the current phase/node, tells Claude which skills to use, checks observable artifacts, and advances the workflow through a plugin-level runtime."
 ---
 
-# hikspine — 预设驱动的开发流程
+# Hikspine
 
-OpenSpec 与 Superpowers 围绕同一目标协同。阶段序列、退出守卫、转换副作用**都不写死**——它们来自当前 change 的预设 `presets/<workflow>.json`，状态机 `hikspine-state.sh` 是这些预设的通用解释器。
+Hikspine is a workflow kernel for Claude Code. It keeps AI coding work from drifting by making the current phase, node, expected skills, and machine-checkable exit checks explicit.
 
-```
-OpenSpec 负责 WHAT  — 提案、spec 生命周期、归档
-Superpowers 负责 HOW — brainstorming、计划、TDD、执行、review
-```
+Hikspine is not a slash command package. Treat `/hs ...` in user text as a natural-language trigger for this skill.
 
-**核心原则： 预设下 brainstorming/深度设计必不可跳过；`hotfix`/`tweak` 预设可以跳过设计。**
+## Runtime
 
----
-
-## 决策核心（Decision Core）
-
-agent 做决策只需读本节。
-
-### 输出语言规则
-
-以触发本次工作流的用户请求语言作为默认输出语言。恢复已有 change 时，如果现有产物有明确主语言，除非用户明确要求切换，否则保持该语言。
-
-### Step 0 — 脚本 bootstrap（每会话执行一次）
-
-hikspine 是 Claude Code 插件，脚本在插件根目录下。source 定位器一次，后续复用导出的变量，并始终通过 `"$HIKSPINE_BASH"` 调用脚本。
+Source the runtime locator before calling the engine:
 
 ```bash
-. "${CLAUDE_PLUGIN_ROOT}/skills/hikspine/scripts/hikspine-env.sh"
-# 导出：HIKSPINE_BASH、HIKSPINE_STATE、HIKSPINE_PRESET_JS、HIKSPINE_PRESETS_DIR
-if [ -z "${HIKSPINE_STATE:-}" ]; then
-  echo "ERROR: 未找到 hikspine 脚本，请确认 hikspine 插件已完整安装。" >&2
+_hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
+_hs_env_file=""
+for r in "${HIKSPINE_PLUGIN_ROOT:-}" "${CLAUDE_PLUGIN_ROOT:-}" "$(pwd)" "$(git rev-parse --show-toplevel 2>/dev/null || true)"; do
+  r="$(_hs_norm_root "$r")"
+  if [ -n "$r" ] && [ -f "$r/skills/hikspine/scripts/hikspine-env.sh" ]; then
+    _hs_env_file="$r/skills/hikspine/scripts/hikspine-env.sh"
+    break
+  fi
+done
+if [ -z "$_hs_env_file" ]; then
+  for b in "${HOME:-}" "${USERPROFILE:-}" "${APPDATA:-}" "${LOCALAPPDATA:-}" "/mnt/c/Users" "/mnt/d" "/mnt/e"; do
+    [ -n "$b" ] || continue
+    f="$(find "$b" -maxdepth 10 -path '*/skills/hikspine/scripts/hikspine-env.sh' -print -quit 2>/dev/null || true)"
+    if [ -n "$f" ]; then _hs_env_file="$f"; break; fi
+  done
 fi
+[ -n "$_hs_env_file" ] || { echo "ERROR: cannot locate hikspine-env.sh; set HIKSPINE_PLUGIN_ROOT to the hikspine plugin root." >&2; exit 1; }
+. "$_hs_env_file" || exit 1
+unset _hs_env_file f r b
+unset -f _hs_norm_root
 ```
 
-### Step 1 — 活跃 change 发现与意图判定
+Do not assemble paths from `CLAUDE_PLUGIN_ROOT` by hand. It may be empty, may have a trailing slash, and may be a Windows path inside Git Bash or WSL.
+Source the runtime and call `node "$HIKSPINE_ENGINE" ...` in the same Bash tool invocation; environment variables do not persist across separate Bash calls.
 
-1. **Preset 检测优先级最高。** 用户明确描述为满足 hotfix 条件的 bug fix、或满足 tweak 条件的文案/配置/文档微调时，直接用对应预设创建 change。
-2. 否则运行 `openspec list --json` 枚举所有活跃 change。
+## Main Protocol
 
-| 活跃 change | 用户输入 | 行为 |
-|-------------|---------|------|
-| 无 | 非 preset 输入 | → 创建新 change（Step 2，`feature` 预设） |
-| 恰好 1 个 | `/hikspine <描述>` | → **询问**：继续该变更 or 创建新变更 |
-| 多个 | `/hikspine <描述>` | → **询问**：继续现有（列出清单）or 创建新变更 |
-| 恰好 1 个 | `/hikspine`（无描述） | → 自动选中，进入 Step 3 |
-| 多个 | `/hikspine`（无描述） | → 列出清单让用户选择 |
-
-### Step 2 — 创建新 change
-
-**2a. 确认 change 名称（阻塞点）。** init 必须先有名称，所以**在创建前**暂停让用户决定 change 名称，不得自动生成或静默推断。名称必须是 **kebab-case 英文**（小写字母、数字、连字符，如 `refine-requirements-doc`）。暂停时给出 2-3 个基于用户描述的推荐名（各附一行范围说明）+ 允许自定义；若用户输入中文或非 kebab-case，转换为合规英文名并回显确认。名称与已有 change 冲突时请用户另选。
-
-**2b. 初始化状态。** 名称确认后：
+Use `next` as the only workflow loop command:
 
 ```bash
-"$HIKSPINE_BASH" "$HIKSPINE_STATE" init <change-name> <feature|hotfix|tweak>
+node "$HIKSPINE_ENGINE" next <change-name> --workflow <workflow-id> --json
+node "$HIKSPINE_ENGINE" next <change-name> --json
 ```
 
-`init` 依据预设写出 `.hikspine.yaml`（phase = **首个阶段**、预设默认值、运行时字段），并创建 change 目录。注意 **feature 预设首个阶段是 design（头脑风暴优先）**，hotfix/tweak 首个阶段是 open。
+`next` observes current artifacts, advances any completed nodes automatically, and returns the next blocked node. There is no project init step and no manual `fact`, `artifact`, `complete`, or `advance` protocol.
 
-**2c. 分发。** 运行 `next <change-name>` 并按 `SKILL:` 行加载第一个阶段 skill（feature → `hikspine-design`；hotfix/tweak → `hikspine-open`）。init 由本步骤统一负责，阶段 skill 不再重复 init。
+The first `next` call in a project also ensures `.claude/rules` exists and copies Markdown rules from the plugin `rules/` directory. Managed rules update when the plugin copy changes; locally edited project rules are not overwritten.
 
-### Step 3 — 读状态并路由
+Claude Code loads unscoped `.claude/rules` at session startup, so rules created after the session has already started may not be in context automatically. If `next --json` returns `projectRules.readNow`, immediately read those files before acting on the returned workflow node.
 
-```bash
-"$HIKSPINE_BASH" "$HIKSPINE_STATE" phase <change-name>   # 当前阶段
-"$HIKSPINE_BASH" "$HIKSPINE_STATE" next  <change-name>   # 该阶段归属哪个 skill
+Workflow selection:
+
+- If the user names a workflow, pass that id to `--workflow`.
+- If the project has `.hikspine/config.yaml` with `defaultWorkflow`, omit `--workflow` and let the engine use it.
+- If the project defines `.hikspine/workflows/<id>.yaml`, use `<id>` exactly; do not edit this skill for new workflows.
+- Builtin examples include `feature`, `simple-fix`, `hotfix`, and `new-project`.
+
+Only infer a builtin workflow when the user does not name one and the project has no default.
+
+## How To Act On `next`
+
+Read the JSON fields:
+
+- `phase`, `node`, `objective`: where the workflow is blocked.
+- `nextSkill`: the next direct skill for `skill` or `skill-sequence` nodes.
+- `requiredInputs`: files or directories that must be read before running listed skills.
+- `requiredSkills`: skills the workflow expects before this node is considered properly executed.
+- `recommendedSkills`: skills to consult when relevant; these are guidance, not hard gates.
+- `outputSkills`: skills expected to write or update workflow artifacts.
+- `outputs`: files or directories the node expects.
+- `missing`: machine-checkable exit checks that are still failing.
+- `projectRules.readNow`: project rule files synced during this `next` call; read them immediately so they affect this session.
+- `agent.rules`: natural-language execution rules for the current node.
+
+First read every `requiredInputs` item, especially entries whose `useBefore` names the skill you are about to run. Then do the work with the relevant skills and produce the expected artifacts. Call `next` again; the engine will inspect the artifacts and move forward if the checks pass.
+
+## Language Rule
+
+Detect the language of the user's current workflow request. Use that language for user-facing explanations, clarification questions, summaries, and generated workflow artifacts unless the user explicitly asks for another language or an existing project artifact clearly establishes a different language. If the user switches language later, follow the newest explicit user language. Keep code identifiers, commands, file paths, API names, and quoted source text unchanged.
+
+## Feature Design Rule
+
+For `feature` design, read the OpenSpec open-phase artifacts before running brainstorming:
+
+```text
+openspec/changes/<change>/proposal.md
+openspec/changes/<change>/tasks.md
+openspec/changes/<change>/specs
 ```
 
-`next` 输出 `NEXT: auto|manual|done` 和 `SKILL: <name>`，据此路由。phase→skill 映射在预设里，**不在本文件硬编码**。
+Then run brainstorming from those inputs before selecting the design direction, and write the questions, options, tradeoffs, and conclusions back into OpenSpec design.md through the OpenSpec design/propose skill.
 
-**断点恢复规则**（每次恢复上下文都重跑 Step 0–1，不依赖对话历史）：
-- `next` 输出 `NEXT: done`（已归档）→ 流程完成。
-- `phase: verify` 且 `verify_result: fail` → 验证失败阻塞点：暂停询问用户修复还是接受偏差。仅当用户选「修复」后才运行 `transition <name> fail` 并路由到 build。
-- 其他情况分发到 `next` 给出的 skill。
-- **续传辅助**：进入某阶段前可运行 `"$HIKSPINE_BASH" "$HIKSPINE_STATE" step-list <name>` 查看该阶段已 done/skipped/failed 的步骤，避免重复执行已完成的 step（各步骤驱动 skill 用 `step-record` 记录）。
+The engine does not judge whether the design is "good" and does not trust self-reported semantic done flags. It checks that this file exists:
 
-### 阶段推进协议
-
-每个阶段 skill 退出前运行带守卫的转换：
-
-```bash
-"$HIKSPINE_BASH" "$HIKSPINE_STATE" transition <change-name> complete   # 推进
-"$HIKSPINE_BASH" "$HIKSPINE_STATE" transition <change-name> fail       # 回退（如 verify 失败）
+```text
+openspec/changes/<change>/design.md
 ```
 
-- `transition complete` 先跑当前阶段的**退出守卫**（预设里声明的 artifacts + 状态证据）。守卫失败会打印 `[FAIL]` 原因且**不推进**——去补齐证据，不要强改 phase。
-- 转换成功后运行 `next <change-name>` 决定是否自动调用下一 skill（`NEXT: auto`）或暂停（`NEXT: manual`，当 `auto_transition: false`）。**phase 推进始终发生；`auto_transition` 只控制是否自动调用下一个 skill。**
-- 仅用于修复的逃生通道（绕过守卫，谨慎使用）：
-  `HIKSPINE_FORCE_PHASE=1 "$HIKSPINE_BASH" "$HIKSPINE_STATE" set <name> phase <value>`
+and that it contains these headings:
 
----
+```text
+## Inputs Reviewed
+## Brainstorming
+## Questions From OpenSpec
+## Options Considered
+## Tradeoffs
+## Selected Direction
+## Company Constraints
+## Open Questions
+```
 
-## 决策点是阻塞点
+`Inputs Reviewed` must reference the proposal, tasks, and specs paths so the engine can verify that brainstorming was grounded in the open-phase artifacts.
 
-到达下列任一节点，**必须停住**，通过当前平台的输入/确认机制获取用户明确选择。不得用默认值、推荐或历史偏好代替。用户明确选择后才写状态、才继续。
+Use `company.knowledge` before making claims about company frameworks, components, platforms, middleware, permissions, monitoring, release, or historical systems. Use `company.platform-design` when platform or scaffold decisions are material.
 
-1. open 阶段 proposal/design/tasks 审视确认
-2. brainstorming 确认设计方案（feature 预设）
-3. build 阶段工作方式配置：隔离方式（`branch`/`worktree`）+ 执行方式（`build_mode`）+ TDD 方式（feature 预设）
-4. verify 不通过时决定修复或接受偏差
-5. finishing-branch 选择分支处理方式
-6. 执行归档前的最终确认
-7. 遇到预设升级条件（hotfix/tweak → feature）
-8. build 阶段范围扩张需重新设计或拆分新 change
+## State Files
 
-**红旗清单** — 出现以下想法立即停止：
+OpenSpec-backed workflows store state at:
 
-| Agent 心理 | 实际风险 |
-|-----------|---------|
-| "用户应该会同意" | 不能替用户决策，必须询问 |
-| "小改动不需要确认" | 决策点无大小之分 |
-| "上次选过 A" | 历史 ≠ 当前同意 |
-| "我解释了，用户没反对" | 没反对 ≠ 同意 |
-| "走到这里应该没问题" | 未通过 ≠ 通过，检查 verify_result |
+```text
+openspec/changes/<change>/.hikspine.yaml
+```
 
----
+Lightweight workflows store state at:
 
-## 预设选择条件
+```text
+.hikspine/changes/<change>.yaml
+```
 
-**用 `hotfix`**（否则升级 `feature`）：单个 bug fix、< 3 文件、无架构/schema 变更、无新 public API。
+Do not manually edit `current.phase`, `current.node`, or node status.
 
-**用 `tweak`**（否则升级 `feature`）：文案/配置/文档微调、< 5 文件、无新 capability、无需 delta spec。
+## Guardrails
 
-**升级到 `feature`** 的任一条件：3+ 文件（hotfix）/ 5+ 文件（tweak）、架构或 schema 变更、新 capability、需要 delta spec、跨模块协调。触发升级时阻塞确认，再创建设计产物并把 change 迁到 `feature` 预设。
+- Do not write source files while the current phase forbids `write-source`.
+- OpenSpec artifacts and `.hikspine` state files are allowed during open/design phases.
+- If `next` remains on the same node, read `missing` and produce the missing artifacts or sections.
+- Company skills do not need Hikspine-specific metadata; workflow recipes decide when to recommend them.
 
----
+## Debugging
 
-## 状态模型
-
-| 文件 | 归属 | 用途 |
-|------|------|------|
-| `.openspec.yaml` | OpenSpec | spec 生命周期、change 元数据 |
-| `.hikspine.yaml` | hikspine | workflow（预设名）、phase、执行方式、验证状态 |
-
-`.hikspine.yaml` 关键字段：`workflow`（预设名）、`phase`、`build_mode`、`isolation`、`tdd_mode`、`review_mode`、`verify_result`、`verification_report`、`branch_status`、`auto_transition`、`archived`。所有写入都经 `hikspine-state.sh`——它是 agent 唯一的状态接口。禁止手改 `.hikspine.yaml`，禁止直接 set `phase`（会绕过守卫）。
-
-## 阶段 skill
-
-**用户唯一入口是 `/hikspine`（别名 `/hs`）。** 阶段 skill（`hikspine-open`、`hikspine-design`、`hikspine-build`、`hikspine-verify`、`hikspine-archive`、`hikspine-hotfix`、`hikspine-tweak`）是内部步骤，由本 orchestrator 通过 Skill 工具按 `hikspine-state.sh next` 的 `SKILL:` 行分发加载，**通常无需用户直接调用**。即使中途中断或上下文压缩，用户也只需再次运行 `/hikspine`——它会重新检测阶段并从断点续传。这些阶段 skill 封装了 OpenSpec 与 Superpowers skill。
+Prefer `next`. For debugging, inspect the state file directly instead of asking Agent to mutate workflow state.
