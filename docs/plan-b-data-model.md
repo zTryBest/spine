@@ -1,88 +1,62 @@
-# Hikspine 方案 B - Workflow Kernel + Skill Orchestration 草案 v0.6
+# Hikspine 方案 B — 可组合状态机数据模型 v0.7
 
-> v0.6 调整：
+> v0.7 是一次架构落地，替换掉 v0.6 的「phase → node → step + 观察固定产物」模型。
 >
-> - MVP 目标收敛为：**稳定跑通阶段流转，并稳定指导 AI 使用 skill**。
-> - `events.ndjson` 不作为 MVP 权威状态源，降回可选增强；当前权威状态是 change state。
-> - 项目目录改为 change-centric，状态跟 change 走，便于恢复、排查和迁移。
-> - workflow 保留未来可视化平台的扩展空间，但 MVP 先采用“阶段 + 节点 + skill recipe + gate”的简单模型。
-> - skill 不需要改造；workflow recipe 负责说明在某个阶段如何使用 skill。
+> 起因：v0.6 靠 `exit.checks` 观察某个 skill 产出的固定文件来推进（如 `file.contains_heading: design.md`）。
+> 这等于把每个 skill 的产出格式硬编码进 workflow，**换一个 skill 就要改 workflow**，无法自由组合。
+>
+> v0.7 的核心原则：**状态流转，不是文件观察。**
+>
+> - workflow = **状态 + 决策驱动的流转**（扁平一层，不再有 phase/node/step）。
+> - 每个状态声明 **`needs`（skill 无关的决策）** 和 **`capabilities`（可自由组合的 skill）**。
+> - 流转只看「该状态要的决策齐没齐」，永远不看某个 skill 产了什么文件。
+> - 换/加/重排 skill = 改某个状态的 `capabilities` 列表，**流转图不变** = 自由组合。
+>
+> 已落地于分支 `codex/hikspine-initial`。代码是权威，本文档与之对齐。
 
 定位一句话：
 
 ```text
 Hikspine 是 AI coding 的工作流内核：
-引擎判断当前阶段和下一步，workflow recipe 编排 skill，AI 执行能力，state 记录进度。
-```
-
-## 0. 当前最重要的问题
-
-现在最重要的不是审计、回放或平台 UI，而是把这三件事跑稳：
-
-```text
-1. 阶段流转稳定
-   open -> design -> build -> review -> verify -> archive
-
-2. skill 使用稳定
-   AI 知道当前节点必须/建议调用哪些 skill，顺序是什么，出口条件是什么
-
-3. 状态恢复稳定
-   中断后读取 change state，可以准确恢复当前 phase、node、step 和 missing gate
-```
-
-因此 MVP 的权威输入是：
-
-```text
-workflow definition + skill registry + change state
-```
-
-可选增强是：
-
-```text
-events.ndjson / board.json / visual designer / run replay
+引擎维护状态机并在决策齐备时流转，registry 让 skill 自由组合进状态，
+AI 执行能力并记录决策，一个可读状态文件记录进度。
 ```
 
 ## 1. 设计原则
 
-1. **状态优先**：MVP 以 change state 作为权威状态源，events 只是增强记录。
-2. **约定优先**：引擎内置常见 workflow，项目只选择 workflow 和 skill registry。
-3. **阶段确定**：引擎确定当前 phase、node、step，以及是否允许 advance。
-4. **skill 无侵入**：已有 OpenSpec、Superpowers、公司 skill 不需要知道 Hikspine。
-5. **recipe 绑定能力**：workflow recipe 声明某阶段用哪些 skill、是否必须、顺序和出口条件。
-6. **探索阶段可循环**：design/open 这类阶段允许 agent-loop，但必须有明确 stopWhen。
-7. **执行阶段可线性**：build/review/verify 更适合 skill-sequence 和明确 gate。
-8. **平台后置**：YAML 可作为未来可视化平台 IR，但 MVP 不被 UI 需求反向拖重。
+1. **状态流转优先**：引擎只判断「当前状态的决策齐没齐」，齐了就流转，不齐就停在这个状态。
+2. **决策是 skill 无关的契约**：`needs` 是决策键（如 `framework_choice`、`review_result=pass`），谁产出的不管。
+3. **skill 自由组合**：状态用 `capabilities` 列出可用 skill id，由 registry 解析；换 skill 不动流转。
+4. **skill 无侵入**：OpenSpec、Superpowers、公司 skill 不需要知道 Hikspine。
+5. **一个可读状态文件**：comet 风格，`current + decisions + rollback + history`，一眼可读、可恢复。
+6. **跨状态回退**：`fail_when`/`fail_to` 表达「评审/验证不过就回到更早的状态」，回退时清空下游决策逼着重做。
+7. **诚实取舍**：决策由 agent 记录，引擎信任它（比观察文件少一层强校验）；用 `requires_user` 硬阻塞点 + write-source guard 补偿。
+8. **平台后置**：YAML 可作为未来可视化平台 IR，但 MVP 不被 UI 需求拖重。
 
 边界：
 
 ```text
-Engine：阶段流转、节点状态、gate 求值、next-action、guard
-Workflow：阶段、节点、skill recipe、fallback、gate
-Skill Registry：skill id 到实际 skill/ref/描述/副作用的绑定
-Change State：当前 phase/node/step、facts、artifacts、node 状态
-Events：可选审计和 UI 时间线，不是 MVP 状态基础
+Engine        状态机流转、决策求值、回退、next-action、guard
+Workflow      状态、决策 needs、capabilities、流转边、回退边
+Skill Registry  capability id 到实际 skill/ref/描述/副作用的绑定
+Change State  current 状态、decisions、rollback、history
+Events        可选审计和 UI 时间线，不是状态基础
 ```
 
 ## 2. 项目侧目录结构
 
-项目侧目录应围绕 change 状态，而不是围绕 run events。
-
-推荐结构：
+围绕 change 状态组织，状态跟 change 走。
 
 ```text
 project/
   .hikspine/
     config.yaml                    # 项目配置：默认 workflow、registry、guard
-    active                         # 当前 change，可选
-
+    active                         # 当前 change 指针
     workflows/                     # 可选：项目自定义 workflow 或 override
       feature.yaml
-      simple-fix.yaml
-
     registries/                    # 可选：项目/公司 skill 绑定
       company.yaml
-
-    changes/                       # 可选：非 OpenSpec 场景的轻量 change state
+    changes/                       # 非 OpenSpec 的轻量 change 状态
       fix-login-timeout.yaml
 
   openspec/
@@ -92,32 +66,24 @@ project/
       tasks.md
       specs/
       .hikspine.yaml               # OpenSpec change 的权威 Hikspine 状态
-      .hikspine/                   # 可选增强
-        events.ndjson
-        board.json
-        notes.md
 ```
 
 规则：
 
-- 如果 change 基于 OpenSpec，优先把状态放在 `openspec/changes/<change>/.hikspine.yaml`。
-- 如果是 `simple-fix` 这类不需要 OpenSpec 的轻量任务，可以放在 `.hikspine/changes/<change>.yaml`。
-- `.hikspine/<change>/runs/` 这种 event-first 布局不作为 MVP 主路径。
-- `events.ndjson`、`board.json` 都可以从 state 和操作记录再增强，不影响阶段流转。
+- 基于 OpenSpec 的 change，状态放 `openspec/changes/<change>/.hikspine.yaml`。
+- `simple-fix`/`hotfix` 这类轻量任务，状态放 `.hikspine/changes/<change>.yaml`（storage = standalone）。
+- 没有 events，workflow 也必须能靠 workflow + registry + state 正常运行。
 
 ## 3. 项目配置
 
-项目配置只做选择和绑定，不重复描述完整流程。
+配置只做选择和绑定，不重复描述流程。
 
 ```yaml
 # .hikspine/config.yaml
 version: 1
-
 defaultWorkflow: feature
 
 registries:
-  - builtin.openspec
-  - builtin.superpowers
   - .hikspine/registries/company.yaml
 
 guard:
@@ -125,25 +91,13 @@ guard:
     - src/
     - app/
     - packages/*/src/
-  writeSourceAllowedIn:
-    - build
-    - fix
-    - patch
 ```
 
-项目不需要重复写：
-
-```text
-framework_choice
-component_mapping
-scaffold_decision
-```
-
-这些应留在公司 skill 的执行内容里，或者作为某个节点的 summary/fact，而不是散落在项目配置中。
+像 `framework_choice`、`component_mapping` 这种是**决策**，记录在状态文件的 `decisions` 里，不写进项目配置。
 
 ## 4. Skill Registry
 
-Skill registry 负责把 workflow 中的 skill id 绑定到实际 skill。
+Registry 把 workflow 里的 capability id 绑定到实际 skill。内置绑定见 `lib/registry.mjs`，项目可叠加。
 
 ```yaml
 # .hikspine/registries/company.yaml
@@ -155,672 +109,381 @@ skills:
     ref: company-knowledge
     description: 查询公司知识库、历史方案、平台规范和业务术语
     sideEffects: []
-
   company.platform-design:
     ref: company-java-design
-    description: 检查 Java 服务设计是否符合公司框架、组件、脚手架、接口和数据规范
+    description: 检查框架、组件、脚手架、接口、数据规范
     sideEffects: []
-
   company.review:
     ref: company-java-review
-    description: 按公司 Java 服务规范做代码审查
+    description: 按公司规范做代码审查
     sideEffects: []
-
   company.security:
     ref: company-security-review
-    description: 检查权限、数据、接口、日志、合规等安全风险
+    description: 检查权限、数据、接口、日志、合规风险
     sideEffects: []
 ```
 
 关键点：
 
 ```text
-skill 不声明自己属于哪个阶段。
-workflow recipe 声明某个阶段要如何使用 skill。
+skill 不声明自己属于哪个状态。
+状态用 capabilities 声明它可以组合哪些 skill。
+换 skill = 改 capabilities / registry，流转图不动。
 ```
 
-这样已有的好 skill 不需要改造，只需要 registry 里有一个绑定。
+## 5. Workflow 模型 — 状态 + 决策流转
 
-## 5. Workflow 模型
-
-MVP 不直接做完整图引擎，而采用更稳定的结构：
+workflow 是一个扁平的状态机：
 
 ```text
 workflow
-  phases[]                 # 阶段顺序
-    nodes[]                # 阶段内节点
-      skill / skill-sequence / agent-loop / gate / human-approval
-  fallbacks[]              # 失败回退
+  start                # 起始状态 id
+  states[]             # 状态列表
+    id
+    goal               # 这个状态要达成什么
+    forbid             # 该状态禁止的副作用，如 [write-source]
+    requires_user      # 是否需要用户确认的硬阻塞点
+    capabilities       # 可自由组合的 capability id（registry 解析）
+    needs              # skill 无关的决策（流转的依据）
+    next               # 决策齐了去哪个状态
+    fail_when          # "key=value"：命中则回退
+    fail_to            # 回退到哪个状态
+    fail_reason        # 回退原因（写进 rollback marker）
+    terminal           # 是否终态
 ```
 
-引擎按顺序推进：
+### 5.1 `needs` 决策的两种写法
 
 ```text
-phase -> node -> step -> node completed -> phase completed -> next phase
+key            该决策已记录（任意非空值）
+key=value      该决策等于 value（如 review_result=pass）
 ```
 
-需要自定义复杂流程时，后续再扩展为可视化图 IR。
+流转只问「`needs` 齐没齐」。`needs` 永远是决策键，不是文件路径、不是 skill 名 —— 这是自由组合的前提。
 
-### 5.1 内置 feature workflow
+### 5.2 内置 feature workflow
 
 ```yaml
 # builtin/workflows/feature.yaml
 id: feature
-version: 1
+version: 5
 name: Feature Development
+start: open
 
-phases:
+states:
   - id: open
-    guard:
-      forbid:
-        - write-source
-    nodes:
-      - id: open.openspec
-        type: skill-sequence
-        required: true
-        steps:
-          - skill: openspec.change
-            task: 澄清需求并创建 proposal、tasks、必要的 specs
-        completeWhen:
-          artifacts:
-            - proposal
-            - tasks
+    goal: Clarify the change and create OpenSpec artifacts.
+    forbid: [write-source]
+    capabilities: [openspec-explore, openspec-propose]
+    needs: [requirements_clarified, proposal_ready]
+    next: design
 
   - id: design
-    guard:
-      forbid:
-        - write-source
-    nodes:
-      - id: design.explore
-        type: agent-loop
-        required: true
-        objective: 澄清剩余问题，比较方案，检查公司约束，形成可实施设计
-        allowedSkills:
-          - brainstorming
-          - company.knowledge
-          - company.platform-design
-          - openspec.design
-        mustConsult:
-          - company.knowledge
-        rules:
-          - 涉及公司框架、组件、平台、中间件、权限、监控、发布或历史系统时，必须查 company.knowledge
-          - 做设计结论前必须完成 company_constraints_checked
-          - 如果仍有开放问题，必须先向用户澄清，不得进入 build
-        stopWhen:
-          facts:
-            - no_open_questions
-            - company_constraints_checked
-            - design_direction_selected
-
-      - id: design.documented
-        type: skill
-        required: true
-        skill: openspec.design
-        task: 根据设计探索结论更新 design.md
-        completeWhen:
-          artifacts:
-            - design_doc
+    goal: Explore the technical path, document it, and get user confirmation.
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [brainstorming, company.platform-design, company.knowledge]
+    needs: [design_documented, design_confirmed]
+    next: build
 
   - id: build
-    nodes:
-      - id: build.implement
-        type: skill-sequence
-        required: true
-        steps:
-          - skill: superpowers.plan
-            task: 制定实现计划
-          - skill: superpowers.implement
-            task: 按 tasks.md 实现并自测
-        completeWhen:
-          facts:
-            - implementation_done
+    goal: Implement the confirmed design.
+    capabilities: [superpowers.plan, superpowers.implement]
+    needs: [implemented]
+    next: review
 
   - id: review
-    nodes:
-      - id: review.quality
-        type: skill-sequence
-        required: true
-        steps:
-          - skill: superpowers.review
-            task: 做通用代码审查
-          - skill: company.review
-            task: 做公司规范审查
-          - skill: company.security
-            task: 做安全风险审查
-        completeWhen:
-          facts:
-            - review_result
+    goal: Review the implementation before verification.
+    capabilities: [superpowers.review, company.review, company.security]
+    needs: [review_result=pass]
+    fail_when: review_result=fail
+    fail_to: build
+    fail_reason: Review found implementation problems.
+    next: verify
 
   - id: verify
-    nodes:
-      - id: verify.acceptance
-        type: skill-sequence
-        required: true
-        steps:
-          - skill: superpowers.verify
-            task: 运行测试和必要验证
-          - skill: openspec.verify
-            task: 验证 OpenSpec change
-        completeWhen:
-          facts:
-            - verify_result
+    goal: Verify behavior and OpenSpec coverage.
+    capabilities: [superpowers.verify, openspec.verify]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: build
+    fail_reason: Verification did not pass.
+    next: archive
 
   - id: archive
-    nodes:
-      - id: archive.openspec
-        type: skill
-        required: true
-        skill: openspec.archive
-        completeWhen:
-          facts:
-            - archived
-
-fallbacks:
-  - from: review
-    when: review_result=fail
-    to: build
-
-  - from: verify
-    when: verify_result=fail
-    to: build
+    goal: Archive the completed change after user confirmation.
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [openspec.archive]
+    needs: [archived]
+    terminal: true
 ```
 
-### 5.2 内置 simple-fix workflow
+### 5.3 内置 simple-fix workflow
 
 ```yaml
 # builtin/workflows/simple-fix.yaml
 id: simple-fix
-version: 1
+version: 5
 name: Simple Fix
+start: inspect
 
-phases:
+states:
   - id: inspect
-    nodes:
-      - id: inspect.understand
-        type: agent-loop
-        required: true
-        objective: 理解问题，定位最小修改范围
-        allowedSkills:
-          - superpowers.inspect
-          - company.knowledge
-        stopWhen:
-          facts:
-            - issue_understood
-            - impact_scope_known
+    goal: Understand the issue and the smallest safe change.
+    capabilities: [superpowers.inspect, company.knowledge]
+    needs: [issue_understood]
+    next: fix
 
   - id: fix
-    nodes:
-      - id: fix.apply
-        type: skill
-        required: true
-        skill: superpowers.implement
-        task: 做最小必要修改
-        completeWhen:
-          facts:
-            - patch_applied
+    goal: Apply the minimal patch.
+    capabilities: [superpowers.implement]
+    needs: [patched]
+    next: verify
 
   - id: verify
-    nodes:
-      - id: verify.focused
-        type: skill-sequence
-        required: true
-        steps:
-          - skill: superpowers.verify
-            task: 运行聚焦验证
-        completeWhen:
-          facts:
-            - verify_result
-
-fallbacks:
-  - from: verify
-    when: verify_result=fail
-    to: fix
+    goal: Run focused verification.
+    capabilities: [superpowers.verify]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: fix
+    fail_reason: Verification did not pass.
+    terminal: true
 ```
 
-simple-fix 的重点是轻：
+simple-fix 的重点是轻：`inspect -> fix -> verify`，不强制 OpenSpec、设计文档或完整 review；verify 不过就回 fix。
 
-```text
-inspect -> fix -> verify
-```
+## 6. Change State — 一个可读文件
 
-不强制 OpenSpec，不强制设计文档，不强制公司完整 review。
-
-## 6. Change State
-
-Change state 是 MVP 权威状态。
-
-OpenSpec change 示例：
+状态文件是权威状态，结构刻意简单、可读、可恢复。
 
 ```yaml
 # openspec/changes/entrance-monitor/.hikspine.yaml
 version: 1
 change: entrance-monitor
-
 workflow: feature
-workflowVersion: 1
+workflowVersion: "5"
 workflowHash: sha256:...
+storage: openspec
 
-current:
-  phase: design
-  node: design.explore
-  step: null
+current: design          # 就是当前状态 id（字符串）
 
-nodes:
-  open.openspec:
-    status: done
-    result: pass
-    summary: proposal/tasks 已创建
+decisions:               # agent 记录的决策（谁产出的不管）
+  requirements_clarified: true
+  proposal_ready: true
+  framework_choice: Spring Boot 3 + company-starter
 
-  design.explore:
-    status: doing
-    result:
-    summary:
-
-  design.documented:
-    status: todo
-
-facts:
-  no_open_questions: false
-  company_constraints_checked: false
-  design_direction_selected: false
-
-artifacts:
-  proposal: openspec/changes/entrance-monitor/proposal.md
-  tasks: openspec/changes/entrance-monitor/tasks.md
-  design_doc:
+rollback:                # 仅在刚回退后存在，前进后清除
+  to: build
+  from: verify
+  reason: Verification did not pass.
 
 history:
-  - at: 2026-06-27T14:12:10+08:00
-    type: phase.changed
-    from: open
-    to: design
-  - at: 2026-06-27T14:20:00+08:00
-    type: node.started
-    node: design.explore
+  - { at: 2026-06-28T14:12:10.000Z, type: started, workflow: feature, state: open }
+  - { at: 2026-06-28T14:20:00.000Z, type: transition, from: open, to: design }
 ```
 
 字段规则：
 
 ```text
-current.phase：当前阶段
-current.node：当前节点
-current.step：skill-sequence 中当前 step，可为空
-nodes：节点状态，todo/doing/done/failed/skipped
-facts：引擎可判断的少量事实
-artifacts：产物路径指针
-history：轻量可读日志，不承担完整审计
+current      当前状态 id（字符串，不再是 {phase,node,step}）
+decisions    决策表，键是 needs 引用的决策键
+rollback     回退 marker，前进一步后自动清除
+workflowHash 工作流文件哈希，用于断点恢复时检测 workflow 变化
+history      轻量可读日志
 ```
 
-## 7. Next Action
+## 7. Agent 协议 — `next` + `decide`
 
-`next-action` 是引擎给 AI 的主输出。
+引擎只暴露两个命令（`bin/hikspine.mjs`）：
 
-对于 agent-loop：
+```text
+node "$HIKSPINE_ENGINE" next [change] [--workflow <id>] [--storage openspec|standalone] [--json]
+node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]
+```
+
+- **`next`**：展示当前状态——goal、`forbid`、可组合的 `capabilities`、还缺哪些决策（missing）、回退 marker。新 change 会按 `--workflow` 创建。
+- **`decide <key> [value]`**：记录一个决策（value 默认 `true`，可传 `pass`/`fail`/数字等），然后自动流转，返回下一个要做的状态。
+
+`next-action`（`computeNext` 的输出）示例：
 
 ```jsonc
 {
   "change": "entrance-monitor",
   "workflow": "feature",
-  "phase": "design",
-  "node": "design.explore",
-  "nodeType": "agent-loop",
-  "objective": "澄清剩余问题，比较方案，检查公司约束，形成可实施设计",
-  "allowedSkills": [
-    "brainstorming",
-    "company.knowledge",
-    "company.platform-design",
-    "openspec.design"
+  "current": "design",
+  "goal": "Explore the technical path, document it, and get user confirmation.",
+  "forbid": ["write-source"],
+  "requiresUser": true,
+  "capabilities": [
+    { "id": "brainstorming", "ref": "brainstorming", "description": "Explore options, unknowns, tradeoffs, and questions." },
+    { "id": "company.platform-design", "ref": "company-platform-design", "description": "Check framework, component reuse, scaffold, API, data, and platform constraints." }
   ],
-  "mustConsult": [
-    "company.knowledge"
-  ],
-  "rules": [
-    "涉及公司框架、组件、平台、中间件、权限、监控、发布或历史系统时，必须查 company.knowledge",
-    "做设计结论前必须记录 company_constraints_checked=true",
-    "如果仍有开放问题，必须先向用户澄清，不得进入 build"
-  ],
-  "missing": [
-    "no_open_questions",
-    "company_constraints_checked",
-    "design_direction_selected"
-  ],
-  "commands": {
-    "fact": "hikspine fact entrance-monitor <key> <value>",
-    "artifact": "hikspine artifact entrance-monitor <key> <path>",
-    "complete": "hikspine complete entrance-monitor design.explore --result pass --summary \"...\"",
-    "advance": "hikspine advance entrance-monitor"
-  }
+  "needs": ["design_documented", "design_confirmed"],
+  "missing": ["design_documented", "design_confirmed"],
+  "rollback": null,
+  "terminal": false,
+  "complete": false,
+  "transitions": []
 }
 ```
 
-对于 skill-sequence：
+AI 不需要猜：当前在哪个状态、可以组合哪些 skill、还缺哪些决策、记录完去看下一步。
 
-```jsonc
-{
-  "change": "entrance-monitor",
-  "phase": "review",
-  "node": "review.quality",
-  "nodeType": "skill-sequence",
-  "currentStep": 2,
-  "nextSkill": {
-    "id": "company.review",
-    "ref": "company-java-review",
-    "task": "做公司 Java 服务规范审查"
-  },
-  "remaining": [
-    "company.security"
-  ],
-  "commands": {
-    "completeStep": "hikspine step entrance-monitor review.quality --done",
-    "completeNode": "hikspine complete entrance-monitor review.quality --result pass --summary \"...\""
-  }
-}
-```
+## 8. 流转与回退规则
 
-这样 AI 不需要猜：
+`computeNext` 在每次调用时自动推进（`lib/transitions.mjs`）：
 
 ```text
-当前在哪个阶段
-当前节点是什么
-是否必须执行
-应该用哪个 skill
-skill 顺序是什么
-出口条件是什么
-完成后写什么命令
+循环（带上限）：
+  s = 当前状态
+  1. 若 s.fail_when 命中           → 回退：清空 fail_to..from 的决策，设 rollback marker，current = fail_to，继续
+  2. 若 s.needs 还缺               → 停在 s，返回 next-action（agent 需记录决策）
+  3. 若 s.terminal 且决策齐         → workflow 完成
+  4. 否则                           → 清除 rollback marker，current = s.next，继续
 ```
 
-## 8. 阶段推进规则
-
-节点完成：
+回退示例（`verify_result=fail`）：
 
 ```text
-hikspine complete <change> <node> --result pass|fail --summary "..."
+1. 清空 build..verify 的决策（implemented / review_result / verify_result）
+2. current = build
+3. 设 rollback marker { to: build, from: verify, reason }
+4. 停在 build（缺 implemented）→ agent 必须重新实现
+5. 重新实现后 build -> review（review_result 已被清，必须重审）-> verify（必须重验）
 ```
 
-记录 fact：
+清空下游决策是关键：它逼着「重实现 → 重审 → 重验」，避免拿着旧的 fail 报告反复触发回退的死循环。
+
+## 9. Guard 与 Hook
+
+Hook 只做 guard，不做主编排（`hooks/guard.mjs` + `lib/checks.mjs` 的 `checkGuard`）。
 
 ```text
-hikspine fact <change> <key> <value>
+PreToolUse：读当前状态的 forbid，拦截不允许的写操作
 ```
 
-记录 artifact：
+Guard 逻辑：
 
 ```text
-hikspine artifact <change> <key> <path>
+1. 读 change state 的 current（状态 id）
+2. 在 workflow.states 里找到该状态，取它的 forbid
+3. 若 forbid 含 write-source 且目标命中 isSourcePath → BLOCK
 ```
 
-推进阶段：
+`isSourcePath` 由 `config.guard.sourceRoots` + 源码扩展名判断；`openspec/changes` 和 `.hikspine` 路径豁免。
 
 ```text
-hikspine advance <change>
+open/design/archive 状态默认 forbid: [write-source]。
+build/fix/patch 状态允许写 sourceRoots。
 ```
 
-`advance` 规则：
+guard 是 **fail-open** 的：没有 active change 或解析异常时放行，不阻塞正常编辑。
+
+## 10. OpenSpec、Superpowers、公司 Skill 的衔接
+
+三者都以 capability 进入 registry，状态用 `capabilities` 组合：
 
 ```text
-1. 读取 workflow
-2. 读取 change state
-3. 找到 current.phase/current.node
-4. 如果 current node 未完成，返回 next-action
-5. 如果当前 phase 还有 required node 未完成，切到下一个 node
-6. 如果 phase 所有 required node 完成，检查 fallback 条件
-7. 若 fail 条件命中，回退到目标 phase，并清理触发 fail 的 fact
-8. 否则进入下一个 phase
+OpenSpec     openspec-explore / openspec-propose / openspec.design / openspec.verify / openspec.archive
+Superpowers  superpowers.inspect / plan / implement / review / verify
+Company      company.knowledge / platform-design / review / security
 ```
 
-回退示例：
+状态把它们组合起来，例如 review 状态：
 
 ```yaml
-fallbacks:
-  - from: verify
-    when: verify_result=fail
-    to: build
+- id: review
+  capabilities: [superpowers.review, company.review, company.security]
+  needs: [review_result=pass]
+  fail_when: review_result=fail
+  fail_to: build
 ```
 
-命中后：
+公司 skill 不需要写「我用于 review 阶段」「完成后做什么」——这些由状态的 `capabilities`/`needs` 和 next-action 告诉 AI。要加一个公司专属评审 skill，只往 `capabilities` 里加一个 id 即可，`needs`（`review_result=pass`）不变。
+
+## 11. 内置工作流
 
 ```text
-1. current.phase = build
-2. current.node = build.implement
-3. facts.verify_result 被清掉，避免死循环
-4. history 记录 rollback
+feature       open -> design -> build -> review -> verify -> archive
+new-project   open -> design -> scaffold -> build -> review -> verify
+simple-fix    inspect -> fix -> verify
+hotfix        inspect -> patch -> verify
 ```
 
-## 9. Events 是增强，不是 MVP 地基
+- **feature**：常规需求。design 需用户确认（`requires_user`）；review/verify fail 回 build。
+- **new-project**：从 0 到 1，多一个 scaffold 状态；review/verify fail 回 build。
+- **simple-fix / hotfix**：轻量，standalone 存储，不强制 OpenSpec；verify fail 回 fix/patch。
 
-事件流仍然有价值，但不应成为第一阶段的核心复杂度。
+## 12. MVP 范围
 
-可选路径：
+已落地：
 
 ```text
-openspec/changes/<change>/.hikspine/events.ndjson
-```
+1. 状态机内核（lib/transitions.mjs）
+   - 决策驱动的 computeNext（自动前进）
+   - recordDecision
+   - 跨状态回退（清空下游决策）
 
-或非 OpenSpec change：
+2. Builtin workflows（feature / new-project / simple-fix / hotfix），states schema
 
-```text
-.hikspine/changes/<change>.events.ndjson
-```
+3. Skill registry（lib/registry.mjs + 项目/公司 registry 叠加）
 
-事件用于：
-
-```text
-完整审计
-可视化时间线
-失败分析
-状态重建
-多人协作冲突排查
-```
-
-但 MVP 要求：
-
-```text
-没有 events，workflow 也必须能靠 workflow + registry + state 正常运行。
-```
-
-## 10. Guard 与 Hook
-
-Hook 只做 guard，不做主编排。
-
-默认：
-
-```text
-PreToolUse：拦截不允许的写操作
-SessionStart：提示 active change 和 next-action
-UserPromptSubmit：默认关闭，必要时只注入短提醒
-PostToolUse：默认关闭，除非需要记录特定副作用
-```
-
-Guard 输入：
-
-```text
-current.phase
-current.node
-workflow guard
-skill sideEffects
-project sourceRoots
-toolCall
-```
-
-示例：
-
-```text
-open/design 阶段默认禁止 write-source。
-build/fix/patch 阶段允许写 sourceRoots。
-sideEffects=write-source 的 skill 需要人工确认或处于允许阶段。
-```
-
-## 11. OpenSpec、Superpowers、公司 Skill 的衔接
-
-OpenSpec、Superpowers、公司能力都以 skill 进入 registry：
-
-```text
-OpenSpec：proposal/design/tasks/specs/verify/archive
-Superpowers：inspect/plan/implement/review/verify
-Company：knowledge/platform-design/review/security/release
-```
-
-workflow recipe 负责把它们串起来：
-
-```yaml
-review.quality:
-  type: skill-sequence
-  steps:
-    - skill: superpowers.review
-      task: 做通用代码审查
-    - skill: company.review
-      task: 做公司规范审查
-    - skill: company.security
-      task: 做安全风险审查
-```
-
-公司 skill 不需要写：
-
-```text
-我用于 review 阶段
-完成后执行 hikspine complete
-```
-
-这些由 workflow recipe 和 next-action 告诉 AI。
-
-## 12. 内置工作流建议
-
-### 12.1 new-project
-
-```text
-open -> design -> scaffold -> build -> review -> verify -> archive
-```
-
-特点：
-
-- 适合从 0 到 1。
-- design 较重。
-- scaffold 通常需要 human approval。
-- 公司平台、组件、模板、部署规范应强制检查。
-
-### 12.2 feature
-
-```text
-open -> design -> build -> review -> verify -> archive
-```
-
-特点：
-
-- 常规需求开发。
-- design 用 agent-loop。
-- build/review/verify 用 skill-sequence。
-- review/verify fail 回 build。
-
-### 12.3 simple-fix
-
-```text
-inspect -> fix -> verify
-```
-
-特点：
-
-- 小修复。
-- 不强制 OpenSpec。
-- 不强制设计文档。
-- 可以选配公司 quick-risk-check。
-
-### 12.4 hotfix
-
-```text
-inspect -> patch -> risk-check -> verify -> release
-```
-
-特点：
-
-- 紧急修复。
-- 流程短，但 guard、verify、release check 更严格。
-
-## 13. MVP 范围
-
-第一阶段：
-
-```text
-1. Workflow kernel
-   - phase/node/step 状态
-   - required node 判断
-   - fallback
-   - next-action
-
-2. Builtin workflows
-   - feature
-   - simple-fix
-
-3. Skill registry
-   - builtin.openspec
-   - builtin.superpowers
-   - project/company registry
-
-4. Change state
-   - OpenSpec colocated .hikspine.yaml
-   - non-OpenSpec .hikspine/changes/<change>.yaml
+4. Change state（OpenSpec colocated .hikspine.yaml / standalone .hikspine/changes/<change>.yaml）
 
 5. Claude Code adapter
    - hikspine skill 作为用户入口
-   - /hs 仅作为触发 hikspine skill 的文本约定，不提供 command 文件
-   - skill 内部调用插件级 runtime：node "$HIKSPINE_ENGINE" next/fact/artifact/complete/advance
-   - PreToolUse guard
+   - node "$HIKSPINE_ENGINE" next / decide
+   - PreToolUse guard（per-state forbid）
 ```
 
 暂缓：
 
 ```text
-events as source of truth
-Web designer
-完整 graph engine
-parallel/subworkflow
-远程 worker
-复杂权限模型
+events 作为权威状态源
+Web designer / 完整 graph engine / 并行子工作流
+远程 worker / 复杂权限模型
 ```
 
-## 14. 后续平台演进
+## 13. 诚实取舍
 
-当 MVP 跑稳后，再把 workflow YAML 视为可视化平台 IR：
+状态机信任「agent 记录的决策」，比 v0.6 观察文件少一层强校验。补偿：
 
 ```text
-Designer -> workflow.yaml -> engine -> state/events -> board/timeline
+1. requires_user 硬阻塞点（design 确认、archive 归档）——必须停下问用户
+2. write-source guard hook——错误阶段写源码直接拦
+3. 决策可带值（review_result=pass/fail），回退基于值，不靠 agent 自觉
+4. workflowHash + 可读状态文件——断点恢复时能看清在哪、记了什么
 ```
 
-这时可以增强：
+未来若需要更强校验，可在状态上挂**可选的**轻量检查（复用 `lib/checks.mjs` 的 `evaluateCheck`，它仍保留但不再驱动流转），作为决策之外的二次确认——但流转核心永远是决策，不是文件观察。
+
+## 14. 最终分层
 
 ```text
-events.ndjson 变成完整审计日志
-board.json 变成 UI 投影缓存
-workflow graph 支持条件分支、并行、subworkflow
-registry 支持 marketplace 和版本管理
-```
+State Machine Kernel
+  状态流转、决策求值、回退、next-action、guard
 
-但这些不应阻塞第一阶段目标。
-
-## 15. 最终分层
-
-```text
-Workflow Kernel
-  阶段流转、节点推进、fallback、next-action、guard
-
-Workflow Recipe
-  阶段内如何使用 skill，哪些必须，顺序和出口条件
+Workflow (states)
+  状态、needs（决策）、capabilities（可组合 skill）、流转边、回退边
 
 Skill Registry
-  skill id 到实际 skill/ref/描述/副作用的绑定
+  capability id 到实际 skill/ref/描述/副作用的绑定
 
 Change State
-  当前 phase/node/step、facts、artifacts、node 状态
+  current 状态、decisions、rollback、history（一个可读文件）
 
 Runtime Adapter
   Claude Code / CLI / future web worker
 
 Optional Events
-  审计、回放、UI 时间线、状态重建增强
+  审计、回放、UI 时间线增强
 ```
 
 一句话总结：
 
 ```text
-Hikspine v0.6 的 MVP 不是事件平台，
-而是一个先把阶段流转和 skill 使用跑稳的 workflow kernel。
+Hikspine v0.7 的内核是一个可组合的状态机：
+状态 + 决策流转是骨架，skill 通过 registry 自由插进状态，
+换 skill 不动流转。状态流转，不是文件观察。
 ```
