@@ -63,6 +63,10 @@ Continue until complete: true
 
 **The only thing that advances the workflow is `decide`.** `next` reads decisions, not files; calling `next` alone never moves forward. After finishing a state's work, record every decision in its `needs`. **Do not stop and ask the user "should I move to the next phase?" after producing artifacts** — unless the state is `requiresUser: true`. Leaving decisions unrecorded stalls the whole workflow.
 
+## Transitions Are Governed By The Workflow, Not Composed Skills
+
+A composed skill has its own stance and may end by offering a choice or asking whether to proceed or capture an artifact. That is the skill's own boundary, not the workflow's phase boundary. Phase flow is governed only by the workflow: a state is done when its `needs` decisions are recorded. So whenever a composed skill finishes or asks whether to continue, return to the workflow — record the state's `needs` with `decide`, then call `next`. The only real stop for the user is `requiresUser: true`. Composed skills decide *how* to do the work; the workflow decides *when* to transition.
+
 ## Acting On The next Output
 
 ```text

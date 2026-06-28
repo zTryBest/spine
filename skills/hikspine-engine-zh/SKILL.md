@@ -61,6 +61,10 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # va
 
 **让流程前进的唯一动作是 `decide`。** `next` 只读决策、不读文件，单调 `next` 不会前进。干完一个状态的活，必须把它 `needs` 里的每个决策键都 `decide` 一遍。**产出产物后不要停下来问用户“要不要进入下一阶段”**——除非该状态 `requiresUser: true`。决策没记录就停，会卡死整条流程。
 
+## 流转只由 workflow 决定，不由组合的 skill 决定
+
+组合进来的 skill 各有自己的 stance，可能在结束时提供选择、或问“要不要继续 / 要不要落地产物”。**那是该 skill 自身的边界，不是工作流的阶段边界。** 阶段流转只看 workflow：一个状态的 `needs` 决策记齐了就该走。所以任何组合 skill 结束、或抛出“是否继续”时，回到工作流——把该状态的 `needs` 用 `decide` 记下，再 `next`。唯一真正停下来等用户的点是 `requiresUser: true`。组合的 skill 决定“怎么干”，workflow 决定“何时流转”。
+
 ## 根据 next 返回行动
 
 ```text
