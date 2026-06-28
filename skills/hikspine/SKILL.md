@@ -70,11 +70,21 @@ A composed skill has its own stance and may end by offering a choice or asking w
 ## Acting On The next Output
 
 ```text
+nextAction            deterministic directive: work | confirm | done (see below)
 current/goal/forbid   current state, its goal, forbidden side effects (e.g. write-source)
 capabilities          skills you may compose freely ({ id, ref, description })
 needs / missing       decision keys to leave this state / those not yet recorded
 requiresUser          true = stop and ask the user first
 rollback/transitions  rollback marker / events that happened this call
+```
+
+`nextAction` is the directive to follow first — it tells you what to do without inferring it:
+
+```text
+work     compose the capabilities, record this state's needs with decide, then call next.
+         Do not stop to ask whether to proceed.
+confirm  do the work, then stop and ask the user before recording the confirming decision.
+done     the workflow is complete; nothing more to do.
 ```
 
 1. Read `goal` and `forbid` to know what to do and what is off-limits here.

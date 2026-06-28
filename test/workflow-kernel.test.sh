@@ -119,6 +119,8 @@ eq "open state needs" \
   "$(printf '%s' "$FIRST_NEXT" | json_get "j.missing.includes('requirements_clarified') && j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 eq "open state is not terminal" \
   "$(printf '%s' "$FIRST_NEXT" | json_get "j.terminal ? 'yes' : 'no'")" "no"
+eq "open state nextAction is work" \
+  "$(printf '%s' "$FIRST_NEXT" | json_get 'j.nextAction')" "work"
 
 # Rule sync: preserve local edits
 printf '# Local Hikspine Rule\n' > "$T/.claude/rules/hikspine-workflow.md"
@@ -144,6 +146,8 @@ eq "decide second key advances to design" \
   "$(printf '%s' "$DECIDE2" | json_get 'j.current')" "design"
 eq "design requires user confirmation" \
   "$(printf '%s' "$DECIDE2" | json_get "j.requiresUser ? 'yes' : 'no'")" "yes"
+eq "design nextAction is confirm" \
+  "$(printf '%s' "$DECIDE2" | json_get 'j.nextAction')" "confirm"
 eq "design has brainstorming capability" \
   "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
 eq "design forbids write-source" \
@@ -243,6 +247,8 @@ eq "archive is terminal" \
 ARCHIVED="$(run decide archived --json)"
 eq "decide archived completes workflow" \
   "$(printf '%s' "$ARCHIVED" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+eq "completed workflow nextAction is done" \
+  "$(printf '%s' "$ARCHIVED" | json_get 'j.nextAction')" "done"
 
 rm -rf "$T"
 

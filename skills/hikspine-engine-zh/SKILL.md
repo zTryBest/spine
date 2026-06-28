@@ -68,11 +68,20 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # va
 ## 根据 next 返回行动
 
 ```text
+nextAction            确定性指令：work | confirm | done（见下）
 current/goal/forbid   当前状态、目标、禁止的副作用（如 write-source）
 capabilities          可自由组合的 skill（{ id, ref, description }）
 needs / missing       离开该状态要记录的决策键 / 其中还没记录的
 requiresUser          true = 必须先停下征询用户
 rollback/transitions  回退标记 / 本次发生的流转事件
+```
+
+**先看 `nextAction`**——它直接告诉你该做什么，不用自己推断：
+
+```text
+work     组合 capabilities，把该状态的 needs 用 decide 记下，再 next。不要停下来问“要不要继续”。
+confirm  先把活干完，再停下问用户，得到确认后才 decide 那个确认类决策。
+done     工作流已完成，无需再做。
 ```
 
 1. 按 `goal`、`forbid` 明确做什么、禁止什么。
