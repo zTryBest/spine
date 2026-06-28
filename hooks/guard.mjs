@@ -40,5 +40,5 @@ try {
   result = { allow: true, reason: 'no_active_change', target };
 }
 
-process.stdout.write(result.allow ? 'ALLOW\n' : `BLOCK write-source in ${result.phase}: ${result.target}\n`);
+process.stdout.write(result.allow ? 'ALLOW\n' : `BLOCK write-source in ${result.state}: ${result.target}\n`);
 process.exit(result.allow ? 0 : 2);

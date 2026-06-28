@@ -1,56 +1,26 @@
 id: simple-fix
-version: 2
+version: 5
 name: Simple Fix
+start: inspect
 
-phases:
+states:
   - id: inspect
-    goal: Understand the issue and smallest safe change.
-    nodes:
-      - id: inspect.understand
-        type: agent-loop
-        required: true
-        objective: Locate the relevant code path and define the smallest safe patch.
-        skills:
-          recommended: [superpowers.inspect, company.knowledge]
-        outputs:
-          - key: inspect_notes
-            path: .hikspine/changes/{change}.inspect.md
-        exit:
-          checks:
-            - file.exists: .hikspine/changes/{change}.inspect.md
+    goal: Understand the issue and the smallest safe change.
+    capabilities: [superpowers.inspect, company.knowledge]
+    needs: [issue_understood]
+    next: fix
 
   - id: fix
     goal: Apply the minimal patch.
-    nodes:
-      - id: fix.apply
-        type: skill
-        required: true
-        skill: superpowers.implement
-        task: Apply the minimal necessary code change.
-        outputs:
-          - key: patch_notes
-            path: .hikspine/changes/{change}.patch.md
-        exit:
-          checks:
-            - file.exists: .hikspine/changes/{change}.patch.md
+    capabilities: [superpowers.implement]
+    needs: [patched]
+    next: verify
 
   - id: verify
     goal: Run focused verification.
-    nodes:
-      - id: verify.focused
-        type: skill
-        required: true
-        skill: superpowers.verify
-        task: Run the narrowest meaningful verification for the patch.
-        outputs:
-          - key: verify_report
-            path: .hikspine/changes/{change}.verify.md
-        exit:
-          checks:
-            - file.exists: .hikspine/changes/{change}.verify.md
-
-fallbacks:
-  - from: verify
-    when:
-      file.contains_regex: { path: .hikspine/changes/{change}.verify.md, pattern: "result:\\s*fail" }
-    to: fix
+    capabilities: [superpowers.verify]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: fix
+    fail_reason: Verification did not pass.
+    terminal: true

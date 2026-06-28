@@ -1,235 +1,50 @@
 id: new-project
-version: 4
+version: 5
 name: New Project
+start: open
 
-phases:
+states:
   - id: open
     goal: Define the project through OpenSpec.
-    guard:
-      forbid: [write-source]
-    nodes:
-      - id: open.openspec
-        type: skill
-        required: true
-        skill: openspec-propose
-        task: Create the initial proposal, tasks, and specs.
-        outputs:
-          - key: proposal
-            path: openspec/changes/{change}/proposal.md
-          - key: tasks
-            path: openspec/changes/{change}/tasks.md
-          - key: specs
-            path: openspec/changes/{change}/specs
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/proposal.md
-            - file.exists: openspec/changes/{change}/tasks.md
-            - dir.exists: openspec/changes/{change}/specs
+    forbid: [write-source]
+    capabilities: [openspec-propose]
+    needs: [proposal_ready]
+    next: design
 
   - id: design
-    goal: Design the system and check company platform constraints.
-    guard:
-      forbid: [write-source]
-    nodes:
-      - id: design.brainstorm
-        type: skill
-        required: true
-        skill: brainstorming
-        task: Read OpenSpec artifacts, explore architecture options, requirements, and tradeoffs, then write the brainstorming result into design.md.
-        objective: Explore architecture, framework, component reuse, scaffold path, API, data, security, and deployment options.
-        inputs:
-          required:
-            - key: proposal
-              path: openspec/changes/{change}/proposal.md
-              useBefore: [brainstorming]
-            - key: tasks
-              path: openspec/changes/{change}/tasks.md
-              useBefore: [brainstorming]
-            - key: specs
-              path: openspec/changes/{change}/specs
-              useBefore: [brainstorming]
-        skills:
-          required: [brainstorming]
-          recommended: [company.knowledge, company.platform-design]
-          output: [openspec.design]
-        agent:
-          rules:
-            - Read proposal.md, tasks.md, and specs/ before running brainstorming.
-            - Treat OpenSpec open-phase artifacts as the source of truth for brainstorming.
-            - Run brainstorming before choosing the project architecture; derive requirements, options, and tradeoffs from the required inputs.
-            - Consult company.knowledge and company.platform-design before making platform, scaffold, framework, component, security, data, release, or deployment decisions.
-            - Write inputs reviewed, requirements interpreted, architecture options, tradeoffs, draft architecture, scaffold strategy, company constraints, and open questions into OpenSpec design.md.
-            - Do not create User Confirmation yourself during this node.
-        outputs:
-          - key: design_doc
-            path: openspec/changes/{change}/design.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/design.md
-            - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Requirements Interpreted, Architecture Options, Tradeoffs, Architecture, Scaffold Strategy, Company Constraints, Open Questions] }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
-
-      - id: design.confirm
-        type: agent-loop
-        required: true
-        objective: Present the architecture and scaffold strategy to the user, ask for confirmation or changes, and record the confirmed direction in design.md.
-        inputs:
-          required:
-            - key: design_doc
-              path: openspec/changes/{change}/design.md
-              useBefore: [user-confirmation]
-        skills:
-          output: [openspec.design]
-        agent:
-          requiresUser: true
-          requiredQuestions:
-            - technology_stack
-            - architecture_and_scaffold
-            - data_realtime_and_integration_path
-            - company_platform_constraints
-          rules:
-            - Stop and ask the user to choose or confirm the technology stack before moving to scaffold/build.
-            - Ask about architecture, scaffold strategy, integration boundaries, data/realtime transport, and company platform constraints.
-            - Summarize options, tradeoffs, company constraints, and open questions when asking.
-            - If the user requests changes, update design.md and ask again.
-            - Record the user's answers in a User Decisions section with lines for Technology stack, Architecture/scaffold, Data/realtime path, and Company constraints.
-            - Only after the user confirms, add a User Confirmation section to design.md with a line starting with "Confirmed by user:".
-            - Do not fabricate confirmation text.
-        outputs:
-          - key: design_doc
-            path: openspec/changes/{change}/design.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/design.md
-            - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Requirements Interpreted, Architecture Options, Tradeoffs, Architecture, Scaffold Strategy, Company Constraints, Open Questions, User Decisions, User Confirmation] }
-            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Technology stack:\\s*.+" }
-            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Architecture/scaffold:\\s*.+" }
-            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Data/realtime path:\\s*.+" }
-            - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/proposal.md }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/tasks.md }
-            - file.contains: { path: openspec/changes/{change}/design.md, text: openspec/changes/{change}/specs }
+    goal: Design the system, check company platform constraints, and get user confirmation.
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [brainstorming, company.platform-design, company.knowledge]
+    needs: [design_documented, design_confirmed]
+    next: scaffold
 
   - id: scaffold
     goal: Generate or prepare the project skeleton after confirmation.
-    nodes:
-      - id: scaffold.apply
-        type: skill
-        required: true
-        skill: superpowers.implement
-        task: Apply the confirmed scaffold or project skeleton.
-        outputs:
-          - key: scaffold_notes
-            path: openspec/changes/{change}/scaffold.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/scaffold.md
+    capabilities: [superpowers.implement]
+    needs: [scaffolded]
+    next: build
 
   - id: build
     goal: Implement the initial project.
-    nodes:
-      - id: build.implement
-        type: skill-sequence
-        required: true
-        inputs:
-          required:
-            - key: design_doc
-              path: openspec/changes/{change}/design.md
-              useBefore: [superpowers.plan, superpowers.implement]
-            - key: proposal
-              path: openspec/changes/{change}/proposal.md
-              useBefore: [superpowers.plan]
-            - key: tasks
-              path: openspec/changes/{change}/tasks.md
-              useBefore: [superpowers.plan]
-            - key: specs
-              path: openspec/changes/{change}/specs
-              useBefore: [superpowers.plan]
-        skills:
-          required: [superpowers.plan, superpowers.implement]
-        agent:
-          rules:
-            - Read design.md and OpenSpec artifacts before creating an implementation plan.
-            - Do not write source before implementation.md contains the implementation plan.
-            - Treat design.md architecture, scaffold strategy, and tradeoffs as the build source of truth.
-        steps:
-          - skill: superpowers.plan
-            task: Create the implementation plan from design.md, proposal.md, tasks.md, and specs/.
-            exit:
-              checks:
-                - file.contains_headings: { path: openspec/changes/{change}/design.md, headings: [Inputs Reviewed, Brainstorming, Requirements Interpreted, Architecture Options, Tradeoffs, Architecture, Scaffold Strategy, Company Constraints, Open Questions, User Decisions, User Confirmation] }
-                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Technology stack:\\s*.+" }
-                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Architecture/scaffold:\\s*.+" }
-                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Data/realtime path:\\s*.+" }
-                - file.contains_regex: { path: openspec/changes/{change}/design.md, pattern: "^Confirmed by user:\\s*.+" }
-                - file.exists: openspec/changes/{change}/implementation.md
-                - file.contains_headings: { path: openspec/changes/{change}/implementation.md, headings: [Inputs Reviewed, Implementation Plan, Source Change Plan, Verification Plan] }
-                - file.contains: { path: openspec/changes/{change}/implementation.md, text: openspec/changes/{change}/design.md }
-                - file.contains: { path: openspec/changes/{change}/implementation.md, text: openspec/changes/{change}/tasks.md }
-          - skill: superpowers.implement
-            task: Implement the plan.
-            exit:
-              checks:
-                - file.contains_heading: { path: openspec/changes/{change}/implementation.md, heading: Implementation Notes }
-        outputs:
-          - key: implementation_notes
-            path: openspec/changes/{change}/implementation.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/implementation.md
-            - file.contains_headings: { path: openspec/changes/{change}/implementation.md, headings: [Inputs Reviewed, Implementation Plan, Source Change Plan, Implementation Notes, Verification Plan] }
+    capabilities: [superpowers.plan, superpowers.implement]
+    needs: [implemented]
+    next: review
 
   - id: review
     goal: Review implementation and company standards.
-    nodes:
-      - id: review.quality
-        type: skill-sequence
-        required: true
-        skills:
-          required: [superpowers.review]
-          recommended: [company.review, company.security]
-        steps:
-          - skill: superpowers.review
-            task: Review code quality.
-          - skill: company.review
-            task: Review company standards when relevant.
-          - skill: company.security
-            task: Review security risk when relevant.
-        outputs:
-          - key: review_report
-            path: openspec/changes/{change}/review.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/review.md
+    capabilities: [superpowers.review, company.review, company.security]
+    needs: [review_result=pass]
+    fail_when: review_result=fail
+    fail_to: build
+    fail_reason: Review found implementation problems.
+    next: verify
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    nodes:
-      - id: verify.acceptance
-        type: skill-sequence
-        required: true
-        skills:
-          required: [superpowers.verify, openspec.verify]
-        steps:
-          - skill: superpowers.verify
-            task: Run verification.
-          - skill: openspec.verify
-            task: Verify OpenSpec coverage.
-        outputs:
-          - key: verification_report
-            path: openspec/changes/{change}/verification.md
-        exit:
-          checks:
-            - file.exists: openspec/changes/{change}/verification.md
-
-fallbacks:
-  - from: review
-    when:
-      file.contains_regex: { path: openspec/changes/{change}/review.md, pattern: "result:\\s*fail" }
-    to: build
-  - from: verify
-    when:
-      file.contains_regex: { path: openspec/changes/{change}/verification.md, pattern: "result:\\s*fail" }
-    to: build
+    capabilities: [superpowers.verify, openspec.verify]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: build
+    fail_reason: Verification did not pass.
+    terminal: true
