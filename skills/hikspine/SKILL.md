@@ -1,17 +1,17 @@
 ---
 name: hikspine
-description: "Use when the user says /hs, hikspine, or asks to run a phased AI coding workflow. Hikspine is a Claude Code skill workflow kernel: it decides the current phase/node, tells Claude which skills to use, checks observable artifacts, and advances the workflow through a plugin-level runtime."
+description: "Use when the user says /hs, hikspine, or asks to run a phased AI coding workflow. Hikspine is a Claude Code workflow kernel: next shows the current state's missing decisions and composable skills, decide records a decision, and the engine advances the decision-driven state machine."
 ---
 
 # Hikspine
 
-Hikspine is a workflow kernel for Claude Code. It keeps AI coding work from drifting by making the current phase, node, expected skills, and machine-checkable exit checks explicit.
+Hikspine keeps AI coding work on rails by making the current state, composable skills, and the decisions needed to leave that state explicit. Drive it with the `next` / `decide` protocol below. Engine design rationale lives in `docs/architecture.md`; this file is only how to drive it.
 
-Hikspine is not a slash command package. Treat `/hs ...` in user text as a natural-language trigger for this skill.
+Treat `/hs ...` as a natural-language trigger for this skill, not a slash-command file.
 
-## Runtime
+## Load The Runtime
 
-Source the runtime locator before calling the engine:
+The Bash tool starts a fresh shell each call. Locate the runtime and run `node "$HIKSPINE_ENGINE" ...` in the **same** Bash invocation; exported variables do not persist across calls.
 
 ```bash
 _hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
@@ -36,125 +36,65 @@ unset _hs_env_file f r b
 unset -f _hs_norm_root
 ```
 
-Do not assemble paths from `CLAUDE_PLUGIN_ROOT` by hand. It may be empty, may have a trailing slash, and may be a Windows path inside Git Bash or WSL.
-Source the runtime and call `node "$HIKSPINE_ENGINE" ...` in the same Bash tool invocation; environment variables do not persist across separate Bash calls.
-
-## Main Protocol
-
-Use `next` as the only workflow loop command:
+Start or resume a change:
 
 ```bash
-node "$HIKSPINE_ENGINE" next <change-name> --workflow <workflow-id> --json
-node "$HIKSPINE_ENGINE" next <change-name> --json
+node "$HIKSPINE_ENGINE" next <change> --workflow <workflow-id> --json   # new change: name the workflow
+node "$HIKSPINE_ENGINE" next <change> --json                            # existing change: omit --workflow
 ```
 
-`next` observes current artifacts, advances any completed nodes automatically, and returns the next blocked node. There is no project init step and no manual `fact`, `artifact`, `complete`, or `advance` protocol.
+Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `defaultWorkflow`, omit `--workflow` for new changes.
 
-The first `next` call in a project also ensures `.claude/rules` exists and copies Markdown rules from the plugin `rules/` directory. Managed rules update when the plugin copy changes; locally edited project rules are not overwritten.
+## The Loop: next → work → decide → next
 
-Claude Code loads unscoped `.claude/rules` at session startup, so rules created after the session has already started may not be in context automatically. If `next --json` returns `projectRules.readNow`, immediately read those files before acting on the returned workflow node.
+There are exactly two verbs:
 
-Workflow selection:
-
-- If the user names a workflow, pass that id to `--workflow`.
-- If the project has `.hikspine/config.yaml` with `defaultWorkflow`, omit `--workflow` and let the engine use it.
-- If the project defines `.hikspine/workflows/<id>.yaml`, use `<id>` exactly; do not edit this skill for new workflows.
-- Builtin examples include `feature`, `simple-fix`, `hotfix`, and `new-project`.
-
-Only infer a builtin workflow when the user does not name one and the project has no default.
-
-## How To Act On `next`
-
-Read the JSON fields:
-
-- `phase`, `node`, `objective`: where the workflow is blocked.
-- `nextSkill`: the next direct skill for `skill` or `skill-sequence` nodes.
-- `requiredInputs`: files or directories that must be read before running listed skills.
-- `requiredSkills`: skills the workflow expects before this node is considered properly executed.
-- `recommendedSkills`: skills to consult when relevant; these are guidance, not hard gates.
-- `outputSkills`: skills expected to write or update workflow artifacts.
-- `outputs`: files or directories the node expects.
-- `missing`: machine-checkable exit checks that are still failing.
-- `projectRules.readNow`: project rule files synced during this `next` call; read them immediately so they affect this session.
-- `agent.requiresUser`: stop and ask the user before producing the confirmation artifact.
-- `agent.requiredQuestions`: specific decision topics that must be asked or explicitly confirmed with the user.
-- `agent.rules`: natural-language execution rules for the current node.
-
-If `nextSkill` is present, immediately load and use that skill before doing manual work for the node. If a skill appears in `requiredSkills`, do not replace it with a handwritten approximation; use the required skill as soon as its `requiredInputs` are read. Treat missing required skill execution as blocked work, not as optional guidance.
-
-First read every `requiredInputs` item, especially entries whose `useBefore` names the skill you are about to run. Then do the work with the relevant skills and produce the expected artifacts. Call `next` again; the engine will inspect the artifacts and move forward if the checks pass.
-
-## Language Rule
-
-Detect the language of the user's current workflow request. Use that language for user-facing explanations, clarification questions, summaries, and generated workflow artifacts unless the user explicitly asks for another language or an existing project artifact clearly establishes a different language. If the user switches language later, follow the newest explicit user language. Keep code identifiers, commands, file paths, API names, and quoted source text unchanged.
-
-## Feature Design Rule
-
-For `feature` design, read the OpenSpec open-phase artifacts before running brainstorming:
+```bash
+node "$HIKSPINE_ENGINE" next [change] [--json]
+node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # value defaults to true; pass pass/fail
+```
 
 ```text
-openspec/changes/<change>/proposal.md
-openspec/changes/<change>/tasks.md
-openspec/changes/<change>/specs
+Call next        → see this state's missing decisions and composable skills
+Do the work with those skills and produce artifacts
+For each satisfied need, call decide → engine advances or rolls back, returns the next state
+Continue until complete: true
 ```
 
-Then run brainstorming from those inputs before selecting the design direction, and write the questions, options, tradeoffs, and conclusions back into OpenSpec design.md through the OpenSpec design/propose skill.
+**The only thing that advances the workflow is `decide`.** `next` reads decisions, not files; calling `next` alone never moves forward. After finishing a state's work, record every decision in its `needs`. **Do not stop and ask the user "should I move to the next phase?" after producing artifacts** — unless the state is `requiresUser: true`. Leaving decisions unrecorded stalls the whole workflow.
 
-The builtin `feature` workflow uses two design nodes:
-
-- `design.brainstorm`: `nextSkill` is `brainstorming`; use that skill before writing the design conclusions.
-- `design.confirm`: stop and ask the user to confirm or change the selected direction, including technology stack and major integration choices, before moving to build.
-
-The engine does not judge whether the design is "good" and does not trust self-reported semantic done flags. It checks that this file exists:
+## Acting On The next Output
 
 ```text
-openspec/changes/<change>/design.md
+current/goal/forbid   current state, its goal, forbidden side effects (e.g. write-source)
+capabilities          skills you may compose freely ({ id, ref, description })
+needs / missing       decision keys to leave this state / those not yet recorded
+requiresUser          true = stop and ask the user first
+rollback/transitions  rollback marker / events that happened this call
 ```
 
-and that it contains these headings:
+1. Read `goal` and `forbid` to know what to do and what is off-limits here.
+2. Pick and load skills from `capabilities`. For company frameworks, components, platforms, middleware, permissions, release, or history, use `company.knowledge` first; for platform or scaffold decisions, use `company.platform-design`. Do not hand-write an approximation of a skill that clearly applies (e.g. `brainstorming` in design).
+3. Record each satisfied decision with `decide <key> <value>`; pass real results for valued decisions (`review_result pass`, `verify_result fail`). A `fail` triggers a cross-state rollback per `fail_when`, clearing downstream decisions so the work is redone.
+4. Act on the next state returned by `decide` and repeat.
+
+If `next --json` returns `projectRules.readNow`, read those rule files immediately so they affect this session.
+
+## User Confirmation Checkpoints (requiresUser)
+
+When `requiresUser: true` (e.g. `design` confirmation, `archive`), **stop and ask the user, and only after an explicit answer record the confirming decision** (`design_confirmed`, `archived`). Never confirm on the user's behalf. Ask with `AskQuestion`, one topic at a time — not a batched questionnaire. Technology stack, architecture/integration, and data/realtime path must be decided by the user.
+
+## Language
+
+Match the language of the user's current workflow request for explanations, clarification questions, summaries, and workflow artifacts; if the user switches later, follow the newest. Keep code identifiers, commands, paths, API names, and quoted source unchanged.
+
+## Builtin Workflows
 
 ```text
-## Inputs Reviewed
-## Brainstorming
-## Questions From OpenSpec
-## Options Considered
-## Tradeoffs
-## Selected Direction
-## Company Constraints
-## Open Questions
-## User Decisions
-## User Confirmation
+feature       open -> design -> build -> review -> verify -> archive
+new-project   open -> design -> scaffold -> build -> review -> verify
+simple-fix    inspect -> fix -> verify
+hotfix        inspect -> patch -> verify
 ```
 
-`Inputs Reviewed` must reference the proposal, tasks, and specs paths so the engine can verify that brainstorming was grounded in the open-phase artifacts.
-`User Decisions` must record the user's answers with lines beginning `Technology stack:`, `Architecture/integration:`, and `Data/realtime path:`. If the project stack already exists, ask the user to confirm it and record that confirmation.
-`User Confirmation` must include a line beginning with `Confirmed by user:` after the user has actually confirmed the design direction. Do not fabricate this line.
-
-Use `company.knowledge` before making claims about company frameworks, components, platforms, middleware, permissions, monitoring, release, or historical systems. Use `company.platform-design` when platform or scaffold decisions are material.
-
-## State Files
-
-OpenSpec-backed workflows store state at:
-
-```text
-openspec/changes/<change>/.hikspine.yaml
-```
-
-Lightweight workflows store state at:
-
-```text
-.hikspine/changes/<change>.yaml
-```
-
-Do not manually edit `current.phase`, `current.node`, or node status.
-
-## Guardrails
-
-- Do not write source files while the current phase forbids `write-source`.
-- OpenSpec artifacts and `.hikspine` state files are allowed during open/design phases.
-- If `next` remains on the same node, read `missing` and produce the missing artifacts or sections.
-- Company skills do not need Hikspine-specific metadata; workflow recipes decide when to recommend them.
-
-## Debugging
-
-Prefer `next`. For debugging, inspect the state file directly instead of asking Agent to mutate workflow state.
+Put a custom workflow at `.hikspine/workflows/<id>.yaml` and pass `--workflow <id>`; do not edit this skill. The engine maintains the state file — do not hand-edit it.
