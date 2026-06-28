@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Reproducible tests for the plugin-level Hikspine workflow kernel.
+# Test suite for the Hikspine composable state machine kernel.
+# Covers: runtime locator, feature workflow, simple-fix workflow, custom
+# workflows, guard hook, and cross-state rollback.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -36,6 +38,12 @@ bad() { fail=$((fail+1)); printf '  FAIL - %s\n' "$1"; }
 eq() {
   if [ "$2" = "$3" ]; then ok "$1"; else bad "$1 (want '$3', got '$2')"; fi
 }
+has() {
+  case "$2" in
+    *"$3"*) ok "$1" ;;
+    *) bad "$1 (expected to contain '$3', got '$2')" ;;
+  esac
+}
 
 sandbox() {
   local d
@@ -47,8 +55,16 @@ sandbox() {
   echo "$d"
 }
 
+# json_get: evaluate a JS expression against piped JSON on stdin.
+#   $1 = JS expression (use single-quoted strings, not double-quoted)
 json_get() {
   "$NODE_BIN" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s); console.log($1)})"
+}
+
+# json_test: evaluate a JS expression against piped JSON on stdin.
+#   $1 = JS expression → exit 0 if truthy, exit 1 if falsy.
+json_test() {
+  "$NODE_BIN" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s); process.exit($1?0:1)})"
 }
 
 run() {
@@ -82,177 +98,322 @@ case "$LOCATOR_EMPTY_OUTPUT" in
   *) bad "runtime locator works without CLAUDE_PLUGIN_ROOT (got '$LOCATOR_EMPTY_OUTPUT')" ;;
 esac
 
-echo "# feature workflow: next lazily creates and advances"
+# ─── feature workflow: decision-driven state machine ──────────────────────
+
+echo "# feature workflow: decision-driven state machine"
 T="$(sandbox)"
+
+# --- open state ---
 FIRST_NEXT="$(run next entrance-monitor --workflow feature --json)"
-eq "next starts in open" "$(printf '%s' "$FIRST_NEXT" | json_get 'j.phase')" "open"
+eq "next starts in open" \
+  "$(printf '%s' "$FIRST_NEXT" | json_get 'j.current')" "open"
 eq "next syncs project rules" \
   "$(test -f "$T/.claude/rules/hikspine-workflow.md" && echo yes || echo no)" "yes"
 eq "next returns synced rules for current session" \
-  "$(printf '%s' "$FIRST_NEXT" | json_get 'j.projectRules.readNow.includes(".claude/rules/hikspine-workflow.md") ? "yes" : "no"')" "yes"
+  "$(printf '%s' "$FIRST_NEXT" | json_get "j.projectRules.readNow.includes('.claude/rules/hikspine-workflow.md') ? 'yes' : 'no'")" "yes"
+eq "open state forbids write-source" \
+  "$(printf '%s' "$FIRST_NEXT" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "yes"
+eq "open state has capabilities" \
+  "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.capabilities) && j.capabilities.length >= 2 && j.capabilities.some(c=>c.id==='openspec-explore') && j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
+eq "open state needs" \
+  "$(printf '%s' "$FIRST_NEXT" | json_get "j.missing.includes('requirements_clarified') && j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
+eq "open state is not terminal" \
+  "$(printf '%s' "$FIRST_NEXT" | json_get "j.terminal ? 'yes' : 'no'")" "no"
+
+# Rule sync: preserve local edits
 printf '# Local Hikspine Rule\n' > "$T/.claude/rules/hikspine-workflow.md"
 LOCAL_RULE_NEXT="$(run next entrance-monitor --json)"
 eq "rules sync preserves local edits" "$(head -n 1 "$T/.claude/rules/hikspine-workflow.md")" "# Local Hikspine Rule"
 eq "next reports skipped local rule edits" \
-  "$(printf '%s' "$LOCAL_RULE_NEXT" | json_get 'j.projectRules.skipped.some(r=>r.path===".claude/rules/hikspine-workflow.md" && r.reason==="unmanaged_existing_file") ? "yes" : "no"')" "yes"
+  "$(printf '%s' "$LOCAL_RULE_NEXT" | json_test "j.projectRules.skipped && j.projectRules.skipped.some(r=>r.path==='.claude/rules/hikspine-workflow.md' && r.reason==='unmanaged_existing_file')" && echo yes || echo no)" "yes"
+
+# State file and active change
 eq "feature state is colocated with OpenSpec" \
   "$(test -f "$T/openspec/changes/entrance-monitor/.hikspine.yaml" && echo yes || echo no)" "yes"
 eq "active change set by next" "$(cat "$T/.hikspine/active")" "entrance-monitor"
-eq "next node is open.openspec" "$(run next entrance-monitor --json | json_get 'j.node')" "open.openspec"
 
-mkdir -p "$T/openspec/changes/entrance-monitor/specs"
-printf 'proposal\n' > "$T/openspec/changes/entrance-monitor/proposal.md"
-printf -- '- [ ] initial task\n' > "$T/openspec/changes/entrance-monitor/tasks.md"
-eq "open artifacts advance to design" "$(run next entrance-monitor --json | json_get 'j.phase')" "design"
-eq "design starts with brainstorming node" "$(run next entrance-monitor --json | json_get 'j.node')" "design.brainstorm"
-eq "design next skill is brainstorming" "$(run next entrance-monitor --json | json_get 'j.nextSkill.id')" "brainstorming"
-eq "feature design requires brainstorming" "$(run next entrance-monitor --json | json_get 'j.requiredSkills.some(s=>s.id==="brainstorming") ? "yes" : "no"')" "yes"
-eq "design passes OpenSpec inputs to brainstorming" "$(run next entrance-monitor --json | json_get 'j.requiredInputs.some(i=>i.key==="proposal" && i.path==="openspec/changes/entrance-monitor/proposal.md" && i.useBefore.includes("brainstorming")) ? "yes" : "no"')" "yes"
+# --- advance to design via decisions ---
+DECIDE1="$(run decide requirements_clarified --json)"
+eq "decide first key stays in open" \
+  "$(printf '%s' "$DECIDE1" | json_get 'j.current')" "open"
+eq "decide first key has one remaining missing" \
+  "$(printf '%s' "$DECIDE1" | json_get 'JSON.stringify(j.missing)')" '["proposal_ready"]'
 
+DECIDE2="$(run decide proposal_ready --json)"
+eq "decide second key advances to design" \
+  "$(printf '%s' "$DECIDE2" | json_get 'j.current')" "design"
+eq "design requires user confirmation" \
+  "$(printf '%s' "$DECIDE2" | json_get "j.requiresUser ? 'yes' : 'no'")" "yes"
+eq "design has brainstorming capability" \
+  "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
+eq "design forbids write-source" \
+  "$(printf '%s' "$DECIDE2" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "yes"
+
+# --- guard hook: blocks source writes in design ---
 if (cd "$T" && printf '{"tool_name":"Write","tool_input":{"file_path":"src/App.ts"}}' | CLAUDE_PLUGIN_ROOT="$REPO" "$NODE_BIN" "$HOOK_RUN" >/dev/null 2>&1); then
-  bad "hook bridge blocks source writes in design"
+  bad "hook blocks source writes in design"
 else
-  ok "hook bridge blocks source writes in design"
+  ok "hook blocks source writes in design"
 fi
-HOOK_CMD="$("$NODE_BIN" -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); console.log(j.hooks.PreToolUse[0].hooks[0].command)" "$HOOKS_JSON_RUN")"
-if (cd "$T" && printf '{"tool_name":"Write","tool_input":{"file_path":"src/App.ts"}}' | env -u CLAUDE_PLUGIN_ROOT -u HIKSPINE_PLUGIN_ROOT bash -lc "$HOOK_CMD" >/dev/null 2>&1); then
-  bad "hook command locates guard without CLAUDE_PLUGIN_ROOT"
+if (cd "$T" && printf '{"tool_name":"Write","tool_input":{"file_path":"docs/readme.md"}}' | CLAUDE_PLUGIN_ROOT="$REPO" "$NODE_BIN" "$HOOK_RUN" >/dev/null 2>&1); then
+  ok "hook allows non-source writes in design"
 else
-  ok "hook command locates guard without CLAUDE_PLUGIN_ROOT"
+  bad "hook allows non-source writes in design"
 fi
 
-printf '# Design\n\n## Selected Direction\nOne path.\n' > "$T/openspec/changes/entrance-monitor/design.md"
-eq "design blocks without required sections" "$(run next entrance-monitor --json | json_get 'j.phase')" "design"
-eq "design reports missing Brainstorming heading" "$(run next entrance-monitor --json | json_get 'j.missing.some(m=>m.missingHeadings && m.missingHeadings.includes("Brainstorming")) ? "yes" : "no"')" "yes"
-cat > "$T/openspec/changes/entrance-monitor/design.md" <<'MD'
-# Design
+# Verify the guard bootstrap script locates itself without env vars
+GUARD_SH="$REPO/hooks/guard.sh"
+if (cd "$T" && printf '{"tool_name":"Write","tool_input":{"file_path":"src/App.ts"}}' | env -u CLAUDE_PLUGIN_ROOT -u HIKSPINE_PLUGIN_ROOT bash "$GUARD_SH" >/dev/null 2>&1); then
+  bad "guard.sh locates plugin root without env vars"
+else
+  ok "guard.sh locates plugin root without env vars"
+fi
 
-## Brainstorming
-Compared alternatives and risks.
+# --- advance through design → build → review → verify → archive ---
+DECIDE3="$(run decide design_documented --json)"
+eq "decide design_documented stays in design" \
+  "$(printf '%s' "$DECIDE3" | json_get 'j.current')" "design"
+eq "design still missing design_confirmed" \
+  "$(printf '%s' "$DECIDE3" | json_get "j.missing.includes('design_confirmed') ? 'yes' : 'no'")" "yes"
 
-## Alternatives
-Option A and option B.
+DECIDE4="$(run decide design_confirmed --json)"
+eq "decide design_confirmed advances to build" \
+  "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
+eq "build has plan capability" \
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='superpowers.plan')" && echo yes || echo no)" "yes"
+eq "build has implement capability" \
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+eq "build does not forbid source writes" \
+  "$(printf '%s' "$DECIDE4" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "no"
 
-## Selected Direction
-Choose option A.
+DECIDE5="$(run decide implemented --json)"
+eq "decide implemented advances to review" \
+  "$(printf '%s' "$DECIDE5" | json_get 'j.current')" "review"
+eq "review has review capabilities" \
+  "$(printf '%s' "$DECIDE5" | json_test "j.capabilities.some(c=>c.id==='superpowers.review') && j.capabilities.some(c=>c.id==='company.review')" && echo yes || echo no)" "yes"
+eq "review needs review_result=pass" \
+  "$(printf '%s' "$DECIDE5" | json_get "j.missing.includes('review_result=pass') ? 'yes' : 'no'")" "yes"
 
-## Company Constraints
-No special platform blocker found.
+DECIDE6="$(run decide review_result pass --json)"
+eq "decide review_result=pass advances to verify" \
+  "$(printf '%s' "$DECIDE6" | json_get 'j.current')" "verify"
+eq "verify needs verify_result=pass" \
+  "$(printf '%s' "$DECIDE6" | json_get "j.missing.includes('verify_result=pass') ? 'yes' : 'no'")" "yes"
 
-## Open Questions
-None.
-MD
-eq "design blocks without input provenance" "$(run next entrance-monitor --json | json_get 'j.phase')" "design"
-eq "design reports missing Inputs Reviewed heading" "$(run next entrance-monitor --json | json_get 'j.missing.some(m=>m.missingHeadings && m.missingHeadings.includes("Inputs Reviewed")) ? "yes" : "no"')" "yes"
-cat > "$T/openspec/changes/entrance-monitor/design.md" <<'MD'
-# Design
+# --- cross-state rollback: verify failure ---
+DECIDE7="$(run decide verify_result fail --json)"
+eq "verify_result=fail rolls back to build" \
+  "$(printf '%s' "$DECIDE7" | json_get 'j.current')" "build"
+eq "rollback has reason set" \
+  "$(printf '%s' "$DECIDE7" | json_get "j.rollback ? j.rollback.reason : 'none'")" "Verification did not pass."
+eq "rollback to/from fields" \
+  "$(printf '%s' "$DECIDE7" | json_test "j.rollback && j.rollback.to==='build' && j.rollback.from==='verify'" && echo yes || echo no)" "yes"
+eq "rollback clears implemented decision" \
+  "$(printf '%s' "$DECIDE7" | json_get "j.missing.includes('implemented') ? 'yes' : 'no'")" "yes"
+# Decisions for downstream states are cleared by rollback; verify by
+# re-advancing: after re-deciding implemented, review_result must be needed again.
+ROLLBACK_DECISIONS="$(printf '%s' "$DECIDE7" | json_get 'JSON.stringify(j)')"
+eq "rollback clears review_result from decisions" \
+  "$(printf '%s' "$ROLLBACK_DECISIONS" | "$NODE_BIN" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s); console.log(j.decisions && j.decisions.review_result ? 'present' : 'cleared')})")" "cleared"
+eq "rollback clears verify_result from decisions" \
+  "$(printf '%s' "$ROLLBACK_DECISIONS" | "$NODE_BIN" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s); console.log(j.decisions && j.decisions.verify_result ? 'present' : 'cleared')})")" "cleared"
 
-## Inputs Reviewed
-- openspec/changes/entrance-monitor/proposal.md
-- openspec/changes/entrance-monitor/tasks.md
-- openspec/changes/entrance-monitor/specs
+# --- re-do: implement → review → verify (pass) → archive ---
+REDO_IMPL="$(run decide implemented --json)"
+eq "re-implement advances to review (review needs redo)" \
+  "$(printf '%s' "$REDO_IMPL" | json_get 'j.current')" "review"
+eq "review_result=pass needed again after rollback" \
+  "$(printf '%s' "$REDO_IMPL" | json_get "j.missing.includes('review_result=pass') ? 'yes' : 'no'")" "yes"
+REDO_REVIEW="$(run decide review_result pass --json)"
+eq "re-review advances to verify" \
+  "$(printf '%s' "$REDO_REVIEW" | json_get 'j.current')" "verify"
+eq "rollback cleared after advance" \
+  "$(printf '%s' "$REDO_REVIEW" | json_get "j.rollback ? 'present' : 'cleared'")" "cleared"
 
-## Brainstorming
-Compared alternatives and risks.
+REDO_VERIFY="$(run decide verify_result pass --json)"
+eq "verify pass advances to archive" \
+  "$(printf '%s' "$REDO_VERIFY" | json_get 'j.current')" "archive"
+eq "archive requires user confirmation" \
+  "$(printf '%s' "$REDO_VERIFY" | json_get "j.requiresUser ? 'yes' : 'no'")" "yes"
+eq "archive forbids write-source" \
+  "$(printf '%s' "$REDO_VERIFY" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "yes"
+eq "archive is terminal" \
+  "$(printf '%s' "$REDO_VERIFY" | json_get "j.terminal ? 'yes' : 'no'")" "yes"
 
-## Questions From OpenSpec
-No unresolved product questions remain.
+ARCHIVED="$(run decide archived --json)"
+eq "decide archived completes workflow" \
+  "$(printf '%s' "$ARCHIVED" | json_get "j.complete ? 'yes' : 'no'")" "yes"
 
-## Options Considered
-Option A and option B.
-
-## Tradeoffs
-Option A is simpler, option B has more flexibility.
-
-## Selected Direction
-Choose option A.
-
-## Company Constraints
-No special platform blocker found.
-
-## Open Questions
-None.
-MD
-eq "brainstorming artifact advances to user confirmation" "$(run next entrance-monitor --json | json_get 'j.node')" "design.confirm"
-eq "user confirmation node requires user" "$(run next entrance-monitor --json | json_get 'j.agent.requiresUser ? "yes" : "no"')" "yes"
-eq "user confirmation asks technology stack" "$(run next entrance-monitor --json | json_get 'j.agent.requiredQuestions.includes("technology_stack") ? "yes" : "no"')" "yes"
-eq "design blocks without user confirmation" "$(run next entrance-monitor --json | json_get 'j.missing.some(m=>m.missingHeadings && m.missingHeadings.includes("User Confirmation")) ? "yes" : "no"')" "yes"
-cat >> "$T/openspec/changes/entrance-monitor/design.md" <<'MD'
-
-## User Decisions
-Technology stack: User confirmed Vue 3 frontend and Spring Boot backend.
-Architecture/integration: User confirmed a dashboard UI backed by realtime API integration.
-Data/realtime path: User confirmed WebSocket push for realtime records.
-Company constraints: User confirmed no additional company platform blocker.
-
-## User Confirmation
-Confirmed by user: Approved option A and confirmed no open design questions.
-MD
-eq "confirmed design advances to build" "$(run next entrance-monitor --json | json_get 'j.phase')" "build"
-eq "build reads design before planning" "$(run next entrance-monitor --json | json_get 'j.requiredInputs.some(i=>i.key==="design_doc" && i.path==="openspec/changes/entrance-monitor/design.md" && i.useBefore.includes("superpowers.plan")) ? "yes" : "no"')" "yes"
-eq "build starts with planning step" "$(run next entrance-monitor --json | json_get 'j.nextSkill.id')" "superpowers.plan"
-cat > "$T/openspec/changes/entrance-monitor/implementation.md" <<'MD'
-# Implementation
-
-## Inputs Reviewed
-- openspec/changes/entrance-monitor/design.md
-- openspec/changes/entrance-monitor/tasks.md
-
-## Implementation Plan
-Implement the selected direction.
-
-## Source Change Plan
-Update the relevant source files.
-
-## Verification Plan
-Run focused verification.
-MD
-eq "build plan advances to implementation step" "$(run next entrance-monitor --json | json_get 'j.nextSkill.id')" "superpowers.implement"
 rm -rf "$T"
 
-echo "# simple-fix workflow: lightweight observable artifacts"
+# ─── simple-fix workflow: lightweight standalone ──────────────────────────
+
+echo "# simple-fix workflow: decision-driven (standalone storage)"
 T="$(sandbox)"
-eq "simple-fix starts in inspect" "$(run next fix-login-timeout --workflow simple-fix --json | json_get 'j.phase')" "inspect"
+
+SF_NEXT="$(run next fix-login-timeout --workflow simple-fix --json)"
+eq "simple-fix starts in inspect" \
+  "$(printf '%s' "$SF_NEXT" | json_get 'j.current')" "inspect"
 eq "simple-fix state is standalone" \
   "$(test -f "$T/.hikspine/changes/fix-login-timeout.yaml" && echo yes || echo no)" "yes"
-mkdir -p "$T/.hikspine/changes"
-printf '# Inspect\nRelevant path identified.\n' > "$T/.hikspine/changes/fix-login-timeout.inspect.md"
-eq "inspect artifact advances to fix" "$(run next fix-login-timeout --json | json_get 'j.phase')" "fix"
-printf '# Patch\nMinimal patch applied.\n' > "$T/.hikspine/changes/fix-login-timeout.patch.md"
-eq "patch artifact advances to verify" "$(run next fix-login-timeout --json | json_get 'j.phase')" "verify"
-printf '# Verify\nresult: fail\n' > "$T/.hikspine/changes/fix-login-timeout.verify.md"
-eq "verify failure rolls back to fix" "$(run next fix-login-timeout --json | json_get 'j.phase')" "fix"
+eq "simple-fix has inspect capability" \
+  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='superpowers.inspect')" && echo yes || echo no)" "yes"
+eq "simple-fix needs issue_understood" \
+  "$(printf '%s' "$SF_NEXT" | json_get "j.missing.includes('issue_understood') ? 'yes' : 'no'")" "yes"
+
+SF_FIX="$(run decide issue_understood --json)"
+eq "issue_understood advances to fix" \
+  "$(printf '%s' "$SF_FIX" | json_get 'j.current')" "fix"
+eq "fix has implement capability" \
+  "$(printf '%s' "$SF_FIX" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+
+SF_VERIFY="$(run decide patched --json)"
+eq "patched advances to verify" \
+  "$(printf '%s' "$SF_VERIFY" | json_get 'j.current')" "verify"
+eq "verify state is terminal" \
+  "$(printf '%s' "$SF_VERIFY" | json_get "j.terminal ? 'yes' : 'no'")" "yes"
+
+# --- rollback on verify failure ---
+SF_ROLLBACK="$(run decide verify_result fail --json)"
+eq "verify fail rolls back to fix" \
+  "$(printf '%s' "$SF_ROLLBACK" | json_get 'j.current')" "fix"
+eq "rollback clears patched decision" \
+  "$(printf '%s' "$SF_ROLLBACK" | json_get "j.missing.includes('patched') ? 'yes' : 'no'")" "yes"
+
+# Re-do: fix → verify (pass) → complete
+run decide patched --json > /dev/null
+SF_DONE="$(run decide verify_result pass --json)"
+eq "verify pass completes simple-fix" \
+  "$(printf '%s' "$SF_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+
 rm -rf "$T"
 
-echo "# custom workflow: project workflow without skill changes"
+# ─── hotfix workflow: standalone storage ───────────────────────────────────
+
+echo "# hotfix workflow: standalone storage"
+T="$(sandbox)"
+
+HF_NEXT="$(run next urgent-crash --workflow hotfix --json)"
+eq "hotfix starts in inspect" \
+  "$(printf '%s' "$HF_NEXT" | json_get 'j.current')" "inspect"
+eq "hotfix state is standalone" \
+  "$(test -f "$T/.hikspine/changes/urgent-crash.yaml" && echo yes || echo no)" "yes"
+eq "hotfix needs issue_confirmed" \
+  "$(printf '%s' "$HF_NEXT" | json_get "j.missing.includes('issue_confirmed') ? 'yes' : 'no'")" "yes"
+
+run decide issue_confirmed --json > /dev/null
+HF_PATCH="$(run decide patched --json)"
+eq "patched advances to verify in hotfix" \
+  "$(printf '%s' "$HF_PATCH" | json_get 'j.current')" "verify"
+
+HF_ROLLBACK="$(run decide verify_result fail --json)"
+eq "verify fail rolls back to patch" \
+  "$(printf '%s' "$HF_ROLLBACK" | json_get 'j.current')" "patch"
+
+run decide patched --json > /dev/null
+HF_DONE="$(run decide verify_result pass --json)"
+eq "verify pass completes hotfix" \
+  "$(printf '%s' "$HF_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+
+rm -rf "$T"
+
+# ─── new-project workflow: extra scaffold state ────────────────────────────
+
+echo "# new-project workflow: scaffold state"
+T="$(sandbox)"
+
+NP_NEXT="$(run next my-service --workflow new-project --json)"
+eq "new-project starts in open" \
+  "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "open"
+eq "new-project open needs proposal_ready" \
+  "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
+
+NP_DESIGN="$(run decide proposal_ready --json)"
+eq "advances to design" \
+  "$(printf '%s' "$NP_DESIGN" | json_get 'j.current')" "design"
+
+run decide design_documented --json > /dev/null
+NP_SCAFFOLD="$(run decide design_confirmed --json)"
+eq "advances to scaffold (not build)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
+eq "scaffold has implement capability" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+
+NP_BUILD="$(run decide scaffolded --json)"
+eq "scaffolded advances to build" \
+  "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
+eq "build has plan+implement capabilities" \
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='superpowers.plan') && j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+
+rm -rf "$T"
+
+# ─── custom workflow: states-based YAML ────────────────────────────────────
+
+echo "# custom workflow: project workflow with states format"
 T="$(sandbox)"
 mkdir -p "$T/.hikspine/workflows"
+
 cat > "$T/.hikspine/workflows/tiny-review.yaml" <<'YAML'
 id: tiny-review
 version: 1
 name: Tiny Review
+start: inspect
 
-phases:
+states:
   - id: inspect
     goal: Create a tiny review note.
-    nodes:
-      - id: inspect.note
-        type: agent-loop
-        required: true
-        objective: Write a small note artifact.
-        outputs:
-          - key: note
-            path: .hikspine/changes/{change}.note.md
-        exit:
-          checks:
-            - file.exists: .hikspine/changes/{change}.note.md
+    capabilities: [superpowers.inspect]
+    needs: [note_written]
+    next: review
+
+  - id: review
+    goal: Review the note and finish.
+    capabilities: [superpowers.review]
+    needs: [review_done]
+    terminal: true
 YAML
-eq "custom workflow starts from project file" "$(run next custom-note --workflow tiny-review --storage standalone --json | json_get 'j.workflow')" "tiny-review"
-eq "custom workflow state is standalone when requested" \
+
+CT_NEXT="$(run next custom-note --workflow tiny-review --storage standalone --json)"
+eq "custom workflow starts from project file" \
+  "$(printf '%s' "$CT_NEXT" | json_get 'j.workflow')" "tiny-review"
+eq "custom workflow state is standalone" \
   "$(test -f "$T/.hikspine/changes/custom-note.yaml" && echo yes || echo no)" "yes"
-printf '# Note\nCustom workflow artifact.\n' > "$T/.hikspine/changes/custom-note.note.md"
-eq "custom workflow completes by observable artifact" "$(run next custom-note --json | json_get 'j.complete ? "yes" : "no"')" "yes"
+eq "custom workflow starts in inspect" \
+  "$(printf '%s' "$CT_NEXT" | json_get 'j.current')" "inspect"
+eq "custom workflow has inspect capability" \
+  "$(printf '%s' "$CT_NEXT" | json_test "j.capabilities.some(c=>c.id==='superpowers.inspect')" && echo yes || echo no)" "yes"
+
+CT_REVIEW="$(run decide note_written --json)"
+eq "note_written advances to review" \
+  "$(printf '%s' "$CT_REVIEW" | json_get 'j.current')" "review"
+
+CT_DONE="$(run decide review_done --json)"
+eq "review_done completes custom workflow" \
+  "$(printf '%s' "$CT_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+
 rm -rf "$T"
+
+# ─── edge cases ────────────────────────────────────────────────────────────
+
+echo "# edge cases"
+T="$(sandbox)"
+
+# Multiple changes without active: next requires explicit change name
+run next change-a --workflow simple-fix --json > /dev/null
+run next change-b --workflow simple-fix --json > /dev/null
+# Clear active to force "no active change" scenario
+rm -f "$T/.hikspine/active"
+NO_ACTIVE="$(run next --json 2>&1 || true)"
+has "next without active or change arg reports error" "$NO_ACTIVE" "No active change"
+
+# Invalid change name
+run next change-c --workflow simple-fix --json > /dev/null  # create one more so resolveChange doesn't pick single
+INVALID="$(run next 'bad/name' --workflow feature --json 2>&1 || true)"
+has "invalid change name rejected" "$INVALID" "Invalid change name"
+
+rm -rf "$T"
+
+# ─── summary ───────────────────────────────────────────────────────────────
 
 echo ""
 echo "RESULT: $pass passed, $fail failed"
