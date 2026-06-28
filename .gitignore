@@ -4,5 +4,9 @@ node_modules/
 .tmp/
 hikspine-vendor-*/
 
+# Claude Code personal settings (machine-local permission allowlist, not shared).
+# The shared .claude/settings.json stays tracked.
+.claude/settings.local.json
+
 # Vendored skills (skills/ from upstream) ARE committed on purpose —
 # they are the pinned, team-shared snapshot. Do not ignore them.
