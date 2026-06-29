@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hikspine Board</title>
+<style>
+  :root {
+    --bg:#0b0d12; --bg2:#0f1219; --panel:#151925; --panel2:#1b2030; --line:#262c3b;
+    --text:#e8ecf4; --muted:#8b94a7; --dim:#5b6478;
+    --accent:#6ea8fe; --work:#3fb950; --confirm:#e3b341; --done:#7c4dff; --err:#f85149;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body { background:radial-gradient(1200px 600px at 80% -10%, #16203a 0%, var(--bg) 55%); color:var(--text);
+    font:14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width:1120px; margin:0 auto; padding:26px 24px 60px; }
+  header { display:flex; align-items:center; gap:14px; margin-bottom:6px; }
+  .logo { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--done));
+    display:grid; place-items:center; font-weight:800; color:#0b0d12; font-size:16px; }
+  h1 { font-size:18px; margin:0; letter-spacing:.2px; }
+  .sub { color:var(--muted); font-size:12px; font-family:ui-monospace, monospace; }
+  .live { margin-left:auto; display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--work); box-shadow:0 0 0 0 rgba(63,185,80,.6); animation:pulse 2s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(63,185,80,.5)} 70%{box-shadow:0 0 0 7px rgba(63,185,80,0)} 100%{box-shadow:0 0 0 0 rgba(63,185,80,0)} }
+
+  .stats { display:flex; gap:10px; margin:18px 0 22px; flex-wrap:wrap; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; min-width:104px; }
+  .stat .n { font-size:22px; font-weight:700; }
+  .stat .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.6px; }
+  .stat.work .n { color:var(--work); } .stat.confirm .n { color:var(--confirm); } .stat.done .n { color:var(--done); }
+
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); margin:24px 0 12px; font-weight:600; }
+  .cards { display:grid; gap:14px; }
+  .card { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line);
+    border-radius:14px; padding:16px 18px; }
+  .card.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(110,168,254,.35), 0 8px 30px -18px var(--accent); }
+  .card .top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .card .name { font-weight:700; font-size:15px; }
+  .card .wf { color:var(--muted); font-size:12px; font-family:ui-monospace, monospace;
+    background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; }
+  .card .star { color:var(--accent); font-size:12px; }
+  .badge { margin-left:auto; font-size:11px; padding:3px 10px; border-radius:999px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+  .badge.work { background:rgba(63,185,80,.16); color:var(--work); }
+  .badge.confirm { background:rgba(227,179,65,.16); color:var(--confirm); }
+  .badge.done { background:rgba(124,77,255,.18); color:#b39dff; }
+  .badge.error { background:rgba(248,81,73,.16); color:var(--err); }
+
+  .pipe { display:flex; align-items:center; gap:0; margin:4px 0 10px; }
+  .step { display:flex; align-items:center; flex:1; min-width:0; }
+  .step:last-child { flex:0; }
+  .node { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .bub { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700;
+    background:var(--panel2); border:2px solid var(--line); color:var(--dim); }
+  .node.done .bub { background:var(--work); border-color:var(--work); color:#0b0d12; }
+  .node.curr .bub { border-color:var(--accent); color:var(--accent); box-shadow:0 0 0 4px rgba(110,168,254,.16); }
+  .node.curr.confirm .bub { border-color:var(--confirm); color:var(--confirm); box-shadow:0 0 0 4px rgba(227,179,65,.16); }
+  .node .lbl { font-size:10.5px; color:var(--muted); white-space:nowrap; }
+  .node.curr .lbl { color:var(--text); font-weight:600; }
+  .bar { flex:1; height:2px; background:var(--line); margin:0 6px; margin-bottom:18px; }
+  .bar.done { background:var(--work); }
+
+  .meta { color:var(--muted); font-size:12px; display:flex; gap:18px; flex-wrap:wrap; }
+  .meta b { color:var(--text); font-weight:500; }
+  .card.clickable { cursor:pointer; }
+
+  .launch { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:var(--panel);
+    border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .launch select, .launch input { font:inherit; color:var(--text); background:var(--panel2);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  .launch input { min-width:220px; }
+  .launch button { font:inherit; font-weight:600; background:var(--accent); color:#0b0d12; border:none;
+    border-radius:8px; padding:8px 16px; cursor:pointer; }
+  .launch .err { color:var(--err); font-size:12px; }
+  .launch .intent { flex-basis:100%; color:var(--dim); font-size:12px; }
+
+  .wf-legend { display:flex; gap:10px; flex-wrap:wrap; }
+  .wf-chip { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 12px; max-width:330px; }
+  .wf-chip .id { font-weight:700; font-size:13px; } .wf-chip .it { color:var(--muted); font-size:11.5px; }
+  .skills { color:var(--muted); font-size:12px; }
+  .empty { color:var(--dim); font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">H</div>
+    <div>
+      <h1>Hikspine Board</h1>
+      <div class="sub" id="root"></div>
+    </div>
+    <div class="live"><span class="dot"></span> live · updates every 2s</div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <h2>Active runs</h2>
+  <div class="cards" id="changes"></div>
+
+  <h2>Start a run</h2>
+  <div class="launch">
+    <select id="wf"></select>
+    <input id="change" placeholder="change-name (kebab-case)" />
+    <button id="go">Start</button>
+    <span class="err" id="msg"></span>
+    <div class="intent" id="intent"></div>
+  </div>
+
+  <h2>Workflows</h2>
+  <div class="wf-legend" id="legend"></div>
+
+  <h2>Skills</h2>
+  <div class="skills" id="skills"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = (p,o) => fetch(p,o).then(r=>r.json());
+
+function pipe(c) {
+  if (c.error || !Array.isArray(c.stages)) return '';
+  const curr = c.stageIndex;
+  let h = '<div class="pipe">';
+  c.stages.forEach((id,i) => {
+    const isDone = c.complete ? true : i < curr;
+    const isCurr = !c.complete && i === curr;
+    const cls = isCurr ? 'curr ' + (c.nextAction==='confirm'?'confirm':'') : (isDone ? 'done' : '');
+    const mark = isDone ? '✓' : (i+1);
+    h += '<div class="step"><div class="node '+cls+'"><div class="bub">'+mark+'</div><div class="lbl">'+esc(id)+'</div></div>';
+    if (i < c.stages.length-1) h += '<div class="bar '+(isDone?'done':'')+'"></div>';
+    h += '</div>';
+  });
+  return h + '</div>';
+}
+
+function badge(c) {
+  if (c.error) return '<span class="badge error">error</span>';
+  if (c.complete) return '<span class="badge done">done</span>';
+  return '<span class="badge '+c.nextAction+'">'+c.nextAction+'</span>';
+}
+
+function renderStats(changes) {
+  const n = { work:0, confirm:0, done:0 };
+  changes.forEach(c => { if (c.error) return; if (c.complete) n.done++; else n[c.nextAction]++; });
+  $('stats').innerHTML =
+    '<div class="stat"><div class="n">'+changes.length+'</div><div class="l">runs</div></div>'+
+    '<div class="stat work"><div class="n">'+n.work+'</div><div class="l">in progress</div></div>'+
+    '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">awaiting user</div></div>'+
+    '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">done</div></div>';
+}
+
+function renderChanges(changes, active) {
+  if (!changes.length) { $('changes').innerHTML = '<div class="empty">No runs yet — start one below, or the agent will.</div>'; return; }
+  $('changes').innerHTML = changes.map(c => {
+    if (c.error) return '<div class="card"><div class="top"><span class="name">'+esc(c.change)+'</span>'+badge(c)+'</div><div class="meta">'+esc(c.error)+'</div></div>';
+    const missing = (c.missing && c.missing.length) ? c.missing.join(', ') : '—';
+    return '<div class="card clickable'+(c.active?' active':'')+'" data-change="'+esc(c.change)+'">'+
+      '<div class="top">'+(c.active?'<span class="star">★</span>':'')+'<span class="name">'+esc(c.change)+'</span>'+
+      '<span class="wf">'+esc(c.workflow)+'</span>'+badge(c)+'</div>'+
+      pipe(c)+
+      '<div class="meta"><span>state <b>'+esc(c.current)+'</b></span><span>needs: <b>'+esc(missing)+'</b></span></div></div>';
+  }).join('');
+  $('changes').querySelectorAll('.card.clickable').forEach(card => {
+    card.onclick = async () => { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); refresh(); };
+  });
+}
+
+function renderWorkflows(workflows) {
+  const sel = $('wf'), prev = sel.value;
+  sel.innerHTML = workflows.map(w=>'<option value="'+esc(w.id)+'">'+esc(w.id)+'</option>').join('');
+  if (workflows.some(w=>w.id===prev)) sel.value = prev;
+  const showIntent = () => { const w = workflows.find(x=>x.id===sel.value); $('intent').textContent = w?w.intent:''; };
+  sel.onchange = showIntent; showIntent();
+  $('legend').innerHTML = workflows.map(w=>'<div class="wf-chip"><div class="id">'+esc(w.id)+'</div><div class="it">'+esc(w.intent||'')+'</div></div>').join('');
+}
+
+async function refresh() {
+  const s = await api('/api/state');
+  $('root').textContent = s.root;
+  renderStats(s.changes);
+  renderChanges(s.changes, s.active);
+  renderWorkflows(s.workflows);
+  $('skills').textContent = s.skills.length + ' skills discoverable (capabilities are picked from these)';
+}
+
+$('go').onclick = async () => {
+  $('msg').textContent = '';
+  const change = $('change').value.trim();
+  if (!change) { $('msg').textContent = 'Enter a change name.'; return; }
+  const r = await api('/api/launch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change,workflow:$('wf').value})});
+  if (r.error) { $('msg').textContent = r.error; return; }
+  $('change').value=''; refresh();
+};
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

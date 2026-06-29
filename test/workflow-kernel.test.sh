@@ -376,11 +376,11 @@ eq "review_done completes custom workflow" \
 
 rm -rf "$T"
 
-# ─── editor output: block-style YAML the workflow editor writes ────────────
-# The editor saves via writeYamlFile (block sequences: "-\n  id: ..."). Verify
-# that exact shape parses and runs, so editor-authored workflows work.
+# ─── block-style YAML roundtrip (writeYamlFile output) ─────────────────────
+# writeYamlFile emits block sequences ("-\n  id: ..."). Verify that exact shape
+# parses and runs, so programmatically-authored workflows work.
 
-echo "# editor output: block-style workflow YAML roundtrips"
+echo "# block-style workflow YAML roundtrips"
 T="$(sandbox)"
 mkdir -p "$T/.hikspine/workflows"
 cat > "$T/.hikspine/workflows/edit-flow.yaml" <<'YAML'

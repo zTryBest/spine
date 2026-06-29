@@ -1,3 +1,21 @@
+## What's Changed [0.6.0] - 2026-06-29
+
+方向收敛：收紧目录、内置工作流精简到三种、看板回归“只展示状态”（移除编排编辑器，留作后续）。
+
+### Changed
+
+- **目录收紧**: 引擎源码统一到 `src/`（原 `bin/` + `lib/` 合并，CLI 为 `src/hikspine.mjs`），内置工作流移到 `src/workflows/`，看板 UI 放到 `dashboard/`，删除空的 `commands/`。顶层只保留 `.claude-plugin`、`src`、`hooks`、`rules`、`skills`、`dashboard`（外加 `test`/`docs` 等元信息）。同步更新 env 定位器（`HIKSPINE_ENGINE`→`src/hikspine.mjs`、`HIKSPINE_WORKFLOWS_DIR`→`src/workflows`）、`BUILTIN_WORKFLOWS_DIR`、`hooks/guard.mjs` 导入、测试与 README 结构说明。无行为变更。
+- **内置工作流精简为三种**: `new`（从 0 到 1，原 new-project）、`feature`（新需求，不变）、`fix`（bug 或轻量变动，合并原 simple-fix + hotfix）。入口仍是 `hikspine`，由 Agent 按 `intent` 自动路由。`store.mjs` 的存储判定改为 `fix` 走 standalone，其余走 OpenSpec。
+- **看板回归状态展示**: 看板（`dashboard/index.html`，单页 vanilla JS，2 秒轮询）做成可演示的状态大屏——每个 change 显示其流水线 stepper（阶段进度、当前阶段高亮、按 `nextAction` 着色）、状态徽章、缺失决策，顶部有运行数/进行中/待用户/已完成统计，并列出 workflows 与 skills 数。`board.mjs` 的 `changeSummary` 增加 `stages`/`stageIndex` 供流水线渲染。保留启动/切换 run 接口。
+
+### Removed
+
+- **Workflow 图编辑器（0.5.0 的 Phase 3）**: 移除浏览器内 workflow 编排/编辑（`src/editor-html.mjs`、`/editor` 页面、`/api/workflow` 载入/校验/保存接口），按计划留作后续。看板服务（`src/server.mjs`）只保留 `GET /`（看板）、`GET /api/state`、`POST /api/launch`、`POST /api/active`；看板 HTML 从内联模块改为 `dashboard/index.html` 静态文件。
+
+### Tests
+
+- 路径与 workflow 名跟随重构/精简更新；新 `fix`/`new` 工作流端到端、三个内置 workflow 的列举、块状 YAML roundtrip、看板聚合断言全部通过。共 92 passed。
+
 ## What's Changed [0.5.0] - 2026-06-29
 
 可视化编排 Phase 3：浏览器里的 Workflow 图编辑器。按引擎现有的 state-machine YAML 编排，capabilities 从发现的真实 skill 里挑，保存即 `.hikspine/workflows/<id>.yaml`。

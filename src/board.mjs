@@ -13,6 +13,7 @@ export function changeSummary(root, change, active) {
     const state = loadState(root, change);
     const workflow = loadWorkflow(root, state.workflow);
     const sum = summarize(workflow, state);
+    const stages = workflow.states.map((s) => s.id);
     return {
       change,
       workflow: state.workflow,
@@ -23,6 +24,8 @@ export function changeSummary(root, change, active) {
       requiresUser: sum.requiresUser,
       missing: sum.missing,
       complete: sum.complete,
+      stages,
+      stageIndex: stages.indexOf(sum.current),
     };
   } catch (err) {
     return { change, active: change === active, error: err.message };
