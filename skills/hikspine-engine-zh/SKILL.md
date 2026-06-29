@@ -51,7 +51,7 @@ node "$HIKSPINE_ENGINE" next <change> --json                            # 已存
 node "$HIKSPINE_ENGINE" workflows --json
 ```
 
-每个 workflow 声明了 `intent`，说明它适用什么场景。把需求 + 当前项目现状对照各 `intent` 匹配——线上故障配 `hotfix`、小范围 bug 配 `simple-fix`、已有代码库加新功能配 `feature`、空仓库从 0 起配 `new-project`。要看真实信号：紧急程度、影响范围、是否需要设计、是否已有代码（`git` 状态、目录结构）。两个 workflow 旗鼓相当时用 `AskQuestion` 让用户拍板，不要乱猜。然后用选中的 `--workflow` 启动 change。
+每个 workflow 声明了 `intent`，说明它适用什么场景。把需求 + 当前项目现状对照各 `intent` 匹配——bug 或小的轻量变动（含线上紧急修复）配 `fix`、已有代码库加新需求配 `feature`、空仓库从 0 到 1 配 `new`。要看真实信号：影响范围、是否需要设计、是否已有代码（`git` 状态、目录结构）。两个 workflow 旗鼓相当时用 `AskQuestion` 让用户拍板，不要乱猜。然后用选中的 `--workflow` 启动 change。
 
 多个 change 可以同时在跑，各自一条 workflow：
 
@@ -121,10 +121,9 @@ done     工作流已完成，无需再做。
 ## 内置工作流
 
 ```text
-feature       open -> design -> build -> review -> verify -> archive
-new-project   open -> design -> scaffold -> build -> review -> verify
-simple-fix    inspect -> fix -> verify
-hotfix        inspect -> patch -> verify
+new       open -> design -> scaffold -> build -> review -> verify   (从 0 到 1)
+feature   open -> design -> build -> review -> verify -> archive    (新需求)
+fix       inspect -> fix -> verify                                  (bug / 轻量变动)
 ```
 
 新增 workflow 放 `.hikspine/workflows/<id>.yaml`，传 `--workflow <id>`，不改本 skill。状态文件由引擎维护，不要手改。

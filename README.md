@@ -12,28 +12,25 @@ Hikspine keeps AI coding work on rails by making the current phase, workflow nod
 skills/hikspine/SKILL.md
   User-facing entry. Trigger it with text such as "/hs ..." or "use hikspine ...".
 
-bin/hikspine.mjs
-  Thin public CLI. Agent loop is `next` + `decide`; `skills`, `workflows`, and
-  `changes` are read-only listings for routing and tooling.
+src/hikspine.mjs
+  Thin public CLI. Agent loop is `next` + `decide`; `skills`, `workflows`,
+  `changes`, `board`, and `ui` are read-only listings / the board.
 
-lib/store.mjs
+src/store.mjs
   Config, workflow loading, state file placement, and active change handling.
 
-lib/checks.mjs
-  Machine-checkable exit checks and guard decisions.
+src/transitions.mjs
+  Decision-driven state advancement and rollback.
 
-lib/transitions.mjs
-  Automatic node/phase advancement.
-
-lib/skills.mjs
+src/skills.mjs
   Skill discovery. Resolves a workflow's `capabilities` (real Claude Code skill
   names) by scanning the same filesystem locations Claude Code reads. No registry.
 
-lib/rules.mjs
-  Idempotent distribution of plugin-authored Markdown rules into project `.claude/rules`.
+src/server.mjs, dashboard/
+  Local web board (status view) served at `hikspine ui`.
 
-builtin/workflows/
-  Builtin workflow recipes: feature, simple-fix, hotfix, new-project.
+src/workflows/
+  Builtin workflow recipes: new, feature, fix.
 
 rules/
   Plugin-authored project rules that are copied into `.claude/rules`.
@@ -111,10 +108,9 @@ The engine no longer asks Agent to write facts such as `no_open_questions=true` 
 
 ## Builtin Workflows
 
-- `feature`: `open -> design -> build -> review -> verify -> archive`
-- `simple-fix`: `inspect -> fix -> verify`
-- `hotfix`: `inspect -> patch -> verify`
-- `new-project`: `open -> design -> scaffold -> build -> review -> verify`
+- `new`: `open -> design -> scaffold -> build -> review -> verify` (build from scratch, 0 to 1)
+- `feature`: `open -> design -> build -> review -> verify -> archive` (new requirement)
+- `fix`: `inspect -> fix -> verify` (bug or lightweight change)
 
 Each workflow declares an `intent` (a one-line "when to use this flow") so the
 agent can route a request; see `hikspine workflows --json`.
@@ -139,13 +135,13 @@ version: 1
 defaultWorkflow: <workflow-id>
 ```
 
-`feature` and `new-project` are OpenSpec-backed by default and store state at:
+`new` and `feature` are OpenSpec-backed by default and store state at:
 
 ```text
 openspec/changes/<change>/.hikspine.yaml
 ```
 
-`simple-fix` and `hotfix` are lightweight by default and store state at:
+`fix` is lightweight by default and stores state at:
 
 ```text
 .hikspine/changes/<change>.yaml

@@ -53,7 +53,7 @@ If the user did not name a workflow and the project has no `defaultWorkflow`, pi
 node "$HIKSPINE_ENGINE" workflows --json
 ```
 
-Each workflow declares an `intent` describing when it applies. Match the request and the current project state against those intents — e.g. a broken production system fits `hotfix`, a small localized bug fits `simple-fix`, a new feature in an existing codebase fits `feature`, an empty repo fits `new-project`. Weigh real signals: urgency, blast radius, whether a design is needed, whether code already exists (`git` status, file layout). If two workflows fit comparably, ask the user with `AskQuestion` instead of guessing. Then start the change with the chosen `--workflow`.
+Each workflow declares an `intent` describing when it applies. Match the request and the current project state against those intents — e.g. a bug or small lightweight change (including an urgent production fix) fits `fix`, a new requirement in an existing codebase fits `feature`, an empty repo (0 to 1) fits `new`. Weigh real signals: blast radius, whether a design is needed, whether code already exists (`git` status, file layout). If two workflows fit comparably, ask the user with `AskQuestion` instead of guessing. Then start the change with the chosen `--workflow`.
 
 Several changes can be in flight at once, each on its own workflow. List them with:
 
@@ -124,10 +124,9 @@ Match the language of the user's current workflow request for explanations, clar
 ## Builtin Workflows
 
 ```text
-feature       open -> design -> build -> review -> verify -> archive
-new-project   open -> design -> scaffold -> build -> review -> verify
-simple-fix    inspect -> fix -> verify
-hotfix        inspect -> patch -> verify
+new       open -> design -> scaffold -> build -> review -> verify   (0 to 1)
+feature   open -> design -> build -> review -> verify -> archive    (new requirement)
+fix       inspect -> fix -> verify                                  (bug / lightweight change)
 ```
 
 Put a custom workflow at `.hikspine/workflows/<id>.yaml` and pass `--workflow <id>`; do not edit this skill. The engine maintains the state file — do not hand-edit it.

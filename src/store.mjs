@@ -137,7 +137,7 @@ export function stateFileFor(root, change, workflowId = '') {
   const standalone = standaloneStateFile(root, change);
   if (fs.existsSync(openSpec)) return openSpec;
   if (fs.existsSync(standalone)) return standalone;
-  return workflowId === 'simple-fix' || workflowId === 'hotfix' ? standalone : openSpec;
+  return workflowId === 'fix' ? standalone : openSpec;
 }
 
 export function activeFile(root) {
@@ -211,7 +211,7 @@ export function initializeState(root, change, workflow, storage) {
 export function createState(root, change, workflowId, storageArg) {
   validateChangeName(change);
   const workflow = loadWorkflow(root, workflowId);
-  const storage = storageArg || (workflow.id === 'simple-fix' || workflow.id === 'hotfix' ? 'standalone' : 'openspec');
+  const storage = storageArg || (workflow.id === 'fix' ? 'standalone' : 'openspec');
   if (storage === 'openspec') ensureDir(path.join(root, 'openspec', 'changes', change, 'specs'));
   else ensureDir(path.join(root, '.hikspine', 'changes'));
   const state = initializeState(root, change, workflow, storage);

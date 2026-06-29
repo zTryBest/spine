@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test suite for the Hikspine composable state machine kernel.
-# Covers: runtime locator, feature workflow, simple-fix workflow, custom
+# Covers: runtime locator, feature workflow, fix workflow, custom
 # workflows, guard hook, and cross-state rollback.
 set -euo pipefail
 
@@ -258,19 +258,19 @@ eq "completed workflow nextAction is done" \
 
 rm -rf "$T"
 
-# ─── simple-fix workflow: lightweight standalone ──────────────────────────
+# ─── fix workflow: lightweight standalone ──────────────────────────
 
-echo "# simple-fix workflow: decision-driven (standalone storage)"
+echo "# fix workflow: decision-driven (standalone storage)"
 T="$(sandbox)"
 
-SF_NEXT="$(run next fix-login-timeout --workflow simple-fix --json)"
-eq "simple-fix starts in inspect" \
+SF_NEXT="$(run next fix-login-timeout --workflow fix --json)"
+eq "fix starts in inspect" \
   "$(printf '%s' "$SF_NEXT" | json_get 'j.current')" "inspect"
-eq "simple-fix state is standalone" \
+eq "fix state is standalone" \
   "$(test -f "$T/.hikspine/changes/fix-login-timeout.yaml" && echo yes || echo no)" "yes"
-eq "simple-fix has inspect capability" \
+eq "fix has inspect capability" \
   "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging')" && echo yes || echo no)" "yes"
-eq "simple-fix needs issue_understood" \
+eq "fix needs issue_understood" \
   "$(printf '%s' "$SF_NEXT" | json_get "j.missing.includes('issue_understood') ? 'yes' : 'no'")" "yes"
 
 SF_FIX="$(run decide issue_understood --json)"
@@ -295,49 +295,20 @@ eq "rollback clears patched decision" \
 # Re-do: fix → verify (pass) → complete
 run decide patched --json > /dev/null
 SF_DONE="$(run decide verify_result pass --json)"
-eq "verify pass completes simple-fix" \
+eq "verify pass completes fix" \
   "$(printf '%s' "$SF_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
 
 rm -rf "$T"
 
-# ─── hotfix workflow: standalone storage ───────────────────────────────────
+# ─── new workflow: extra scaffold state ────────────────────────────────────
 
-echo "# hotfix workflow: standalone storage"
+echo "# new workflow: scaffold state"
 T="$(sandbox)"
 
-HF_NEXT="$(run next urgent-crash --workflow hotfix --json)"
-eq "hotfix starts in inspect" \
-  "$(printf '%s' "$HF_NEXT" | json_get 'j.current')" "inspect"
-eq "hotfix state is standalone" \
-  "$(test -f "$T/.hikspine/changes/urgent-crash.yaml" && echo yes || echo no)" "yes"
-eq "hotfix needs issue_confirmed" \
-  "$(printf '%s' "$HF_NEXT" | json_get "j.missing.includes('issue_confirmed') ? 'yes' : 'no'")" "yes"
-
-run decide issue_confirmed --json > /dev/null
-HF_PATCH="$(run decide patched --json)"
-eq "patched advances to verify in hotfix" \
-  "$(printf '%s' "$HF_PATCH" | json_get 'j.current')" "verify"
-
-HF_ROLLBACK="$(run decide verify_result fail --json)"
-eq "verify fail rolls back to patch" \
-  "$(printf '%s' "$HF_ROLLBACK" | json_get 'j.current')" "patch"
-
-run decide patched --json > /dev/null
-HF_DONE="$(run decide verify_result pass --json)"
-eq "verify pass completes hotfix" \
-  "$(printf '%s' "$HF_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
-
-rm -rf "$T"
-
-# ─── new-project workflow: extra scaffold state ────────────────────────────
-
-echo "# new-project workflow: scaffold state"
-T="$(sandbox)"
-
-NP_NEXT="$(run next my-service --workflow new-project --json)"
-eq "new-project starts in open" \
+NP_NEXT="$(run next my-service --workflow new --json)"
+eq "new starts in open" \
   "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "open"
-eq "new-project open needs proposal_ready" \
+eq "new open needs proposal_ready" \
   "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 
 NP_DESIGN="$(run decide proposal_ready --json)"
@@ -453,20 +424,20 @@ T="$(sandbox)"
 
 WF_LIST="$(run workflows --json)"
 eq "workflows lists builtins" \
-  "$(printf '%s' "$WF_LIST" | json_test "['feature','simple-fix','hotfix','new-project'].every(id=>j.workflows.some(w=>w.id===id))" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$WF_LIST" | json_test "['new','feature','fix'].every(id=>j.workflows.some(w=>w.id===id)) && j.workflows.length === 3" && echo yes || echo no)" "yes"
 eq "workflows carry selection intent" \
-  "$(printf '%s' "$WF_LIST" | json_test "j.workflows.find(w=>w.id==='hotfix').intent.length > 0" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$WF_LIST" | json_test "j.workflows.find(w=>w.id==='fix').intent.length > 0" && echo yes || echo no)" "yes"
 
 SK_LIST="$(run skills --json)"
 eq "skills discovers real Claude Code skills by name" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='brainstorming' && s.description.length > 0)" && echo yes || echo no)" "yes"
 
 # Two concurrent changes on different workflows coexist
-run next bug-1 --workflow simple-fix --json > /dev/null
+run next bug-1 --workflow fix --json > /dev/null
 run next feat-x --workflow feature --json > /dev/null
 CH_LIST="$(run changes --json)"
 eq "changes lists all in-flight runs" \
-  "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 2 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='simple-fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 2 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature')" && echo yes || echo no)" "yes"
 eq "changes report nextAction per run" \
   "$(printf '%s' "$CH_LIST" | json_test "j.changes.every(c=>typeof c.nextAction==='string')" && echo yes || echo no)" "yes"
 eq "changes mark the active run" \
@@ -475,7 +446,7 @@ eq "changes mark the active run" \
 # board aggregates everything the web UI serves at /api/state
 BOARD="$(run board --json)"
 eq "board aggregates changes, workflows, and skills" \
-  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length >= 4 && j.skills.length > 0 && j.changes.length === 2" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length === 3 && j.skills.length > 0 && j.changes.length === 2" && echo yes || echo no)" "yes"
 eq "board marks the active change" \
   "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
 
@@ -487,15 +458,15 @@ echo "# edge cases"
 T="$(sandbox)"
 
 # Multiple changes without active: next requires explicit change name
-run next change-a --workflow simple-fix --json > /dev/null
-run next change-b --workflow simple-fix --json > /dev/null
+run next change-a --workflow fix --json > /dev/null
+run next change-b --workflow fix --json > /dev/null
 # Clear active to force "no active change" scenario
 rm -f "$T/.hikspine/active"
 NO_ACTIVE="$(run next --json 2>&1 || true)"
 has "next without active or change arg reports error" "$NO_ACTIVE" "No active change"
 
 # Invalid change name
-run next change-c --workflow simple-fix --json > /dev/null  # create one more so resolveChange doesn't pick single
+run next change-c --workflow fix --json > /dev/null  # create one more so resolveChange doesn't pick single
 INVALID="$(run next 'bad/name' --workflow feature --json 2>&1 || true)"
 has "invalid change name rejected" "$INVALID" "Invalid change name"
 

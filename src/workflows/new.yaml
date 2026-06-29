@@ -1,7 +1,7 @@
-id: new-project
-version: 5
+id: new
+version: 6
 name: New Project
-intent: Start a project from scratch. Use when there is no existing codebase to build on and the work includes scaffolding the initial skeleton before implementation.
+intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: open
 
 states:
