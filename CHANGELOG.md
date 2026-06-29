@@ -1,3 +1,14 @@
+## What's Changed [0.6.7] - 2026-06-29
+
+### Changed
+
+- **new 工作流顺序修正**: `new` 内置工作流改为 `brainstorm -> openspec -> design -> build -> review -> verify`，先使用 `brainstorming` 做头脑风暴，再用 `openspec-propose` 生成 OpenSpec 产物，随后用 `writing-plans` 完成设计确认，最后由 `executing-plans` 进入 build，避免技能名称与阶段语义错位。
+- **看板阶段文案同步**: 看板新增 `brainstorm` / `openspec` 阶段的中英双语标签与目标文案，示例数据同步新流程顺序。
+
+### Tests
+
+- **new 工作流流转覆盖**: 更新 `new` 工作流测试，验证从头脑风暴到 OpenSpec、设计、build 的顺序和各阶段 capability 名称。
+
 ## What's Changed [0.6.6] - 2026-06-29
 
 ### Added

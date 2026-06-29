@@ -316,33 +316,39 @@ eq "verify pass completes fix" \
 
 rm -rf "$T"
 
-# ─── new workflow: extra scaffold state ────────────────────────────────────
+# ─── new workflow: brainstorm → openspec → design → build ────────────────
 
-echo "# new workflow: scaffold state"
+echo "# new workflow: brainstorm -> openspec -> design -> build"
 T="$(sandbox)"
 
 NP_NEXT="$(run next my-service --workflow new --json)"
-eq "new starts in open" \
-  "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "open"
-eq "new open needs proposal_ready" \
-  "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
+eq "new starts with brainstorming" \
+  "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "brainstorm"
+eq "new brainstorm has brainstorming capability" \
+  "$(printf '%s' "$NP_NEXT" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
+eq "new brainstorm needs brainstorming_done" \
+  "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('brainstorming_done') ? 'yes' : 'no'")" "yes"
+
+NP_OPENSPEC="$(run decide brainstorming_done --json)"
+eq "brainstorm advances to openspec" \
+  "$(printf '%s' "$NP_OPENSPEC" | json_get 'j.current')" "openspec"
+eq "openspec has openspec-propose capability" \
+  "$(printf '%s' "$NP_OPENSPEC" | json_test "j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
+eq "openspec needs proposal_ready" \
+  "$(printf '%s' "$NP_OPENSPEC" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 
 NP_DESIGN="$(run decide proposal_ready --json)"
 eq "advances to design" \
   "$(printf '%s' "$NP_DESIGN" | json_get 'j.current')" "design"
+eq "design has writing-plans capability" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 
 run decide design_documented --json > /dev/null
-NP_SCAFFOLD="$(run decide design_confirmed --json)"
-eq "advances to scaffold (not build)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
-eq "scaffold has implement capability" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
-
-NP_BUILD="$(run decide scaffolded --json)"
-eq "scaffolded advances to build" \
+NP_BUILD="$(run decide design_confirmed --json)"
+eq "design confirmation advances directly to build" \
   "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
-eq "build has plan+implement capabilities" \
-  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='writing-plans') && j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
+eq "build has implement capability" \
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='executing-plans') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

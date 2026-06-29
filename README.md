@@ -108,7 +108,7 @@ The engine no longer asks Agent to write facts such as `no_open_questions=true` 
 
 ## Builtin Workflows
 
-- `new`: `open -> design -> scaffold -> build -> review -> verify` (build from scratch, 0 to 1)
+- `new`: `brainstorm -> openspec -> design -> build -> review -> verify` (build from scratch, 0 to 1)
 - `feature`: `open -> design -> build -> review -> verify -> archive` (new requirement)
 - `fix`: `inspect -> fix -> verify` (bug or lightweight change)
 

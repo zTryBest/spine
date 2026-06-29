@@ -198,6 +198,7 @@ const t = (k) => I18N[lang][k];
 
 // Stage ids → bilingual labels (engine ids stay English).
 const STAGE = {
+  brainstorm:{zh:'头脑风暴',en:'Brainstorm'}, openspec:{zh:'OpenSpec',en:'OpenSpec'},
   open:{zh:'需求',en:'Open'}, inspect:{zh:'排查',en:'Inspect'}, design:{zh:'设计',en:'Design'},
   scaffold:{zh:'脚手架',en:'Scaffold'}, build:{zh:'实现',en:'Build'}, fix:{zh:'修复',en:'Fix'},
   review:{zh:'评审',en:'Review'}, verify:{zh:'验证',en:'Verify'}, archive:{zh:'归档',en:'Archive'},
@@ -207,7 +208,7 @@ const label = (id) => (STAGE[id] ? STAGE[id][lang] : id);
 // Workflow id → bilingual short name + Chinese intent (English intent comes
 // from the workflow YAML; Chinese is overlaid here).
 const WF = {
-  new:    { zh:'从 0 到 1', en:'0 to 1', intentZh:'从 0 到 1 新建项目，包含脚手架，实现前先搭骨架。' },
+  new:    { zh:'从 0 到 1', en:'0 to 1', intentZh:'从 0 到 1 新建项目，先头脑风暴，再创建 OpenSpec，确认设计后进入实现。' },
   feature:{ zh:'新需求', en:'New feature', intentZh:'已有项目里的新功能或较大变更，需要澄清需求、设计与 OpenSpec 产物。' },
   fix:    { zh:'Bug / 轻量变动', en:'Bug / small change', intentZh:'修复 Bug 或做小的轻量变动（含线上紧急修复），无需设计阶段或 OpenSpec 产物。' },
 };
@@ -216,6 +217,10 @@ const wfIntent = (w) => (lang==='zh' && WF[w.id] && WF[w.id].intentZh) ? WF[w.id
 
 // Builtin stage goals (English from YAML) → Chinese.
 const GOAL_ZH = {
+  'Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.':'创建产物前先探索产品方向、未知点、约束与可行方案。',
+  'Create OpenSpec artifacts from the brainstormed direction.':'根据头脑风暴结论创建 OpenSpec 产物。',
+  'Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.':'把 OpenSpec 产物转成具体实现设计，并获得用户确认。',
+  'Scaffold and implement the initial project from the confirmed design.':'根据已确认设计搭建骨架并实现初始项目。',
   'Define the project through OpenSpec.':'通过 OpenSpec 定义项目。',
   'Design the system, check company platform constraints, and get user confirmation.':'设计系统、核对公司平台约束并获得用户确认。',
   'Generate or prepare the project skeleton after confirmation.':'确认后生成或准备项目骨架。',
@@ -273,17 +278,17 @@ const DEMO = {
         {at:ago(6),type:'decide',key:'design_documented',value:true},
       ] },
     { change:'ops-dashboard', workflow:'new', active:false, nextAction:'work', complete:false,
-      current:'build', goal:'Implement the initial project.',
-      missing:['implemented'], decisions:{proposal_ready:true,design_documented:true,design_confirmed:true,scaffolded:true},
-      stages:['open','design','scaffold','build','review','verify'], stageIndex:3,
+      current:'build', goal:'Scaffold and implement the initial project from the confirmed design.',
+      missing:['implemented'], decisions:{brainstorming_done:true,proposal_ready:true,design_documented:true,design_confirmed:true},
+      stages:['brainstorm','openspec','design','build','review','verify'], stageIndex:3,
       history:[
-        {at:ago(190),type:'started',workflow:'new',state:'open'},
-        {at:ago(176),type:'decide',key:'proposal_ready',value:true},
-        {at:ago(175),type:'transition',from:'open',to:'design'},
+        {at:ago(190),type:'started',workflow:'new',state:'brainstorm'},
+        {at:ago(176),type:'decide',key:'brainstorming_done',value:true},
+        {at:ago(175),type:'transition',from:'brainstorm',to:'openspec'},
+        {at:ago(150),type:'decide',key:'proposal_ready',value:true},
+        {at:ago(149),type:'transition',from:'openspec',to:'design'},
         {at:ago(132),type:'decide',key:'design_confirmed',value:true},
-        {at:ago(131),type:'transition',from:'design',to:'scaffold'},
-        {at:ago(95),type:'decide',key:'scaffolded',value:true},
-        {at:ago(94),type:'transition',from:'scaffold',to:'build'},
+        {at:ago(131),type:'transition',from:'design',to:'build'},
       ] },
     { change:'login-timeout', workflow:'fix', active:false, nextAction:'work', complete:false,
       current:'fix', goal:'Apply the minimal patch.',
@@ -314,7 +319,7 @@ const DEMO = {
       ] },
   ],
   workflows:[
-    { id:'new', intent:'Build a project from scratch (0 to 1), with scaffolding before implementation.' },
+    { id:'new', intent:'Build a project from scratch (0 to 1): brainstorm, create OpenSpec artifacts, confirm design, then build.' },
     { id:'feature', intent:'A new feature or non-trivial change in an existing project; needs design and OpenSpec artifacts.' },
     { id:'fix', intent:'Fix a bug or make a small change (including urgent production fixes); no design phase.' },
   ],

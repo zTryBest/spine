@@ -1,36 +1,39 @@
 id: new
-version: 6
+version: 7
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
-start: open
+start: brainstorm
 
 states:
-  - id: open
-    goal: Define the project through OpenSpec.
+  - id: brainstorm
+    goal: Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.
+    forbid: [write-source]
+    capabilities: [brainstorming]
+    rules:
+      - Use brainstorming before OpenSpec so the proposal captures explored options, tradeoffs, and unresolved questions.
+    needs: [brainstorming_done]
+    next: openspec
+
+  - id: openspec
+    goal: Create OpenSpec artifacts from the brainstormed direction.
     forbid: [write-source]
     capabilities: [openspec-propose]
     needs: [proposal_ready]
     next: design
 
   - id: design
-    goal: Design the system, check company platform constraints, and get user confirmation.
+    goal: Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming]
+    capabilities: [writing-plans]
     rules:
-      - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
+      - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
     needs: [design_documented, design_confirmed]
-    next: scaffold
-
-  - id: scaffold
-    goal: Generate or prepare the project skeleton after confirmation.
-    capabilities: [executing-plans]
-    needs: [scaffolded]
     next: build
 
   - id: build
-    goal: Implement the initial project.
-    capabilities: [writing-plans, executing-plans]
+    goal: Scaffold and implement the initial project from the confirmed design.
+    capabilities: [executing-plans]
     needs: [implemented]
     next: review
 

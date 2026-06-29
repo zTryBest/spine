@@ -121,7 +121,7 @@ done     工作流已完成，无需再做。
 ## 内置工作流
 
 ```text
-new       open -> design -> scaffold -> build -> review -> verify   (从 0 到 1)
+new       brainstorm -> openspec -> design -> build -> review -> verify   (从 0 到 1)
 feature   open -> design -> build -> review -> verify -> archive    (新需求)
 fix       inspect -> fix -> verify                                  (bug / 轻量变动)
 ```

@@ -405,13 +405,13 @@ skill 无需声明「我用于 review 阶段」或「完成后做什么」——
 
 ```text
 feature       open -> design -> build -> review -> verify -> archive
-new-project   open -> design -> scaffold -> build -> review -> verify
+new           brainstorm -> openspec -> design -> build -> review -> verify
 simple-fix    inspect -> fix -> verify
 hotfix        inspect -> patch -> verify
 ```
 
 - **feature**：常规需求开发。design 需用户确认（`requires_user`）；review / verify 失败回 build。
-- **new-project**：从 0 到 1，多一个 scaffold 状态；review / verify 失败回 build。
+- **new**：从 0 到 1，先头脑风暴，再创建 OpenSpec 产物，用户确认设计后进入 build；review / verify 失败回 build。
 - **simple-fix / hotfix**：轻量、standalone 存储、不强制 OpenSpec；验证失败回 fix / patch。
 
 ## 13. 实现范围与非目标

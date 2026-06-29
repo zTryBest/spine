@@ -104,7 +104,7 @@ Agent 再调 next
 
 ## 内置工作流
 
-- `new`：`open -> design -> scaffold -> build -> review -> verify`（从 0 到 1）
+- `new`：`brainstorm -> openspec -> design -> build -> review -> verify`（从 0 到 1）
 - `feature`：`open -> design -> build -> review -> verify -> archive`（新需求）
 - `fix`：`inspect -> fix -> verify`（bug 或轻量变动）
 

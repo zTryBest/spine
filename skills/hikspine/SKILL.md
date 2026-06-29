@@ -124,7 +124,7 @@ Match the language of the user's current workflow request for explanations, clar
 ## Builtin Workflows
 
 ```text
-new       open -> design -> scaffold -> build -> review -> verify   (0 to 1)
+new       brainstorm -> openspec -> design -> build -> review -> verify   (0 to 1)
 feature   open -> design -> build -> review -> verify -> archive    (new requirement)
 fix       inspect -> fix -> verify                                  (bug / lightweight change)
 ```
