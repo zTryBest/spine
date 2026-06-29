@@ -7,25 +7,25 @@
 // machine and rolls back on failure. State and guard logic live in lib modules.
 
 import process from 'node:process';
-import { publicRuleSync, syncProjectRules } from '../lib/rules.mjs';
-import { computeNext, formatNextAction, recordDecision } from '../lib/transitions.mjs';
+import { publicRuleSync, syncProjectRules } from './rules.mjs';
+import { computeNext, formatNextAction, recordDecision } from './transitions.mjs';
 import {
   cwd,
   die,
   parseJsonish,
   parseOptions,
   UserError,
-} from '../lib/utils.mjs';
+} from './utils.mjs';
 import {
   getActive,
   listWorkflows,
   loadOrCreatePair,
   loadState,
   loadWorkflow,
-} from '../lib/store.mjs';
-import { discoverSkills } from '../lib/skills.mjs';
-import { boardState, listChangeSummaries } from '../lib/board.mjs';
-import { startBoard } from '../lib/server.mjs';
+} from './store.mjs';
+import { discoverSkills } from './skills.mjs';
+import { boardState, listChangeSummaries } from './board.mjs';
+import { startBoard } from './server.mjs';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);

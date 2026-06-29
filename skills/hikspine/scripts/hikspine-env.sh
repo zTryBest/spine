@@ -8,7 +8,7 @@
 #   If CLAUDE_PLUGIN_ROOT may be empty, use the locator snippet in
 #   skills/hikspine/SKILL.md.
 #
-# Hikspine's engine is plugin-level runtime code under bin/, not skill-level
+# Hikspine's engine is plugin-level runtime code under src/, not skill-level
 # code. This file remains as a tiny compatibility locator for skills/hooks.
 
 _hs_env_source="${BASH_SOURCE[0]:-$0}"
@@ -33,9 +33,9 @@ _hs_root_input="${HIKSPINE_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$_hs_plugin_root}}
 _hs_root_norm="$(_hs_normalize_root "$_hs_root_input")"
 
 export HIKSPINE_PLUGIN_ROOT="$_hs_root_norm"
-export HIKSPINE_ENGINE="${HIKSPINE_ENGINE:-${HIKSPINE_PLUGIN_ROOT}/bin/hikspine.mjs}"
+export HIKSPINE_ENGINE="${HIKSPINE_ENGINE:-${HIKSPINE_PLUGIN_ROOT}/src/hikspine.mjs}"
 export HIKSPINE_GUARD="${HIKSPINE_GUARD:-${HIKSPINE_PLUGIN_ROOT}/hooks/guard.mjs}"
-export HIKSPINE_WORKFLOWS_DIR="${HIKSPINE_WORKFLOWS_DIR:-${HIKSPINE_PLUGIN_ROOT}/builtin/workflows}"
+export HIKSPINE_WORKFLOWS_DIR="${HIKSPINE_WORKFLOWS_DIR:-${HIKSPINE_PLUGIN_ROOT}/src/workflows}"
 export HIKSPINE_RULES_DIR="${HIKSPINE_RULES_DIR:-${HIKSPINE_PLUGIN_ROOT}/rules}"
 
 # Resolve a usable bash on Windows, Git Bash, WSL, and Unix-like shells.

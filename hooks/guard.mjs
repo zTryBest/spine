@@ -3,8 +3,8 @@
 
 import fs from 'node:fs';
 import process from 'node:process';
-import { checkGuard } from '../lib/checks.mjs';
-import { loadState, loadWorkflow } from '../lib/store.mjs';
+import { checkGuard } from '../src/checks.mjs';
+import { loadState, loadWorkflow } from '../src/store.mjs';
 
 function readStdin() {
   try {

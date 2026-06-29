@@ -5,7 +5,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd -P)"
-ENGINE="$REPO/bin/hikspine.mjs"
+ENGINE="$REPO/src/hikspine.mjs"
 HOOK="$REPO/hooks/guard.mjs"
 HOOKS_JSON="$REPO/hooks/hooks.json"
 
@@ -74,8 +74,8 @@ run() {
 echo "# runtime locator"
 LOCATOR_OUTPUT="$(CLAUDE_PLUGIN_ROOT="$REPO/" bash -lc ". \"$REPO//skills/hikspine/scripts/hikspine-env.sh\" && printf '%s' \"\$HIKSPINE_ENGINE\"")"
 case "$LOCATOR_OUTPUT" in
-  *"//bin/"*) bad "env locator normalizes trailing slash" ;;
-  */bin/hikspine.mjs) ok "env locator normalizes trailing slash" ;;
+  *"//src/"*) bad "env locator normalizes trailing slash" ;;
+  */src/hikspine.mjs) ok "env locator normalizes trailing slash" ;;
   *) bad "env locator exports engine path (got '$LOCATOR_OUTPUT')" ;;
 esac
 LOCATOR_EMPTY_OUTPUT="$(cd "$REPO" && env -u CLAUDE_PLUGIN_ROOT -u HIKSPINE_PLUGIN_ROOT bash -lc '
@@ -94,7 +94,7 @@ printf "%s" "$HIKSPINE_ENGINE"
 ' 2>&1)"
 case "$LOCATOR_EMPTY_OUTPUT" in
   *ERROR*) bad "runtime locator works without CLAUDE_PLUGIN_ROOT (printed '$LOCATOR_EMPTY_OUTPUT')" ;;
-  */bin/hikspine.mjs) ok "runtime locator works without CLAUDE_PLUGIN_ROOT" ;;
+  */src/hikspine.mjs) ok "runtime locator works without CLAUDE_PLUGIN_ROOT" ;;
   *) bad "runtime locator works without CLAUDE_PLUGIN_ROOT (got '$LOCATOR_EMPTY_OUTPUT')" ;;
 esac
 

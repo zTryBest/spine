@@ -4,9 +4,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-export const LIB_DIR = path.dirname(fileURLToPath(import.meta.url));
-export const PLUGIN_ROOT = path.resolve(LIB_DIR, '..');
-export const BUILTIN_WORKFLOWS_DIR = path.join(PLUGIN_ROOT, 'builtin', 'workflows');
+export const SRC_DIR = path.dirname(fileURLToPath(import.meta.url));
+export const PLUGIN_ROOT = path.resolve(SRC_DIR, '..');
+export const BUILTIN_WORKFLOWS_DIR = path.join(SRC_DIR, 'workflows');
 
 export class UserError extends Error {
   constructor(message, code = 1) {
