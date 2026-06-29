@@ -14,6 +14,7 @@ export function changeSummary(root, change, active) {
     const workflow = loadWorkflow(root, state.workflow);
     const sum = summarize(workflow, state);
     const stages = workflow.states.map((s) => s.id);
+    const history = Array.isArray(state.history) ? state.history : [];
     return {
       change,
       workflow: state.workflow,
@@ -22,10 +23,15 @@ export function changeSummary(root, change, active) {
       goal: sum.goal,
       nextAction: sum.nextAction,
       requiresUser: sum.requiresUser,
+      needs: sum.needs,
       missing: sum.missing,
       complete: sum.complete,
       stages,
       stageIndex: stages.indexOf(sum.current),
+      decisions: state.decisions || {},
+      history,
+      startedAt: history.length ? history[0].at : null,
+      updatedAt: history.length ? history[history.length - 1].at : null,
     };
   } catch (err) {
     return { change, active: change === active, error: err.message };

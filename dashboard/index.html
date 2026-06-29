@@ -86,6 +86,18 @@
   .foot b { color:var(--text); font-weight:500; }
   .card.clickable { cursor:pointer; }
 
+  .tl { margin-top:13px; border-top:1px solid var(--line); padding-top:11px; }
+  .tl-head { color:var(--dim); font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; margin-bottom:9px; display:flex; gap:8px; }
+  .tl-head b { color:var(--muted); font-weight:600; }
+  .tl-item { display:flex; align-items:center; gap:9px; padding:3px 0; font-size:12px; }
+  .tl-rail { width:9px; flex:0 0 auto; display:flex; justify-content:center; }
+  .tl-dot { width:8px; height:8px; border-radius:50%; background:var(--dim); box-shadow:0 0 0 3px rgba(255,255,255,.02); }
+  .tl-dot.start{background:var(--accent)} .tl-dot.move{background:#7aa7ff} .tl-dot.ok{background:var(--work)}
+  .tl-dot.fail{background:var(--err)} .tl-dot.done{background:var(--done)}
+  .tl-text { color:var(--text); }
+  .tl-text .k { color:var(--muted); font-family:ui-monospace,monospace; font-size:11px; }
+  .tl-time { margin-left:auto; color:var(--dim); font-size:11px; white-space:nowrap; }
+
   .legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:12px; }
   .wf-chip { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
   .wf-chip .id { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
@@ -157,7 +169,9 @@ const I18N = {
     secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
     empty:'还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。',
     bWork:'进行中', bConfirm:'待确认', bDone:'完成', bError:'异常',
-    cur:'当前', pending:'待办决策',
+    cur:'当前', pending:'待办决策', recorded:'已决策', started:'开始于',
+    timeline:'时间线', evStarted:'开始', evEnter:'进入', evDecide:'决策', evRollback:'回退', evDone:'完成',
+    tNow:'刚刚', tMin:'分钟前', tHour:'小时前', tDay:'天前',
     skTotal:'个可发现技能', prev:'上一页', next:'下一页',
     page:(p,t,n)=>'第 '+p+' / '+t+' 页 · 每页 '+n+' 个',
     fSource:'来源说明', fDesc:'技能说明', fUsage:'用法', fPath:'位置',
@@ -171,7 +185,9 @@ const I18N = {
     secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
     empty:'No tasks yet — the agent creates and drives them in Claude Code.',
     bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bError:'Error',
-    cur:'Current', pending:'Pending',
+    cur:'Current', pending:'Pending', recorded:'Decided', started:'Started',
+    timeline:'Timeline', evStarted:'Started', evEnter:'Entered', evDecide:'Decided', evRollback:'Rolled back', evDone:'Completed',
+    tNow:'just now', tMin:'m ago', tHour:'h ago', tDay:'d ago',
     skTotal:'skills discoverable', prev:'Prev', next:'Next',
     page:(p,t,n)=>'Page '+p+' of '+t+' · '+n+' per page',
     fSource:'Source', fDesc:'Description', fUsage:'Usage', fPath:'Location',
@@ -241,21 +257,61 @@ const skillDesc = (s) => (lang==='zh' && SKILL_ZH[s.name]) ? SKILL_ZH[s.name] : 
 
 // Demo data (English shape, like real /api/state) so the board looks alive as
 // a static file. Chinese is produced by the overlays above.
+const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
 const DEMO = {
   demo:true, root:'(demo) D:\\\\company\\\\pipeline', active:'access-control-v2',
   changes:[
     { change:'access-control-v2', workflow:'feature', active:true, nextAction:'confirm', complete:false,
-      current:'design', goal:'Explore the technical path, document it, and get user confirmation.', missing:['design_confirmed'],
-      stages:['open','design','build','review','verify','archive'], stageIndex:1 },
+      current:'design', goal:'Explore the technical path, document it, and get user confirmation.',
+      missing:['design_confirmed'], decisions:{requirements_clarified:true,proposal_ready:true,design_documented:true},
+      stages:['open','design','build','review','verify','archive'], stageIndex:1,
+      history:[
+        {at:ago(52),type:'started',workflow:'feature',state:'open'},
+        {at:ago(44),type:'decide',key:'requirements_clarified',value:true},
+        {at:ago(39),type:'decide',key:'proposal_ready',value:true},
+        {at:ago(38),type:'transition',from:'open',to:'design'},
+        {at:ago(6),type:'decide',key:'design_documented',value:true},
+      ] },
     { change:'ops-dashboard', workflow:'new', active:false, nextAction:'work', complete:false,
-      current:'build', goal:'Implement the initial project.', missing:['implemented'],
-      stages:['open','design','scaffold','build','review','verify'], stageIndex:3 },
+      current:'build', goal:'Implement the initial project.',
+      missing:['implemented'], decisions:{proposal_ready:true,design_documented:true,design_confirmed:true,scaffolded:true},
+      stages:['open','design','scaffold','build','review','verify'], stageIndex:3,
+      history:[
+        {at:ago(190),type:'started',workflow:'new',state:'open'},
+        {at:ago(176),type:'decide',key:'proposal_ready',value:true},
+        {at:ago(175),type:'transition',from:'open',to:'design'},
+        {at:ago(132),type:'decide',key:'design_confirmed',value:true},
+        {at:ago(131),type:'transition',from:'design',to:'scaffold'},
+        {at:ago(95),type:'decide',key:'scaffolded',value:true},
+        {at:ago(94),type:'transition',from:'scaffold',to:'build'},
+      ] },
     { change:'login-timeout', workflow:'fix', active:false, nextAction:'work', complete:false,
-      current:'fix', goal:'Apply the minimal patch.', missing:['patched'],
-      stages:['inspect','fix','verify'], stageIndex:1 },
+      current:'fix', goal:'Apply the minimal patch.',
+      missing:['patched'], decisions:{issue_understood:true},
+      stages:['inspect','fix','verify'], stageIndex:1,
+      history:[
+        {at:ago(28),type:'started',workflow:'fix',state:'inspect'},
+        {at:ago(22),type:'decide',key:'issue_understood',value:true},
+        {at:ago(21),type:'transition',from:'inspect',to:'fix'},
+        {at:ago(12),type:'decide',key:'patched',value:true},
+        {at:ago(11),type:'transition',from:'fix',to:'verify'},
+        {at:ago(4),type:'decide',key:'verify_result',value:'fail'},
+        {at:ago(4),type:'rollback',from:'verify',to:'fix'},
+      ] },
     { change:'perm-refactor', workflow:'feature', active:false, nextAction:'done', complete:true,
-      current:'archive', goal:'Archive the completed change after user confirmation.', missing:[],
-      stages:['open','design','build','review','verify','archive'], stageIndex:5 },
+      current:'archive', goal:'Archive the completed change after user confirmation.',
+      missing:[], decisions:{requirements_clarified:true,proposal_ready:true,design_documented:true,design_confirmed:true,implemented:true,review_result:'pass',verify_result:'pass',archived:true},
+      stages:['open','design','build','review','verify','archive'], stageIndex:5,
+      history:[
+        {at:ago(600),type:'started',workflow:'feature',state:'open'},
+        {at:ago(520),type:'transition',from:'open',to:'design'},
+        {at:ago(400),type:'transition',from:'design',to:'build'},
+        {at:ago(220),type:'decide',key:'implemented',value:true},
+        {at:ago(180),type:'decide',key:'review_result',value:'pass'},
+        {at:ago(120),type:'decide',key:'verify_result',value:'pass'},
+        {at:ago(30),type:'decide',key:'archived',value:true},
+        {at:ago(29),type:'complete',state:'archive'},
+      ] },
   ],
   workflows:[
     { id:'new', intent:'Build a project from scratch (0 to 1), with scaffolding before implementation.' },
@@ -302,6 +358,40 @@ function skillUsage(skill) {
 }
 
 // ── render ────────────────────────────────────────────────────────
+function relTime(at) {
+  if (!at) return '';
+  const d = Date.now() - new Date(at).getTime();
+  if (d < 60000) return t('tNow');
+  const m = Math.floor(d/60000); if (m < 60) return m + t('tMin');
+  const h = Math.floor(d/3600000); if (h < 24) return h + t('tHour');
+  return Math.floor(d/86400000) + t('tDay');
+}
+function evtLine(e) {
+  if (e.type === 'started') return { dot:'start', html:t('evStarted') };
+  if (e.type === 'transition') return { dot:'move', html:t('evEnter')+' <b>'+esc(label(e.to))+'</b>' };
+  if (e.type === 'rollback') return { dot:'fail', html:t('evRollback')+' <b>'+esc(label(e.to))+'</b>' };
+  if (e.type === 'complete') return { dot:'done', html:t('evDone') };
+  if (e.type === 'decide') {
+    const val = (e.value === true || e.value === 'true') ? '' : '='+esc(String(e.value));
+    return { dot: e.value === 'fail' ? 'fail' : 'ok', html:t('evDecide')+' <span class="k">'+esc(e.key)+val+'</span>' };
+  }
+  return { dot:'', html:esc(e.type) };
+}
+function timeline(c) {
+  const h = Array.isArray(c.history) ? c.history : [];
+  if (!h.length) return '';
+  const decided = c.decisions ? Object.keys(c.decisions).length : h.filter(e=>e.type==='decide').length;
+  const startAt = c.startedAt || h[0].at;
+  const items = h.slice(-5).reverse().map(e => {
+    const x = evtLine(e);
+    return '<div class="tl-item"><span class="tl-rail"><span class="tl-dot '+x.dot+'"></span></span>'+
+      '<span class="tl-text">'+x.html+'</span><span class="tl-time">'+esc(relTime(e.at))+'</span></div>';
+  }).join('');
+  const head = '<div class="tl-head"><span>'+t('timeline')+'</span>'+
+    (startAt?'<span>· '+t('started')+' <b>'+esc(relTime(startAt))+'</b></span>':'')+
+    '<span>· '+t('recorded')+' <b>'+decided+'</b></span></div>';
+  return '<div class="tl">'+head+items+'</div>';
+}
 function pipe(c) {
   if (c.error || !Array.isArray(c.stages)) return '';
   let h = '<div class="pipe">';
@@ -341,7 +431,7 @@ function renderChanges(changes) {
       pipe(c)+
       '<div class="foot"><span>'+t('cur')+' <b>'+esc(label(c.current))+'</b></span>'+
       (goal?'<span>'+esc(goal)+'</span>':'')+
-      '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div></div>';
+      '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div>'+timeline(c)+'</div>';
   }).join('');
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
     card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); } catch(e){} refresh(); };

@@ -1,3 +1,10 @@
+## What's Changed [0.6.6] - 2026-06-29
+
+### Added
+
+- **任务卡加入时间线（history）+ 决策**: 任务卡（看板最重要的模块）内容更丰富——在流水线 stepper、当前阶段、goal、待办决策之外，新增**时间线**：展示该任务最近的事件（开始 / 进入某阶段 / 决策 key=value / 回退 / 完成），按时间倒序、带相对时间（刚刚 / X 分钟前…）与彩色状态点（蓝=流转、绿=决策、红=失败回退、紫=完成）；时间线头部显示“开始于 X · 已决策 N”。中英双语。
+- **board 数据带 history / decisions**: `src/board.mjs` 的 `changeSummary` 现在输出 `history`、`decisions`、`needs`、`startedAt`、`updatedAt`，`/api/state` 与 `hikspine board --json` 同步带出，供看板时间线渲染。示例数据补了真实形态的 history（含一条 verify 失败回退的演示）。
+
 ## What's Changed [0.6.5] - 2026-06-29
 
 ### Added

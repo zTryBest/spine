@@ -471,6 +471,8 @@ eq "board aggregates changes, workflows, and skills" \
   "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length === 3 && j.skills.length > 0 && j.changes.length === 2" && echo yes || echo no)" "yes"
 eq "board marks the active change" \
   "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
+eq "board changes carry history and decisions" \
+  "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>Array.isArray(c.history) && c.history.length>=1 && c.history[0].type==='started' && typeof c.decisions==='object' && c.startedAt)" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
