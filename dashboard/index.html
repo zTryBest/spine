@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Hikspine · 流水线看板</title>
+<title>Hikspine</title>
 <style>
   :root {
     --bg:#070a10; --bg2:#0c1019; --panel:#121724; --panel2:#1a2030; --line:#262d3e; --line2:#323a4e;
@@ -30,11 +30,15 @@
   .title h1 { font-size:19px; margin:0; letter-spacing:.2px; }
   .title .t2 { color:var(--muted); font-size:12px; }
   .root { margin-left:4px; color:var(--dim); font-size:11.5px; font-family:ui-monospace,monospace; }
-  .live { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px;
+  .hbar { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .live { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px;
     background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:6px 12px; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--work); animation:pulse 2.2s infinite; }
   .dot.demo { background:var(--confirm); }
   @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(63,208,122,.55)} 70%{box-shadow:0 0 0 8px rgba(63,208,122,0)} 100%{box-shadow:0 0 0 0 rgba(63,208,122,0)} }
+  .lang { display:flex; background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:3px; gap:2px; }
+  .lang button { font:inherit; font-size:12px; color:var(--muted); background:transparent; border:none; border-radius:999px; padding:4px 11px; cursor:pointer; }
+  .lang button.on { color:#070a10; background:linear-gradient(135deg,var(--accent),var(--accent2)); font-weight:700; }
 
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0 8px; }
   .stat { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line);
@@ -114,21 +118,24 @@
   <header>
     <div class="logo">H</div>
     <div class="title">
-      <h1>Hikspine 流水线看板</h1>
-      <div class="t2">需求 → 设计 → 实现 → 验证 → 公司流程 · 一眼看清每个任务走到哪一步<span class="root" id="root"></span></div>
+      <h1 id="title"></h1>
+      <div class="t2"><span id="subtitle"></span><span class="root" id="root"></span></div>
     </div>
-    <div class="live"><span class="dot" id="dot"></span> <span id="livetext">实时 · 每 2 秒刷新</span></div>
+    <div class="hbar">
+      <div class="lang"><button data-lang="zh" id="lzh">中文</button><button data-lang="en" id="len">EN</button></div>
+      <div class="live"><span class="dot" id="dot"></span> <span id="livetext"></span></div>
+    </div>
   </header>
 
   <div class="stats" id="stats"></div>
 
-  <h2>进行中的任务</h2>
+  <h2 id="secTasks"></h2>
   <div class="cards" id="changes"></div>
 
-  <h2>工作流</h2>
+  <h2 id="secWf"></h2>
   <div class="legend" id="legend"></div>
 
-  <h2>技能</h2>
+  <h2 id="secSkills"></h2>
   <div class="skills" id="skills"></div>
 </div>
 
@@ -137,46 +144,164 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const api = (p,o) => fetch(p,o).then(r=>r.json());
 
-// Presentation labels for the builtin stage ids (engine ids stay English).
-const STAGE = {
-  open:'需求', inspect:'排查', design:'设计', scaffold:'脚手架',
-  build:'实现', fix:'修复', review:'评审', verify:'验证', archive:'归档',
+let lang = localStorage.getItem('hikspine-lang') || 'zh';
+let last = null;
+
+// ── i18n: UI chrome ───────────────────────────────────────────────
+const I18N = {
+  zh: {
+    title:'Hikspine 流水线看板',
+    subtitle:'需求 → 设计 → 实现 → 验证 → 公司流程 · 一眼看清每个任务走到哪一步',
+    live:'实时 · 每 2 秒刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
+    stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
+    secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
+    empty:'还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。',
+    bWork:'进行中', bConfirm:'待确认', bDone:'完成', bError:'异常',
+    cur:'当前', pending:'待办决策',
+    skTotal:'个可发现技能', prev:'上一页', next:'下一页',
+    page:(p,t,n)=>'第 '+p+' / '+t+' 页 · 每页 '+n+' 个',
+    fSource:'来源说明', fDesc:'技能说明', fUsage:'用法', fPath:'位置',
+    noSkills:'未发现技能。', noDesc:'暂无说明。',
+  },
+  en: {
+    title:'Hikspine Pipeline Board',
+    subtitle:'Requirements → Design → Build → Verify → Company process · see where every task stands',
+    live:'Live · refreshes every 2s', demo:'Demo data · run hikspine ui for live state',
+    stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
+    secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
+    empty:'No tasks yet — the agent creates and drives them in Claude Code.',
+    bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bError:'Error',
+    cur:'Current', pending:'Pending',
+    skTotal:'skills discoverable', prev:'Prev', next:'Next',
+    page:(p,t,n)=>'Page '+p+' of '+t+' · '+n+' per page',
+    fSource:'Source', fDesc:'Description', fUsage:'Usage', fPath:'Location',
+    noSkills:'No skills found.', noDesc:'No description.',
+  },
 };
-const label = (id) => STAGE[id] || id;
+const t = (k) => I18N[lang][k];
 
-const WF_NAME = { new:'从 0 到 1', feature:'新需求', fix:'Bug / 轻量变动' };
+// Stage ids → bilingual labels (engine ids stay English).
+const STAGE = {
+  open:{zh:'需求',en:'Open'}, inspect:{zh:'排查',en:'Inspect'}, design:{zh:'设计',en:'Design'},
+  scaffold:{zh:'脚手架',en:'Scaffold'}, build:{zh:'实现',en:'Build'}, fix:{zh:'修复',en:'Fix'},
+  review:{zh:'评审',en:'Review'}, verify:{zh:'验证',en:'Verify'}, archive:{zh:'归档',en:'Archive'},
+};
+const label = (id) => (STAGE[id] ? STAGE[id][lang] : id);
 
-// Demo data so the board looks alive even opened as a static file (no server).
+// Workflow id → bilingual short name + Chinese intent (English intent comes
+// from the workflow YAML; Chinese is overlaid here).
+const WF = {
+  new:    { zh:'从 0 到 1', en:'0 to 1', intentZh:'从 0 到 1 新建项目，包含脚手架，实现前先搭骨架。' },
+  feature:{ zh:'新需求', en:'New feature', intentZh:'已有项目里的新功能或较大变更，需要澄清需求、设计与 OpenSpec 产物。' },
+  fix:    { zh:'Bug / 轻量变动', en:'Bug / small change', intentZh:'修复 Bug 或做小的轻量变动（含线上紧急修复），无需设计阶段或 OpenSpec 产物。' },
+};
+const wfTag = (id) => (WF[id] ? WF[id][lang] : '');
+const wfIntent = (w) => (lang==='zh' && WF[w.id] && WF[w.id].intentZh) ? WF[w.id].intentZh : (w.intent||'');
+
+// Builtin stage goals (English from YAML) → Chinese.
+const GOAL_ZH = {
+  'Define the project through OpenSpec.':'通过 OpenSpec 定义项目。',
+  'Design the system, check company platform constraints, and get user confirmation.':'设计系统、核对公司平台约束并获得用户确认。',
+  'Generate or prepare the project skeleton after confirmation.':'确认后生成或准备项目骨架。',
+  'Implement the initial project.':'实现初始项目。',
+  'Review implementation and company standards.':'评审实现与公司规范。',
+  'Verify behavior and OpenSpec coverage.':'验证行为与 OpenSpec 覆盖。',
+  'Clarify the change and create OpenSpec artifacts.':'澄清变更并创建 OpenSpec 产物。',
+  'Explore the technical path, document it, and get user confirmation.':'探索技术路径、记录方案并获得用户确认。',
+  'Implement the confirmed design.':'实现已确认的设计。',
+  'Review the implementation before verification.':'在验证前评审实现。',
+  'Archive the completed change after user confirmation.':'用户确认后归档已完成的变更。',
+  'Understand the issue and the smallest safe change.':'弄清问题与最小安全改动。',
+  'Apply the minimal patch.':'应用最小补丁。',
+  'Run focused verification.':'执行聚焦验证。',
+};
+const goalText = (c) => (lang==='zh' && GOAL_ZH[c.goal]) ? GOAL_ZH[c.goal] : (c.goal||'');
+
+// Known skills → Chinese description (English comes from the SKILL.md the
+// engine discovers; we cannot edit upstream skills, so overlay Chinese here).
+const SKILL_ZH = {
+  hikspine:'驱动 Hikspine 的 next / decide 工作流。',
+  'hikspine-ui':'启动本地 Hikspine 看板并指向当前项目。',
+  'hikspine-engine-zh':'Hikspine 引擎的中文操作说明。',
+  brainstorming:'探索方案、未知点、取舍与待澄清问题。',
+  'writing-plans':'编写实现计划。',
+  'executing-plans':'执行实现计划或聚焦修复。',
+  'systematic-debugging':'理解问题并排查相关代码路径。',
+  'requesting-code-review':'审查代码的正确性与可维护性。',
+  'verification-before-completion':'完成前执行聚焦验证。',
+  'test-driven-development':'用测试驱动开发（TDD）实现。',
+  'openspec-explore':'探索并澄清 OpenSpec 需求。',
+  'openspec-propose':'创建或更新 OpenSpec 提案、tasks 与 specs。',
+  'openspec-verify-change':'验证 OpenSpec 变更。',
+  'openspec-archive-change':'归档 OpenSpec 变更。',
+  'requirement-analysis':'需求分析流程。',
+  'project-review':'项目内共享的评审规则。',
+};
+const skillDesc = (s) => (lang==='zh' && SKILL_ZH[s.name]) ? SKILL_ZH[s.name] : (s.description || t('noDesc'));
+
+// Demo data (English shape, like real /api/state) so the board looks alive as
+// a static file. Chinese is produced by the overlays above.
 const DEMO = {
-  demo:true, root:'(demo) D:\\\\company\\\\pipeline', active:'门禁需求-v2',
+  demo:true, root:'(demo) D:\\\\company\\\\pipeline', active:'access-control-v2',
   changes:[
-    { change:'门禁需求-v2', workflow:'feature', active:true, nextAction:'confirm', complete:false,
-      current:'design', goal:'探索技术路径并让用户确认方案', missing:['design_confirmed'],
+    { change:'access-control-v2', workflow:'feature', active:true, nextAction:'confirm', complete:false,
+      current:'design', goal:'Explore the technical path, document it, and get user confirmation.', missing:['design_confirmed'],
       stages:['open','design','build','review','verify','archive'], stageIndex:1 },
-    { change:'数据大屏', workflow:'new', active:false, nextAction:'work', complete:false,
-      current:'build', goal:'实现已确认的设计', missing:['implemented'],
+    { change:'ops-dashboard', workflow:'new', active:false, nextAction:'work', complete:false,
+      current:'build', goal:'Implement the initial project.', missing:['implemented'],
       stages:['open','design','scaffold','build','review','verify'], stageIndex:3 },
-    { change:'登录超时', workflow:'fix', active:false, nextAction:'work', complete:false,
-      current:'fix', goal:'应用最小修复', missing:['patched'],
+    { change:'login-timeout', workflow:'fix', active:false, nextAction:'work', complete:false,
+      current:'fix', goal:'Apply the minimal patch.', missing:['patched'],
       stages:['inspect','fix','verify'], stageIndex:1 },
-    { change:'权限重构', workflow:'feature', active:false, nextAction:'done', complete:true,
-      current:'archive', goal:'归档已完成的变更', missing:[],
+    { change:'perm-refactor', workflow:'feature', active:false, nextAction:'done', complete:true,
+      current:'archive', goal:'Archive the completed change after user confirmation.', missing:[],
       stages:['open','design','build','review','verify','archive'], stageIndex:5 },
   ],
   workflows:[
-    { id:'new', intent:'从 0 到 1 新建项目，含脚手架。' },
-    { id:'feature', intent:'已有代码库的新需求，需要设计与 OpenSpec 产物。' },
-    { id:'fix', intent:'Bug 或轻量变动（含线上紧急修复），无需设计阶段。' },
+    { id:'new', intent:'Build a project from scratch (0 to 1), with scaffolding before implementation.' },
+    { id:'feature', intent:'A new feature or non-trivial change in an existing project; needs design and OpenSpec artifacts.' },
+    { id:'fix', intent:'Fix a bug or make a small change (including urgent production fixes); no design phase.' },
   ],
   skills:[
-    { name:'hikspine', scope:'local', source:'local', path:'skills/hikspine/SKILL.md', description:'驱动 Hikspine next / decide 工作流。' },
-    { name:'hikspine-ui', scope:'local', source:'local', path:'skills/hikspine-ui/SKILL.md', description:'启动本地 Hikspine 看板并指向当前项目。' },
-    { name:'brainstorming', scope:'marketplace', source:'marketplace', path:'~/.claude/plugins/marketplaces/hikspine/skills/brainstorming/SKILL.md', description:'探索方案、问题、取舍与开放点。' },
-    { name:'requirement-analysis', scope:'user', source:'user', path:'~/.claude/skills/requirement-analysis/SKILL.md', description:'个人级需求分析流程。' },
-    { name:'project-review', scope:'project', source:'project', path:'.claude/skills/project-review/SKILL.md', description:'项目内共享的评审规则。' },
+    { name:'hikspine', scope:'local', path:'skills/hikspine/SKILL.md', description:'Drive the Hikspine next / decide workflow.' },
+    { name:'hikspine-ui', scope:'local', path:'skills/hikspine-ui/SKILL.md', description:'Start the local Hikspine board pointed at the current project.' },
+    { name:'brainstorming', scope:'marketplace', path:'~/.claude/plugins/marketplaces/hikspine/skills/brainstorming/SKILL.md', description:'Explore options, unknowns, tradeoffs, and questions.' },
+    { name:'requirement-analysis', scope:'user', path:'~/.claude/skills/requirement-analysis/SKILL.md', description:'Personal requirement-analysis flow.' },
+    { name:'project-review', scope:'project', path:'.claude/skills/project-review/SKILL.md', description:'Project-shared review rules.' },
   ],
 };
 
+// ── scope (skill source) ──────────────────────────────────────────
+const SCOPE_ORDER = ['project','user','local','marketplace','unknown'];
+const SCOPE = {
+  project:{zh:'项目级',en:'Project'}, user:{zh:'用户级',en:'User'}, local:{zh:'本地插件',en:'Plugin'},
+  marketplace:{zh:'插件市场',en:'Marketplace'}, unknown:{zh:'未知来源',en:'Unknown'},
+};
+const SCOPE_HELP = {
+  project:{zh:'当前项目 .claude/skills，优先级最高，适合项目专属流程。', en:'Current project .claude/skills — highest priority, for project-specific flows.'},
+  user:{zh:'用户级 ~/.claude/skills，适合个人常用技能。', en:'User-level ~/.claude/skills — your personal skills.'},
+  local:{zh:'本 Hikspine 插件随包分发的 skills，安装插件后可用。', en:'Shipped with the Hikspine plugin — available once installed.'},
+  marketplace:{zh:'Claude Code 插件市场中的 skills，由已安装插件提供。', en:'From Claude Code plugin marketplaces, provided by installed plugins.'},
+  unknown:{zh:'来源未识别，仍会作为可发现技能展示。', en:'Source not identified; still shown as discoverable.'},
+};
+function scopeOf(skill) {
+  const raw = skill.scope || skill.source || 'unknown';
+  if (raw === 'personal') return 'user';
+  if (raw === 'plugin') return 'local';
+  return SCOPE_ORDER.includes(raw) ? raw : 'unknown';
+}
+function skillUsage(skill) {
+  if (lang === 'zh') {
+    if (skill.name === 'hikspine-ui') return '在 Claude Code 中说“启动 Hikspine 看板”，由该技能启动本地看板。';
+    if (skill.name === 'hikspine') return '在 Claude Code 中说“/hs ...”或“使用 hikspine ...”，驱动 next / decide 工作流。';
+    return '在 Claude Code 中描述符合该技能说明的任务即可触发；也可在 workflow 的 capabilities 中引用 `' + skill.name + '`。';
+  }
+  if (skill.name === 'hikspine-ui') return 'Say "open the Hikspine board" in Claude Code to launch the local board.';
+  if (skill.name === 'hikspine') return 'Say "/hs ..." or "use hikspine ..." in Claude Code to drive the next / decide loop.';
+  return 'Trigger it by describing a matching task in Claude Code; or reference `' + skill.name + '` in workflow capabilities.';
+}
+
+// ── render ────────────────────────────────────────────────────────
 function pipe(c) {
   if (c.error || !Array.isArray(c.stages)) return '';
   let h = '<div class="pipe">';
@@ -190,128 +315,114 @@ function pipe(c) {
   });
   return h+'</div>';
 }
-
 function badge(c) {
-  if (c.error) return '<span class="badge error">异常</span>';
-  if (c.complete) return '<span class="badge done">完成</span>';
-  return '<span class="badge '+c.nextAction+'">'+({work:'进行中',confirm:'待确认'}[c.nextAction]||c.nextAction)+'</span>';
+  if (c.error) return '<span class="badge error">'+t('bError')+'</span>';
+  if (c.complete) return '<span class="badge done">'+t('bDone')+'</span>';
+  return '<span class="badge '+c.nextAction+'">'+(c.nextAction==='confirm'?t('bConfirm'):t('bWork'))+'</span>';
 }
-
 function renderStats(changes) {
   const n = { work:0, confirm:0, done:0 };
   changes.forEach(c => { if (c.error) return; if (c.complete) n.done++; else n[c.nextAction]++; });
   $('stats').innerHTML =
-    '<div class="stat total"><div class="n">'+changes.length+'</div><div class="l">任务总数</div></div>'+
-    '<div class="stat work"><div class="n">'+n.work+'</div><div class="l">进行中</div></div>'+
-    '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">待用户确认</div></div>'+
-    '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">已完成</div></div>';
+    '<div class="stat total"><div class="n">'+changes.length+'</div><div class="l">'+t('stTotal')+'</div></div>'+
+    '<div class="stat work"><div class="n">'+n.work+'</div><div class="l">'+t('stWork')+'</div></div>'+
+    '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">'+t('stConfirm')+'</div></div>'+
+    '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">'+t('stDone')+'</div></div>';
 }
-
-function renderChanges(changes, active) {
-  if (!changes.length) { $('changes').innerHTML = '<div class="empty">还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。</div>'; return; }
+function renderChanges(changes) {
+  if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+t('empty')+'</div>'; return; }
   $('changes').innerHTML = changes.map(c => {
     if (c.error) return '<div class="card"><div class="top"><span class="name">'+esc(c.change)+'</span>'+badge(c)+'</div><div class="foot">'+esc(c.error)+'</div></div>';
     const missing = (c.missing && c.missing.length) ? c.missing.join(', ') : '—';
+    const goal = goalText(c);
     return '<div class="card clickable'+(c.active?' active':'')+'" data-change="'+esc(c.change)+'">'+
       '<div class="top">'+(c.active?'<span class="star">★</span>':'')+'<span class="name">'+esc(c.change)+'</span>'+
       '<span class="wf">'+esc(c.workflow)+'</span>'+badge(c)+'</div>'+
       pipe(c)+
-      '<div class="foot"><span>当前 <b>'+esc(label(c.current))+'</b></span>'+
-      (c.goal?'<span>'+esc(c.goal)+'</span>':'')+
-      '<span>待办决策 <b>'+esc(missing)+'</b></span></div></div>';
+      '<div class="foot"><span>'+t('cur')+' <b>'+esc(label(c.current))+'</b></span>'+
+      (goal?'<span>'+esc(goal)+'</span>':'')+
+      '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div></div>';
   }).join('');
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
     card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); } catch(e){} refresh(); };
   });
 }
-
 function renderWorkflows(workflows) {
   $('legend').innerHTML = workflows.map(w=>'<div class="wf-chip"><div class="id">'+esc(w.id)+
-    (WF_NAME[w.id]?'<span class="tag">'+WF_NAME[w.id]+'</span>':'')+'</div><div class="it">'+esc(w.intent||'')+'</div></div>').join('');
+    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+'</div><div class="it">'+esc(wfIntent(w))+'</div></div>').join('');
 }
 
-const SCOPE_ORDER = ['project','user','local','marketplace','unknown'];
-const SCOPE_LABEL = {
-  project:'项目级',
-  user:'用户级',
-  local:'本地插件',
-  marketplace:'插件市场',
-  unknown:'未知来源',
-};
-const SCOPE_HELP = {
-  project:'当前项目 .claude/skills，优先级最高，适合项目专属流程。',
-  user:'用户级 ~/.claude/skills，适合个人常用技能。',
-  local:'本 Hikspine 插件随包分发的 skills，安装插件后可用。',
-  marketplace:'Claude Code 插件市场中的 skills，由已安装插件提供。',
-  unknown:'来源未识别，仍会作为可发现技能展示。',
-};
 let skillPage = 1;
 const SKILL_PAGE_SIZE = 12;
-
-function scopeOf(skill) {
-  const raw = skill.scope || skill.source || 'unknown';
-  if (raw === 'personal') return 'user';
-  if (raw === 'plugin') return 'local';
-  return SCOPE_ORDER.includes(raw) ? raw : 'unknown';
-}
-
-function skillUsage(skill, scope) {
-  if (skill.name === 'hikspine-ui') return '在 Claude Code 中说“启动 Hikspine UI”或“打开 Hikspine 看板”，由该技能启动本地看板。';
-  if (skill.name === 'hikspine') return '在 Claude Code 中说“/hs ...”或“使用 hikspine ...”，由该技能驱动 next / decide 工作流。';
-  return '在 Claude Code 中描述符合该技能说明的任务即可触发；也可在 workflow 的 capabilities 中引用 `' + skill.name + '`。';
-}
-
 function skillSort(a, b) {
-  const sa = scopeOf(a), sb = scopeOf(b);
-  const da = SCOPE_ORDER.indexOf(sa), db = SCOPE_ORDER.indexOf(sb);
+  const da = SCOPE_ORDER.indexOf(scopeOf(a)), db = SCOPE_ORDER.indexOf(scopeOf(b));
   if (da !== db) return da - db;
   return String(a.name).localeCompare(String(b.name));
 }
-
 function renderSkills(skills) {
   skills = Array.isArray(skills) ? skills : [];
   const counts = new Map(SCOPE_ORDER.map(scope => [scope, 0]));
-  skills.forEach(skill => counts.set(scopeOf(skill), (counts.get(scopeOf(skill)) || 0) + 1));
+  skills.forEach(s => counts.set(scopeOf(s), (counts.get(scopeOf(s)) || 0) + 1));
   const sorted = [...skills].sort(skillSort);
   const pageCount = Math.max(1, Math.ceil(sorted.length / SKILL_PAGE_SIZE));
   skillPage = Math.max(1, Math.min(skillPage, pageCount));
   const start = (skillPage - 1) * SKILL_PAGE_SIZE;
   const pageItems = sorted.slice(start, start + SKILL_PAGE_SIZE);
   const summary = SCOPE_ORDER.map(scope =>
-    '<span class="scope-pill">'+esc(SCOPE_LABEL[scope])+' <b>'+counts.get(scope)+'</b></span>'
+    '<span class="scope-pill">'+esc(SCOPE[scope][lang])+' <b>'+counts.get(scope)+'</b></span>'
   ).join('');
   const cards = pageItems.length ? pageItems.map(s => {
     const scope = scopeOf(s);
-    return '<article class="skill-card" title="'+esc((s.description||'')+'\n'+(s.path||''))+'">'+
-      '<div class="skill-card-head"><div class="skill-name">'+esc(s.name)+'</div><span class="skill-scope-tag">'+esc(SCOPE_LABEL[scope])+'</span></div>'+
-      '<div class="skill-field"><div class="k">来源说明</div><div class="v">'+esc(SCOPE_HELP[scope])+'</div></div>'+
-      '<div class="skill-field desc"><div class="k">技能说明</div><div class="v">'+esc(s.description || '暂无说明。')+'</div></div>'+
-      '<div class="skill-field"><div class="k">用法</div><div class="v">'+esc(skillUsage(s, scope))+'</div></div>'+
-      '<div class="skill-field path"><div class="k">位置</div><div class="v">'+esc(s.path || '')+'</div></div>'+
+    return '<article class="skill-card" title="'+esc(skillDesc(s)+'\\n'+(s.path||''))+'">'+
+      '<div class="skill-card-head"><div class="skill-name">'+esc(s.name)+'</div><span class="skill-scope-tag">'+esc(SCOPE[scope][lang])+'</span></div>'+
+      '<div class="skill-field"><div class="k">'+t('fSource')+'</div><div class="v">'+esc(SCOPE_HELP[scope][lang])+'</div></div>'+
+      '<div class="skill-field desc"><div class="k">'+t('fDesc')+'</div><div class="v">'+esc(skillDesc(s))+'</div></div>'+
+      '<div class="skill-field"><div class="k">'+t('fUsage')+'</div><div class="v">'+esc(skillUsage(s))+'</div></div>'+
+      '<div class="skill-field path"><div class="k">'+t('fPath')+'</div><div class="v">'+esc(s.path || '')+'</div></div>'+
     '</article>';
-  }).join('') : '<div class="skill-empty">未发现技能。</div>';
+  }).join('') : '<div class="skill-empty">'+t('noSkills')+'</div>';
   $('skills').innerHTML =
-    '<div class="skill-toolbar"><div class="skill-total"><b>'+skills.length+'</b> 个可发现技能</div>'+
-    '<div class="skill-pages"><button id="skillPrev" '+(skillPage<=1?'disabled':'')+'>上一页</button>'+
-    '<span>第 '+skillPage+' / '+pageCount+' 页 · 每页 '+SKILL_PAGE_SIZE+' 个</span>'+
-    '<button id="skillNext" '+(skillPage>=pageCount?'disabled':'')+'>下一页</button></div></div>'+
+    '<div class="skill-toolbar"><div class="skill-total"><b>'+skills.length+'</b> '+t('skTotal')+'</div>'+
+    '<div class="skill-pages"><button id="skillPrev" '+(skillPage<=1?'disabled':'')+'>'+t('prev')+'</button>'+
+    '<span>'+t('page')(skillPage, pageCount, SKILL_PAGE_SIZE)+'</span>'+
+    '<button id="skillNext" '+(skillPage>=pageCount?'disabled':'')+'>'+t('next')+'</button></div></div>'+
     '<div class="scope-summary">'+summary+'</div>'+
     '<div class="skill-cards">'+cards+'</div>';
   $('skillPrev').onclick = () => { if (skillPage > 1) { skillPage -= 1; renderSkills(skills); } };
   $('skillNext').onclick = () => { if (skillPage < pageCount) { skillPage += 1; renderSkills(skills); } };
 }
 
+function renderAll() {
+  if (!last) return;
+  document.documentElement.lang = (lang==='zh') ? 'zh-CN' : 'en';
+  $('title').textContent = t('title');
+  $('subtitle').textContent = t('subtitle');
+  $('secTasks').textContent = t('secTasks');
+  $('secWf').textContent = t('secWf');
+  $('secSkills').textContent = t('secSkills');
+  $('root').textContent = last.root ? '  ·  '+last.root : '';
+  $('dot').className = 'dot' + (last.demo?' demo':'');
+  $('livetext').textContent = last.demo ? t('demo') : t('live');
+  $('lzh').classList.toggle('on', lang==='zh');
+  $('len').classList.toggle('on', lang==='en');
+  renderStats(last.changes || []);
+  renderChanges(last.changes || []);
+  renderWorkflows(last.workflows || []);
+  renderSkills(last.skills || []);
+}
+
+function setLang(l) {
+  lang = l; localStorage.setItem('hikspine-lang', l); skillPage = 1; renderAll();
+}
+$('lzh').onclick = () => setLang('zh');
+$('len').onclick = () => setLang('en');
+
 async function refresh() {
-  let s, demo=false;
-  try { s = await api('/api/state'); } catch (e) { s = DEMO; demo = true; }
-  if (s && s.demo) demo = true;
-  $('root').textContent = s.root ? '  ·  '+s.root : '';
-  $('dot').className = 'dot' + (demo?' demo':'');
-  $('livetext').textContent = demo ? '示例数据 · 启动 hikspine ui 看真实状态' : '实时 · 每 2 秒刷新';
-  renderStats(s.changes);
-  renderChanges(s.changes, s.active);
-  renderWorkflows(s.workflows);
-  renderSkills(s.skills);
+  let s;
+  try { s = await api('/api/state'); } catch (e) { s = DEMO; }
+  if (!s.demo && (!s.changes)) s.demo = true;
+  last = s;
+  renderAll();
 }
 
 refresh();

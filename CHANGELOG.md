@@ -1,3 +1,9 @@
+## What's Changed [0.6.5] - 2026-06-29
+
+### Added
+
+- **看板中英双语切换**: 看板右上角加语言切换（中文 / EN，默认中文，记忆在 localStorage）。所有界面文案、阶段名（需求/设计/实现… ↔ Open/Design/Build…）、状态徽章、技能 scope 标签与说明、用法、工作流 intent、阶段 goal 全部双语。上游 skill（brainstorming、writing-plans、openspec-* 等）的 SKILL.md 不可改，因此中文描述用看板内置覆盖层提供，英文回退到引擎发现的真实英文描述；内置 workflow 的英文 intent/goal 来自 YAML，中文由覆盖层提供。示例数据改为英文形态（与真实 `/api/state` 一致），中文由覆盖层渲染，切换语言两边都正确。
+
 ## What's Changed [0.6.4] - 2026-06-29
 
 ### Changed
