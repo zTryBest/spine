@@ -1,6 +1,7 @@
 id: feature
 version: 5
 name: Feature Development
+intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
 
 # States + decision-driven transitions. `needs` are skill-agnostic decisions the
@@ -18,7 +19,7 @@ states:
     goal: Explore the technical path, document it, and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming, company.platform-design, company.knowledge]
+    capabilities: [brainstorming]
     rules:
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
     needs: [design_documented, design_confirmed]
@@ -26,13 +27,13 @@ states:
 
   - id: build
     goal: Implement the confirmed design.
-    capabilities: [superpowers.plan, superpowers.implement]
+    capabilities: [writing-plans, executing-plans]
     needs: [implemented]
     next: review
 
   - id: review
     goal: Review the implementation before verification.
-    capabilities: [superpowers.review, company.review, company.security]
+    capabilities: [requesting-code-review]
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -41,7 +42,7 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [superpowers.verify, openspec.verify]
+    capabilities: [verification-before-completion, openspec-verify-change]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -52,6 +53,6 @@ states:
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec.archive]
+    capabilities: [openspec-archive-change]
     needs: [archived]
     terminal: true

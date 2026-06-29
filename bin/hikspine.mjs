@@ -8,7 +8,7 @@
 
 import process from 'node:process';
 import { publicRuleSync, syncProjectRules } from '../lib/rules.mjs';
-import { computeNext, formatNextAction, recordDecision } from '../lib/transitions.mjs';
+import { computeNext, formatNextAction, recordDecision, summarize } from '../lib/transitions.mjs';
 import {
   cwd,
   die,
@@ -17,10 +17,14 @@ import {
   UserError,
 } from '../lib/utils.mjs';
 import {
+  getActive,
+  listStates,
+  listWorkflows,
   loadOrCreatePair,
   loadState,
   loadWorkflow,
 } from '../lib/store.mjs';
+import { discoverSkills } from '../lib/skills.mjs';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -58,21 +62,95 @@ function cmdDecide(args) {
   emit(action, opts);
 }
 
+function summarizeChange(root, change, active) {
+  try {
+    const state = loadState(root, change);
+    const workflow = loadWorkflow(root, state.workflow);
+    const sum = summarize(workflow, state);
+    return {
+      change,
+      workflow: state.workflow,
+      active: change === active,
+      current: sum.current,
+      goal: sum.goal,
+      nextAction: sum.nextAction,
+      requiresUser: sum.requiresUser,
+      missing: sum.missing,
+      complete: sum.complete,
+    };
+  } catch (err) {
+    return { change, active: change === active, error: err.message };
+  }
+}
+
+// Registry of all in-flight changes (each its own workflow + state), so a
+// board can show and switch between concurrent runs. Read-only: it never
+// auto-advances or mutates any change.
+function cmdChanges(args) {
+  const opts = parseOptions(args);
+  const root = cwd();
+  const active = getActive(root);
+  const changes = listStates(root).map(({ change }) => summarizeChange(root, change, active));
+  if (opts.json) { printJson({ active, changes }); return; }
+  if (!changes.length) { process.stdout.write('No Hikspine changes yet. Start one with: next <change> --workflow <id>\n'); return; }
+  const lines = ['HIKSPINE changes:'];
+  for (const c of changes) {
+    if (c.error) { lines.push(`- ${c.change}  [error: ${c.error}]`); continue; }
+    const mark = c.active ? '*' : ' ';
+    const tail = c.complete ? 'done' : `${c.nextAction} (${c.current})`;
+    lines.push(`${mark} ${c.change}  [${c.workflow}]  ${tail}`);
+  }
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// List available workflows (builtin + project) with their selection intent,
+// so the agent can route a request to the right workflow.
+function cmdWorkflows(args) {
+  const opts = parseOptions(args);
+  const root = cwd();
+  const workflows = listWorkflows(root);
+  if (opts.json) { printJson({ workflows }); return; }
+  const lines = ['HIKSPINE workflows:'];
+  for (const w of workflows) lines.push(`- ${w.id} [${w.source}]: ${w.intent || w.name}`);
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// Every skill Claude Code can see, from the same filesystem sources it reads.
+// This is the data source for picking capabilities (in a workflow editor) and
+// the set of valid capability names.
+function cmdSkills(args) {
+  const opts = parseOptions(args);
+  const root = cwd();
+  const skills = discoverSkills(root);
+  if (opts.json) { printJson({ skills }); return; }
+  const lines = ['HIKSPINE skills:'];
+  for (const s of skills) lines.push(`- ${s.name} [${s.source}]: ${s.description || ''}`);
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
 function help() {
   process.stdout.write(`Usage:
   hikspine next [change] [--workflow <id>] [--storage openspec|standalone] [--json]
   hikspine decide <key> [value] [--change <change>] [--json]
+  hikspine changes [--json]
+  hikspine workflows [--json]
+  hikspine skills [--json]
 
 Agent protocol:
-  next      Show the current state: its missing decisions and the skills you may compose.
-  decide    Record a decision (an outcome). The engine advances or rolls back, then
-            returns the next state to act on. Value defaults to true; pass pass/fail/etc.
+  next       Show the current state: its missing decisions and the skills you may compose.
+  decide     Record a decision (an outcome). The engine advances or rolls back, then
+             returns the next state to act on. Value defaults to true; pass pass/fail/etc.
+  changes    List every in-flight change (concurrent runs) with its workflow and next step.
+  workflows  List available workflows with their selection intent (for routing a request).
+  skills     List every Claude Code skill discoverable here (valid capability names).
 
 Examples:
   hikspine next entrance-monitor --workflow feature --json
   hikspine decide proposal_ready --json
   hikspine decide review_result pass --json
   hikspine decide verify_result fail --json    # triggers cross-state rollback
+  hikspine changes --json
+  hikspine workflows --json
 
 Workflows resolve from .hikspine/workflows/<id>.yaml first, then builtin/workflows/<id>.yaml.
 If --workflow is omitted for a new change, Hikspine uses .hikspine/config.yaml defaultWorkflow,
@@ -83,6 +161,9 @@ then the builtin default.
 const commands = {
   next: cmdNext,
   decide: cmdDecide,
+  changes: cmdChanges,
+  workflows: cmdWorkflows,
+  skills: cmdSkills,
   help,
   '--help': help,
   '-h': help,
@@ -91,7 +172,7 @@ const commands = {
 try {
   const [cmd = 'help', ...args] = process.argv.slice(2);
   const fn = commands[cmd];
-  if (!fn) die(`Unknown command '${cmd}'. Use 'next' or 'decide'.`);
+  if (!fn) die(`Unknown command '${cmd}'. Use next, decide, changes, or workflows.`);
   fn(args);
 } catch (err) {
   if (err instanceof UserError) {

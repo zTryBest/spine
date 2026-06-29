@@ -43,6 +43,24 @@ node "$HIKSPINE_ENGINE" next <change> --json                            # 已存
 
 用户/项目指定了 workflow 就用那个 id；项目配了 `.hikspine/config.yaml` 的 `defaultWorkflow` 时可省略 `--workflow`。
 
+## 选择 workflow
+
+用户没指定、项目也没 `defaultWorkflow` 时，自己选：
+
+```bash
+node "$HIKSPINE_ENGINE" workflows --json
+```
+
+每个 workflow 声明了 `intent`，说明它适用什么场景。把需求 + 当前项目现状对照各 `intent` 匹配——线上故障配 `hotfix`、小范围 bug 配 `simple-fix`、已有代码库加新功能配 `feature`、空仓库从 0 起配 `new-project`。要看真实信号：紧急程度、影响范围、是否需要设计、是否已有代码（`git` 状态、目录结构）。两个 workflow 旗鼓相当时用 `AskQuestion` 让用户拍板，不要乱猜。然后用选中的 `--workflow` 启动 change。
+
+多个 change 可以同时在跑，各自一条 workflow：
+
+```bash
+node "$HIKSPINE_ENGINE" changes --json
+```
+
+`changes` 列出每个运行的 workflow、当前状态和 `nextAction`，用于恢复或在并行 change 间切换；`next <change>` / `decide --change <change>` 指定某一个。
+
 ## 主循环：next → 干活 → decide → next
 
 只有两个动词：
@@ -86,7 +104,7 @@ done     工作流已完成，无需再做。
 ```
 
 1. 按 `goal`、`forbid` 明确做什么、禁止什么。读 `rules`，把每一条当作本状态的硬性要求遵守——workflow 可能借此强制使用某个 skill。引擎不强制 `rules`，遵守与否由你负责。
-2. 从 `capabilities` 选并加载 skill 去完成。涉及公司框架/组件/平台/中间件/权限/发布/历史系统先用 `company.knowledge`，需要平台或脚手架判断用 `company.platform-design`。明显该用的 skill（如设计阶段 `brainstorming`）不要用手写内容近似替代。
+2. 从 `capabilities` 选并加载 skill 去完成。每个 capability 都是真实的 Claude Code skill 名，带 description；挑契合该状态 `goal` 和 `rules` 的加载。明显该用的 skill（如设计阶段 `brainstorming`）不要用手写内容近似替代。
 3. 每满足一个决策就 `decide <key> <value>`；带值决策传真实结果（`review_result pass` / `verify_result fail`）。`fail` 会按 `fail_when` 触发跨状态回退并清空下游决策，需重做。
 4. 看 `decide` 返回的下一个状态继续循环。
 

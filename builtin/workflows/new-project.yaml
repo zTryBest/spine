@@ -1,6 +1,7 @@
 id: new-project
 version: 5
 name: New Project
+intent: Start a project from scratch. Use when there is no existing codebase to build on and the work includes scaffolding the initial skeleton before implementation.
 start: open
 
 states:
@@ -15,7 +16,7 @@ states:
     goal: Design the system, check company platform constraints, and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming, company.platform-design, company.knowledge]
+    capabilities: [brainstorming]
     rules:
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
     needs: [design_documented, design_confirmed]
@@ -23,19 +24,19 @@ states:
 
   - id: scaffold
     goal: Generate or prepare the project skeleton after confirmation.
-    capabilities: [superpowers.implement]
+    capabilities: [executing-plans]
     needs: [scaffolded]
     next: build
 
   - id: build
     goal: Implement the initial project.
-    capabilities: [superpowers.plan, superpowers.implement]
+    capabilities: [writing-plans, executing-plans]
     needs: [implemented]
     next: review
 
   - id: review
     goal: Review implementation and company standards.
-    capabilities: [superpowers.review, company.review, company.security]
+    capabilities: [requesting-code-review]
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -44,7 +45,7 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [superpowers.verify, openspec.verify]
+    capabilities: [verification-before-completion, openspec-verify-change]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build

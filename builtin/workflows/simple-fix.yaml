@@ -1,24 +1,25 @@
 id: simple-fix
 version: 5
 name: Simple Fix
+intent: Make a small, localized bug fix or change. Use when the change is well understood, low risk, and does not need a design phase or OpenSpec artifacts.
 start: inspect
 
 states:
   - id: inspect
     goal: Understand the issue and the smallest safe change.
-    capabilities: [superpowers.inspect, company.knowledge]
+    capabilities: [systematic-debugging]
     needs: [issue_understood]
     next: fix
 
   - id: fix
     goal: Apply the minimal patch.
-    capabilities: [superpowers.implement]
+    capabilities: [executing-plans]
     needs: [patched]
     next: verify
 
   - id: verify
     goal: Run focused verification.
-    capabilities: [superpowers.verify]
+    capabilities: [verification-before-completion]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: fix

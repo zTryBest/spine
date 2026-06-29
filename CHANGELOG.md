@@ -1,3 +1,28 @@
+## What's Changed [0.3.0] - 2026-06-29
+
+可视化编排（界面 + 多 workflow + 自动选流程）的 Phase 1：纯引擎/CLI 底座，可测试，UI 在后续 Phase 叠加。
+
+### Added
+
+- **真实 skill 名作为 capability + skill 发现**: `capabilities` 现在直接写真实的 Claude Code skill 名（如 `writing-plans`、`executing-plans`、`systematic-debugging`），不再是经 registry 映射的抽象 id。新增 `lib/skills.mjs` 的 `discoverSkills`，从 Claude Code 自己读取的同一批文件系统位置发现 skill——项目 `.claude/skills`、个人 `~/.claude/skills`、插件市场 `~/.claude/plugins/marketplaces/**/skills`、本插件 `skills/`——读 `SKILL.md` frontmatter 的 `name`/`description`，按 name 去重并标 source。`capabilities` 解析时从发现结果取 description；未安装的名字仍原样透传（标 `unknown`）。
+- **`skills` 命令**: `hikspine skills [--json]` 列出所有可发现的 skill（name/description/source/path），是编排界面挑选器的数据源，也是合法 capability 名的来源。
+- **`workflows` 命令 + workflow 级 `intent`**: `hikspine workflows [--json]` 列出所有可用 workflow（内置 + 项目，项目按 id 覆盖内置），每个带 `intent`（声明“何时该用这条流程”）。四个内置 workflow 都补了 `intent`。供 Agent 路由请求到正确流程，也供未来编排界面读取。
+- **`changes` 命令（并发运行注册表）**: `hikspine changes [--json]` 扫描所有在跑的 change（两种存储），列出各自的 workflow、当前状态、`nextAction`、缺失决策和是否 active。只读，不会 auto-advance 或改动任何 change。让多个 workflow（new/fix/hotfix）以独立 change 共存，是后续看板的数据源。
+- **自动选 workflow（skill 指令）**: 两份 spine skill 增加“选择 workflow”段——用户没指定且无 `defaultWorkflow` 时，读 `workflows --json` 的 `intent`，结合需求与项目现状（紧急度、影响范围、是否已有代码）匹配；两者旗鼓相当时用 `AskQuestion` 让用户拍板。路由判断在 Agent，引擎只提供候选 + intent，保持 skill-agnostic。
+- **`lintWorkflow`（给编排界面用）**: `lib/store.mjs` 把 workflow 结构校验抽成不抛异常的 `lintWorkflow`（一次返回全部问题）与共享的 `workflowIssues`，供未来 UI 编辑器校验；`validateWorkflow` 复用同一套规则（仍 fail-fast）。
+
+### Removed
+
+- **registry 与 company 概念**: 删除 `lib/registry.mjs` 及 capability-id→skill 的抽象映射。开源与公司 skill 都只是 skill，不再区分；内置 workflow 的 `superpowers.*` / `openspec.*` 别名换成真实 skill 名，`company.*` 占位（本仓库无对应 skill）从内置 workflow 移除。“换 skill 不改 workflow”现在的含义是：states/transitions（大阶段）是稳定骨架，`capabilities`（每个阶段能用的真实 skill 集合）可自由增删替换。
+
+### Changed
+
+- **`summarize` 抽取（只读状态摘要）**: `lib/transitions.mjs` 抽出 `summarize(workflow, state)`——不 auto-advance、不存盘、不加载 registry，返回 `current/goal/missing/nextAction/rules` 等。`computeNext` 复用它，`changes` 列表也用它逐个汇总并发 change，`nextAction` 判定单一来源。
+
+### Tests
+
+- 新增编排 registry 场景：`workflows` 列出内置且带 `intent`；两个不同 workflow 的 change 并发共存，`changes` 全部列出、逐个报 `nextAction`、正确标记 active。共 90 passed。
+
 ## What's Changed [0.2.1] - 2026-06-29
 
 ### Added

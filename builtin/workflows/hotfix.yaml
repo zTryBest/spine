@@ -1,24 +1,25 @@
 id: hotfix
 version: 5
 name: Hotfix
+intent: Urgent production fix. Use when something is broken in production and needs the smallest safe patch shipped fast, ahead of full process.
 start: inspect
 
 states:
   - id: inspect
     goal: Confirm the production issue and patch scope.
-    capabilities: [superpowers.inspect, company.knowledge]
+    capabilities: [systematic-debugging]
     needs: [issue_confirmed]
     next: patch
 
   - id: patch
     goal: Apply the smallest production-safe patch.
-    capabilities: [superpowers.implement]
+    capabilities: [executing-plans]
     needs: [patched]
     next: verify
 
   - id: verify
     goal: Verify the patch and release readiness.
-    capabilities: [company.security, superpowers.verify]
+    capabilities: [verification-before-completion]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: patch

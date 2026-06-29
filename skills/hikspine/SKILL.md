@@ -45,6 +45,24 @@ node "$HIKSPINE_ENGINE" next <change> --json                            # existi
 
 Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `defaultWorkflow`, omit `--workflow` for new changes.
 
+## Choosing A Workflow
+
+If the user did not name a workflow and the project has no `defaultWorkflow`, pick one yourself:
+
+```bash
+node "$HIKSPINE_ENGINE" workflows --json
+```
+
+Each workflow declares an `intent` describing when it applies. Match the request and the current project state against those intents — e.g. a broken production system fits `hotfix`, a small localized bug fits `simple-fix`, a new feature in an existing codebase fits `feature`, an empty repo fits `new-project`. Weigh real signals: urgency, blast radius, whether a design is needed, whether code already exists (`git` status, file layout). If two workflows fit comparably, ask the user with `AskQuestion` instead of guessing. Then start the change with the chosen `--workflow`.
+
+Several changes can be in flight at once, each on its own workflow. List them with:
+
+```bash
+node "$HIKSPINE_ENGINE" changes --json
+```
+
+`changes` shows every run with its workflow, current state, and `nextAction`. Use it to resume or switch between concurrent changes; `next <change>` / `decide --change <change>` target a specific one.
+
 ## The Loop: next → work → decide → next
 
 There are exactly two verbs:
@@ -89,7 +107,7 @@ done     the workflow is complete; nothing more to do.
 ```
 
 1. Read `goal` and `forbid` to know what to do and what is off-limits here. Read `rules` and treat each as a hard requirement for this state — a workflow may, for example, mandate a specific skill. The engine does not enforce `rules`; honoring them is your responsibility.
-2. Pick and load skills from `capabilities`. For company frameworks, components, platforms, middleware, permissions, release, or history, use `company.knowledge` first; for platform or scaffold decisions, use `company.platform-design`. Do not hand-write an approximation of a skill that clearly applies (e.g. `brainstorming` in design).
+2. Pick and load skills from `capabilities`. Each capability is a real Claude Code skill name with its description; load the ones that fit the state's goal and `rules`. Do not hand-write an approximation of a skill that clearly applies (e.g. `brainstorming` in design).
 3. Record each satisfied decision with `decide <key> <value>`; pass real results for valued decisions (`review_result pass`, `verify_result fail`). A `fail` triggers a cross-state rollback per `fail_when`, clearing downstream decisions so the work is redone.
 4. Act on the next state returned by `decide` and repeat.
 

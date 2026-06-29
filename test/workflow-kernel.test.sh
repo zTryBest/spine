@@ -188,17 +188,19 @@ DECIDE4="$(run decide design_confirmed --json)"
 eq "decide design_confirmed advances to build" \
   "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
 eq "build has plan capability" \
-  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='superpowers.plan')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
-  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
+eq "capabilities carry discovered skill descriptions" \
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.find(c=>c.id==='writing-plans').description.length > 0" && echo yes || echo no)" "yes"
 eq "build does not forbid source writes" \
   "$(printf '%s' "$DECIDE4" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "no"
 
 DECIDE5="$(run decide implemented --json)"
 eq "decide implemented advances to review" \
   "$(printf '%s' "$DECIDE5" | json_get 'j.current')" "review"
-eq "review has review capabilities" \
-  "$(printf '%s' "$DECIDE5" | json_test "j.capabilities.some(c=>c.id==='superpowers.review') && j.capabilities.some(c=>c.id==='company.review')" && echo yes || echo no)" "yes"
+eq "review has review capability" \
+  "$(printf '%s' "$DECIDE5" | json_test "j.capabilities.some(c=>c.id==='requesting-code-review')" && echo yes || echo no)" "yes"
 eq "review needs review_result=pass" \
   "$(printf '%s' "$DECIDE5" | json_get "j.missing.includes('review_result=pass') ? 'yes' : 'no'")" "yes"
 
@@ -267,7 +269,7 @@ eq "simple-fix starts in inspect" \
 eq "simple-fix state is standalone" \
   "$(test -f "$T/.hikspine/changes/fix-login-timeout.yaml" && echo yes || echo no)" "yes"
 eq "simple-fix has inspect capability" \
-  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='superpowers.inspect')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging')" && echo yes || echo no)" "yes"
 eq "simple-fix needs issue_understood" \
   "$(printf '%s' "$SF_NEXT" | json_get "j.missing.includes('issue_understood') ? 'yes' : 'no'")" "yes"
 
@@ -275,7 +277,7 @@ SF_FIX="$(run decide issue_understood --json)"
 eq "issue_understood advances to fix" \
   "$(printf '%s' "$SF_FIX" | json_get 'j.current')" "fix"
 eq "fix has implement capability" \
-  "$(printf '%s' "$SF_FIX" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$SF_FIX" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
 
 SF_VERIFY="$(run decide patched --json)"
 eq "patched advances to verify" \
@@ -347,13 +349,13 @@ NP_SCAFFOLD="$(run decide design_confirmed --json)"
 eq "advances to scaffold (not build)" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
 eq "scaffold has implement capability" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
 
 NP_BUILD="$(run decide scaffolded --json)"
 eq "scaffolded advances to build" \
   "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
 eq "build has plan+implement capabilities" \
-  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='superpowers.plan') && j.capabilities.some(c=>c.id==='superpowers.implement')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='writing-plans') && j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
@@ -400,6 +402,34 @@ eq "note_written advances to review" \
 CT_DONE="$(run decide review_done --json)"
 eq "review_done completes custom workflow" \
   "$(printf '%s' "$CT_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+
+rm -rf "$T"
+
+# ─── orchestration: workflows + changes registries ────────────────────────
+
+echo "# orchestration: workflows and changes registries"
+T="$(sandbox)"
+
+WF_LIST="$(run workflows --json)"
+eq "workflows lists builtins" \
+  "$(printf '%s' "$WF_LIST" | json_test "['feature','simple-fix','hotfix','new-project'].every(id=>j.workflows.some(w=>w.id===id))" && echo yes || echo no)" "yes"
+eq "workflows carry selection intent" \
+  "$(printf '%s' "$WF_LIST" | json_test "j.workflows.find(w=>w.id==='hotfix').intent.length > 0" && echo yes || echo no)" "yes"
+
+SK_LIST="$(run skills --json)"
+eq "skills discovers real Claude Code skills by name" \
+  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='brainstorming' && s.description.length > 0)" && echo yes || echo no)" "yes"
+
+# Two concurrent changes on different workflows coexist
+run next bug-1 --workflow simple-fix --json > /dev/null
+run next feat-x --workflow feature --json > /dev/null
+CH_LIST="$(run changes --json)"
+eq "changes lists all in-flight runs" \
+  "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 2 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='simple-fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature')" && echo yes || echo no)" "yes"
+eq "changes report nextAction per run" \
+  "$(printf '%s' "$CH_LIST" | json_test "j.changes.every(c=>typeof c.nextAction==='string')" && echo yes || echo no)" "yes"
+eq "changes mark the active run" \
+  "$(printf '%s' "$CH_LIST" | json_get 'j.active')" "feat-x"
 
 rm -rf "$T"
 
