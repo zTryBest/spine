@@ -7,7 +7,7 @@
 ```text
 Hikspine 是 AI coding 的工作流内核：
 引擎维护一个可组合的状态机，在决策齐备时流转；
-registry 让 skill 自由组合进状态；AI 执行能力并记录决策；
+状态用 capabilities 列出可组合的真实 skill 名（由文件系统发现解析）；AI 执行能力并记录决策；
 一个可读的状态文件记录进度，支持中断恢复。
 ```
 
@@ -32,7 +32,7 @@ registry 让 skill 自由组合进状态；AI 执行能力并记录决策；
 ```text
 Engine          状态机流转、决策求值、回退、next-action、guard
 Workflow        状态、决策 needs、capabilities、流转边、回退边
-Skill Registry  capability id 到实际 skill / ref / 描述 / 副作用的绑定
+Skill Discovery 从文件系统发现真实 skill（name / description / source），capabilities 即 skill 名
 Change State    current 状态、decisions、rollback、history（一个可读文件）
 Events          可选的审计与 UI 时间线，不是状态基础
 ```
@@ -41,8 +41,8 @@ Events          可选的审计与 UI 时间线，不是状态基础
 
 1. **状态流转优先**：引擎判断当前状态的决策是否齐备，齐则流转，不齐则停在该状态。
 2. **决策是 skill 无关的契约**：`needs` 是决策键（如 `framework_choice`、`review_result=pass`），与产出者无关。
-3. **skill 自由组合**：状态用 `capabilities` 列出可用 skill id，由 registry 解析；替换 skill 不影响流转。
-4. **skill 无侵入**：OpenSpec、Superpowers、公司 skill 不需要知道 Hikspine 的存在。
+3. **skill 自由组合**：状态用 `capabilities` 列出真实 skill 名，由文件系统发现解析；替换 skill 不影响流转。
+4. **skill 无侵入**：OpenSpec、Superpowers 及任何其它 skill 不需要知道 Hikspine 的存在。
 5. **单一可读状态**：状态文件记录 `current + decisions + rollback + history`，可读、可恢复。
 6. **跨状态回退**：`fail_when` / `fail_to` 表达「评审或验证不通过则回到更早的状态」，回退时清空下游决策以强制重做。
 7. **关键节点人工确认**：`requires_user` 标记必须停下征询用户的硬阻塞点。

@@ -240,26 +240,27 @@ openspec/changes/<change>/design.md 存在
 # .hikspine/config.yaml
 version: 1
 defaultWorkflow: <workflow-id>
-registries:
-  - .hikspine/registries/company.yaml
 guard:
   sourceRoots:
     - src/
     - app/
 ```
 
-可选公司 skill registry：
+workflow 的 `capabilities` 是真实的 Claude Code skill 名，由文件系统发现解析——没有 registry 需要配置。要让某个 skill 能在某个状态里使用，把它装到 Claude Code 会读取的位置（项目 `.claude/skills`、个人 `~/.claude/skills`，或某个 plugin marketplace），再把它的 `name` 加进该状态的 `capabilities`。运行 `hikspine skills --json` 可以看到这里能发现哪些 skill。
 
-```yaml
-# .hikspine/registries/company.yaml
-id: company
-version: 1
-skills:
-  company.knowledge:
-    ref: company-knowledge
-    description: Query company knowledge and platform rules.
-    sideEffects: []
+## CLI 命令
+
+除了 `next` + `decide` 这个 Agent 主循环，还有三个只读列表用于路由和工具：
+
+```bash
+hikspine skills [--json]     # 这里能发现的所有 Claude Code skill（合法 capability 名）
+hikspine workflows [--json]  # 可用 workflow（内置 + 项目）及其选择 intent
+hikspine changes [--json]    # 所有在跑的 change 及其 workflow、当前状态和下一步
 ```
+
+- `skills`：扫描 Claude Code 读取的同一批位置（项目 `.claude/skills`、个人 `~/.claude/skills`、`~/.claude/plugins/marketplaces/**/skills` 下的 plugin marketplace，以及本插件 `skills/`），按 skill `name` 去重，项目 skill 覆盖。既是挑选 capability 的数据源，也是合法 capability 名的来源。
+- `workflows`：列出每个 workflow 的 `intent`（“何时该用这条流程”），供 Agent 路由请求；项目 workflow 按 id 覆盖内置。
+- `changes`：并发运行的只读注册表；不会 auto-advance 或改动任何 change。
 
 ## 验证
 

@@ -61,7 +61,7 @@ Several changes can be in flight at once, each on its own workflow. List them wi
 node "$HIKSPINE_ENGINE" changes --json
 ```
 
-`changes` shows every run with its workflow, current state, and `nextAction`. Use it to resume or switch between concurrent changes; `next <change>` / `decide --change <change>` target a specific one. For a browser view that lists runs and lets the user launch new ones, start the local board: `node "$HIKSPINE_ENGINE" ui` (default `http://127.0.0.1:4319`).
+`changes` shows every run with its workflow, current state, and `nextAction`. Use it to resume or switch between concurrent changes; `next <change>` / `decide --change <change>` target a specific one. For a browser view that lists runs and lets the user launch new ones, start the local board: `node "$HIKSPINE_ENGINE" ui` (default `http://127.0.0.1:4319`). The board links to a workflow editor for authoring `.hikspine/workflows/<id>.yaml` (states, transitions, and capabilities picked from discovered skills).
 
 ## The Loop: next → work → decide → next
 

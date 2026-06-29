@@ -1,3 +1,16 @@
+## What's Changed [0.5.0] - 2026-06-29
+
+可视化编排 Phase 3：浏览器里的 Workflow 图编辑器。按引擎现有的 state-machine YAML 编排，capabilities 从发现的真实 skill 里挑，保存即 `.hikspine/workflows/<id>.yaml`。
+
+### Added
+
+- **Workflow 图编辑器（`/editor`）**: 看板新增 workflow 编辑器（`lib/editor-html.mjs`，单页 vanilla JS）。可加载内置/项目 workflow 或新建，编辑每个 state 的 `id`/`goal`/`forbid`/`requires_user`/`capabilities`/`needs`/`rules`/`next`/`fail_when`+`fail_to`/`terminal`；capabilities 从发现的 skill 名里挑（datalist 补全）；右侧实时 SVG 图（实线 next、红虚线 fail）+ 实时校验。看板头部链接到编辑器。
+- **编辑器 HTTP 接口**: `GET /editor`（页面）、`GET /api/workflow?id=`（载入定义）、`POST /api/workflow/validate`（用引擎 `lintWorkflow` 实时校验，不落盘）、`POST /api/workflow/save`（校验 + 写 `.hikspine/workflows/<id>.yaml`，id 做文件名安全校验，保存前清掉空字段）。
+
+### Tests
+
+- 新增编辑器输出 roundtrip：编辑器写出的 block 风格 YAML（`-\n  id: …`，由 `writeYamlFile` 产生）能被引擎正确解析、启动、流转到终态，并在 `workflows` 列表里带 `intent` 正确出现。编辑器 HTTP 接口（载入内置、校验非法 `next`、保存并被引擎载入运行）已手动冒烟验证。共 98 passed。
+
 ## What's Changed [0.4.0] - 2026-06-29
 
 可视化编排 Phase 2：本地 web 看板。纯 Node、无第三方依赖，复用 `lib/`，浏览器与 Agent 共享同一批 `.hikspine` 文件，不分叉状态。

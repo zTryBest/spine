@@ -405,6 +405,47 @@ eq "review_done completes custom workflow" \
 
 rm -rf "$T"
 
+# ─── editor output: block-style YAML the workflow editor writes ────────────
+# The editor saves via writeYamlFile (block sequences: "-\n  id: ..."). Verify
+# that exact shape parses and runs, so editor-authored workflows work.
+
+echo "# editor output: block-style workflow YAML roundtrips"
+T="$(sandbox)"
+mkdir -p "$T/.hikspine/workflows"
+cat > "$T/.hikspine/workflows/edit-flow.yaml" <<'YAML'
+id: edit-flow
+version: 1
+name: Edited
+intent: authored in the editor
+start: a
+states:
+  -
+    id: a
+    capabilities:
+      - systematic-debugging
+    needs:
+      - done_a
+    next: b
+  -
+    id: b
+    needs:
+      - done_b
+    terminal: true
+YAML
+
+EF_NEXT="$(run next ef-change --workflow edit-flow --storage standalone --json)"
+eq "editor-style workflow loads and starts" \
+  "$(printf '%s' "$EF_NEXT" | json_get 'j.current')" "a"
+eq "editor-style workflow resolves capability skill name" \
+  "$(printf '%s' "$EF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging')" && echo yes || echo no)" "yes"
+eq "editor-style workflow appears in workflows listing with intent" \
+  "$(run workflows --json | json_test "j.workflows.some(w=>w.id==='edit-flow' && w.source==='project' && w.intent.length>0)" && echo yes || echo no)" "yes"
+EF_DONE="$(run decide done_a --json && run decide done_b --json)"
+eq "editor-style workflow advances to terminal" \
+  "$(printf '%s' "$(run board --json)" | json_test "j.changes.find(c=>c.change==='ef-change').complete" && echo yes || echo no)" "yes"
+
+rm -rf "$T"
+
 # ─── orchestration: workflows + changes registries ────────────────────────
 
 echo "# orchestration: workflows and changes registries"
