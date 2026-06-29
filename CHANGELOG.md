@@ -1,3 +1,10 @@
+## What's Changed [0.6.4] - 2026-06-29
+
+### Changed
+
+- **看板回归只读状态视图**: 移除看板上的“启动一个项目”表单与 `POST /api/launch` 接口。Web 服务驱动不了 Claude Code 的 Agent，旧的“启动”只会 `createState` 建一个停在第 1 阶段、无人推进的任务，容易误导。任务的创建与推进统一由 Agent 在 Claude Code 里通过 `next`/`decide` 完成；看板只展示状态（外加点击卡片切换 active）。`src/server.mjs` 仅保留 `GET /`、`GET /api/state`、`POST /api/active`。
+- **术语更正：change → 任务**: 看板把工作单元 `change` 的中文从“项目”改为“任务”（一个项目/仓库里有多个 change）。“进行中的项目”→“进行中的任务”、“项目总数”→“任务总数”、副标题与空状态同步更新。引擎与 CLI 的 `change` / `--change` 标识符保持英文不变。
+
 ## What's Changed [0.6.3] - 2026-06-29
 
 ### Changed

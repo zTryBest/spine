@@ -1,13 +1,14 @@
 // Local web server for the status board. Dependency-free (node:http), reuses
 // the engine modules so the browser and the agent read the same .hikspine
-// files. The board is a status view (plus start/switch a run); it never
-// authors workflows — that orchestration UI is deferred.
+// files. The board is a read-only status view (plus switching the active
+// task); it never creates or drives tasks — the Claude Code agent does that
+// via next/decide.
 
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { boardState, changeSummary } from './board.mjs';
-import { createState, getActive, setActive } from './store.mjs';
+import { boardState } from './board.mjs';
+import { setActive } from './store.mjs';
 import { PLUGIN_ROOT, validateChangeName } from './utils.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
@@ -40,19 +41,7 @@ export function createBoardServer(root) {
         sendJson(res, 200, boardState(root));
         return;
       }
-      // Launch a new run: create a change on the chosen workflow.
-      if (req.method === 'POST' && url.pathname === '/api/launch') {
-        const { change, workflow } = await readBody(req);
-        try {
-          validateChangeName(change);
-          createState(root, change, workflow);
-          sendJson(res, 200, changeSummary(root, change, getActive(root)));
-        } catch (err) {
-          sendJson(res, 400, { error: err.message });
-        }
-        return;
-      }
-      // Switch the active run (focus), without touching its state.
+      // Switch the active task (focus), without touching its state.
       if (req.method === 'POST' && url.pathname === '/api/active') {
         const { change } = await readBody(req);
         try {
