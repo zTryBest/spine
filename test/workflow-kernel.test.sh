@@ -71,6 +71,16 @@ run() {
   ( cd "$T" && "$NODE_BIN" "$ENGINE_RUN" "$@" )
 }
 
+node_path() {
+  local p="$1"
+  case "$NODE_BIN" in
+    *.exe|*.EXE)
+      if command -v wslpath >/dev/null 2>&1; then wslpath -w "$p"; return; fi
+      ;;
+  esac
+  printf '%s\n' "$p"
+}
+
 echo "# runtime locator"
 LOCATOR_OUTPUT="$(CLAUDE_PLUGIN_ROOT="$REPO/" bash -lc ". \"$REPO//skills/hikspine/scripts/hikspine-env.sh\" && printf '%s' \"\$HIKSPINE_ENGINE\"")"
 case "$LOCATOR_OUTPUT" in
@@ -133,6 +143,12 @@ eq "next reports skipped local rule edits" \
 eq "feature state is colocated with OpenSpec" \
   "$(test -f "$T/openspec/changes/entrance-monitor/.hikspine.yaml" && echo yes || echo no)" "yes"
 eq "active change set by next" "$(cat "$T/.hikspine/active")" "entrance-monitor"
+PROJECT_ROOT_ARG="$(node_path "$T")"
+BOARD_FROM_REPO="$(cd "$REPO" && "$NODE_BIN" "$ENGINE_RUN" board --project-root "$PROJECT_ROOT_ARG" --json)"
+eq "board can read another project with --project-root" \
+  "$(printf '%s' "$BOARD_FROM_REPO" | json_get "j.changes.some(c=>c.change==='entrance-monitor') ? 'yes' : 'no'")" "yes"
+ENV_ACTIVE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'process.env.HIKSPINE_PROJECT_ROOT = process.argv[1]; const { resolveProjectRoot } = await import("./src/utils.mjs"); const { boardState } = await import("./src/board.mjs"); console.log(boardState(resolveProjectRoot({})).active);' "$PROJECT_ROOT_ARG")"
+eq "board can read another project from HIKSPINE_PROJECT_ROOT" "$ENV_ACTIVE" "entrance-monitor"
 
 # --- advance to design via decisions ---
 DECIDE1="$(run decide requirements_clarified --json)"
@@ -431,6 +447,8 @@ eq "workflows carry selection intent" \
 SK_LIST="$(run skills --json)"
 eq "skills discovers real Claude Code skills by name" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='brainstorming' && s.description.length > 0)" && echo yes || echo no)" "yes"
+eq "skills discovers the Hikspine UI launcher skill" \
+  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='hikspine-ui')" && echo yes || echo no)" "yes"
 
 # Two concurrent changes on different workflows coexist
 run next bug-1 --workflow fix --json > /dev/null

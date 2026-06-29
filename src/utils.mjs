@@ -23,6 +23,25 @@ export function cwd() {
   return process.cwd();
 }
 
+function normalizeProjectRootInput(value) {
+  let raw = String(value || '');
+  if (process.platform !== 'win32') return raw;
+  raw = raw.replace(/\\/g, '/');
+  const wsl = raw.match(/^\/mnt\/([a-z])\/(.*)$/i);
+  if (wsl) return `${wsl[1].toUpperCase()}:/${wsl[2]}`;
+  const gitBash = raw.match(/^\/([a-z])\/(.*)$/i);
+  if (gitBash) return `${gitBash[1].toUpperCase()}:/${gitBash[2]}`;
+  return raw;
+}
+
+export function resolveProjectRoot(opts = {}) {
+  const raw = normalizeProjectRootInput(opts['project-root'] || process.env.HIKSPINE_PROJECT_ROOT || cwd());
+  const root = path.resolve(raw);
+  if (!fs.existsSync(root)) die(`Project root does not exist: ${root}`);
+  if (!fs.statSync(root).isDirectory()) die(`Project root is not a directory: ${root}`);
+  return root;
+}
+
 export function nowIso() {
   return new Date().toISOString();
 }

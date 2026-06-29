@@ -59,7 +59,7 @@ node "$HIKSPINE_ENGINE" workflows --json
 node "$HIKSPINE_ENGINE" changes --json
 ```
 
-`changes` 列出每个运行的 workflow、当前状态和 `nextAction`，用于恢复或在并行 change 间切换；`next <change>` / `decide --change <change>` 指定某一个。想在浏览器里看所有运行的流水线进度，启动本地看板：`node "$HIKSPINE_ENGINE" ui`（默认 `http://127.0.0.1:4319`）。
+`changes` 列出每个运行的 workflow、当前状态和 `nextAction`，用于恢复或在并行 change 间切换；`next <change>` / `decide --change <change>` 指定某一个。想在浏览器里看所有运行的流水线进度，启动本地看板：`node "$HIKSPINE_ENGINE" ui`（默认 `http://127.0.0.1:4319`）。如果从插件目录、用户目录或不在目标项目里的终端启动看板，传 `--project-root <项目根目录>`，或设置 `HIKSPINE_PROJECT_ROOT`；这个全局选项也适用于 `next`、`decide`、`changes`、`workflows`、`skills` 和 `board`。
 
 ## 主循环：next → 干活 → decide → next
 

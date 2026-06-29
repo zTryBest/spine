@@ -228,13 +228,15 @@ in a state, install it where Claude Code looks (project `.claude/skills`, person
 
 ## CLI Commands
 
-Beyond the `next` + `decide` agent loop, three read-only listings support routing
-and tooling:
+Beyond the `next` + `decide` agent loop, read-only listings and the web board
+support routing and tooling:
 
 ```bash
 hikspine skills [--json]     # every Claude Code skill discoverable here (valid capability names)
 hikspine workflows [--json]  # available workflows (builtin + project) with their selection intent
 hikspine changes [--json]    # every in-flight change with its workflow, current state, and next step
+hikspine board [--json]      # aggregate board data for the current project
+hikspine ui [--port <n>]     # local web board, default http://127.0.0.1:4319
 ```
 
 - `skills` scans the same sources Claude Code reads (project `.claude/skills`,
@@ -247,6 +249,21 @@ hikspine changes [--json]    # every in-flight change with its workflow, current
   builtins by id.
 - `changes` is a read-only registry of concurrent runs; it never auto-advances or
   mutates any change.
+- `board` / `ui` read the same project state as the agent loop. When launching
+  from a plugin install directory, user home, or another terminal that is not
+  already in the target project, pass the project explicitly:
+
+```bash
+node "$HIKSPINE_ENGINE" ui --project-root /path/to/project
+HIKSPINE_PROJECT_ROOT=/path/to/project node "$HIKSPINE_ENGINE" ui
+```
+
+`--project-root` is a global option and also works with `next`, `decide`,
+`changes`, `workflows`, `skills`, and `board`.
+
+In Claude Code, users can also ask to "start the Hikspine UI" or "open the
+Hikspine board"; the `hikspine-ui` skill wraps the same command and starts the
+board against the current project.
 
 ## Verification
 

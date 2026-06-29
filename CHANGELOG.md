@@ -1,3 +1,19 @@
+## What's Changed [0.6.2] - 2026-06-29
+
+### Added
+
+- **项目根目录显式选择**: CLI 新增全局 `--project-root <dir>` 与 `HIKSPINE_PROJECT_ROOT`，让 `ui` / `board` / `next` / `decide` 等命令可以从插件安装目录、用户目录或任意终端启动，同时读取目标项目的 `.hikspine` 与 `openspec` 状态，解决插件模式下看板绑定错误目录的问题。
+- **Hikspine UI 启动 Skill**: 新增 `hikspine-ui` Claude Code skill，用户可直接要求“启动 Hikspine UI/看板”，由 skill 定位插件运行时并用目标项目根目录后台启动本地看板，减少手写命令和切换目录。
+
+### Changed
+
+- **看板启动说明**: README 与中英文 Hikspine skill 同步说明插件模式下启动看板应传 `--project-root` 或设置 `HIKSPINE_PROJECT_ROOT`，避免用户为启动 UI 专门切换目录。
+
+### Tests
+
+- **跨目录看板读取**: 新增 `board --project-root` 与 `HIKSPINE_PROJECT_ROOT` 覆盖测试，验证从仓库目录启动命令时能读取另一个目标项目的 active change 与状态列表。
+- **UI Skill 发现**: 新增 skill 发现断言，确保 `hikspine-ui` 会作为插件 skill 被 `hikspine skills --json` 列出。
+
 ## What's Changed [0.6.1] - 2026-06-29
 
 ### Changed

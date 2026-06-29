@@ -10,10 +10,10 @@ import process from 'node:process';
 import { publicRuleSync, syncProjectRules } from './rules.mjs';
 import { computeNext, formatNextAction, recordDecision } from './transitions.mjs';
 import {
-  cwd,
   die,
   parseJsonish,
   parseOptions,
+  resolveProjectRoot,
   UserError,
 } from './utils.mjs';
 import {
@@ -38,7 +38,7 @@ function emit(action, opts) {
 
 function cmdNext(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const { state, workflow, created } = loadOrCreatePair(root, opts._[0], opts);
   const action = computeNext(root, workflow, state);
@@ -52,7 +52,7 @@ function cmdDecide(args) {
   const key = opts._[0];
   if (!key) die('Usage: hikspine decide <key> [value] [--change <change>] [--json]');
   const value = opts._.length > 1 ? parseJsonish(opts._[1]) : true;
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const state = loadState(root, opts.change);
   const workflow = loadWorkflow(root, state.workflow);
@@ -68,7 +68,7 @@ function cmdDecide(args) {
 // auto-advances or mutates any change.
 function cmdChanges(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const active = getActive(root);
   const changes = listChangeSummaries(root, active);
   if (opts.json) { printJson({ active, changes }); return; }
@@ -87,7 +87,7 @@ function cmdChanges(args) {
 // so the agent can route a request to the right workflow.
 function cmdWorkflows(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const workflows = listWorkflows(root);
   if (opts.json) { printJson({ workflows }); return; }
   const lines = ['HIKSPINE workflows:'];
@@ -100,7 +100,7 @@ function cmdWorkflows(args) {
 // the set of valid capability names.
 function cmdSkills(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const skills = discoverSkills(root);
   if (opts.json) { printJson({ skills }); return; }
   const lines = ['HIKSPINE skills:'];
@@ -112,7 +112,7 @@ function cmdSkills(args) {
 // skills. Same data the web UI serves at /api/state.
 function cmdBoard(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const state = boardState(root);
   if (opts.json) { printJson(state); return; }
   const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
@@ -130,7 +130,7 @@ function cmdBoard(args) {
 // Launch the local web board. Long-running; the user runs this in a terminal.
 function cmdUi(args) {
   const opts = parseOptions(args);
-  const root = cwd();
+  const root = resolveProjectRoot(opts);
   const port = opts.port ? Number(opts.port) : 4319;
   startBoard(root, { port }).catch((err) => die(`Cannot start board: ${err.message}`));
 }
@@ -144,6 +144,10 @@ function help() {
   hikspine skills [--json]
   hikspine board [--json]
   hikspine ui [--port <n>]
+
+Global options:
+  --project-root <dir>  Read/write Hikspine state for this project instead of the current directory.
+  HIKSPINE_PROJECT_ROOT may also be set in the environment.
 
 Agent protocol:
   next       Show the current state: its missing decisions and the skills you may compose.
@@ -162,6 +166,7 @@ Examples:
   hikspine decide verify_result fail --json    # triggers cross-state rollback
   hikspine changes --json
   hikspine workflows --json
+  hikspine ui --project-root /path/to/project
 
 Workflows resolve from .hikspine/workflows/<id>.yaml first, then builtin/workflows/<id>.yaml.
 If --workflow is omitted for a new change, Hikspine uses .hikspine/config.yaml defaultWorkflow,
