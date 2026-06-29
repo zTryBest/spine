@@ -71,6 +71,7 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # va
 nextAction            确定性指令：work | confirm | done（见下）
 current/goal/forbid   当前状态、目标、禁止的副作用（如 write-source）
 capabilities          可自由组合的 skill（{ id, ref, description }）
+rules                 该状态的 workflow 作者声明的硬性要求——必须遵守
 needs / missing       离开该状态要记录的决策键 / 其中还没记录的
 requiresUser          true = 必须先停下征询用户
 rollback/transitions  回退标记 / 本次发生的流转事件
@@ -84,7 +85,7 @@ confirm  先把活干完，再停下问用户，得到确认后才 decide 那个
 done     工作流已完成，无需再做。
 ```
 
-1. 按 `goal`、`forbid` 明确做什么、禁止什么。
+1. 按 `goal`、`forbid` 明确做什么、禁止什么。读 `rules`，把每一条当作本状态的硬性要求遵守——workflow 可能借此强制使用某个 skill。引擎不强制 `rules`，遵守与否由你负责。
 2. 从 `capabilities` 选并加载 skill 去完成。涉及公司框架/组件/平台/中间件/权限/发布/历史系统先用 `company.knowledge`，需要平台或脚手架判断用 `company.platform-design`。明显该用的 skill（如设计阶段 `brainstorming`）不要用手写内容近似替代。
 3. 每满足一个决策就 `decide <key> <value>`；带值决策传真实结果（`review_result pass` / `verify_result fail`）。`fail` 会按 `fail_when` 触发跨状态回退并清空下游决策，需重做。
 4. 看 `decide` 返回的下一个状态继续循环。

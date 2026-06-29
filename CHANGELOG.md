@@ -2,6 +2,7 @@
 
 ### Added
 
+- **状态级 `rules`（自定义 workflow 声明规则）**: workflow 的状态可声明 `rules` 列表，`computeNext` 原样透传到输出的 `rules` 字段，`formatNextAction` 也打印出来。引擎只搬运、不解析、不强制——这是一个 skill 无关的透传通道，让自定义 workflow 声明本状态的硬性要求（例如“设计阶段必须用 brainstorming 探索备选与权衡”），而不需要把任何上游 skill 名写进引擎或 spine skill。通用纪律仍在 spine skill，具体规则在 workflow，职责分离。内置 `feature` / `new-project` 的 design 状态已示范一条 `rules`；两份 spine skill 和 `rules/hikspine-workflow.md` 增加“读取并遵守状态 `rules`”的通用指令。
 - **确定性流转指令 `nextAction`**: `computeNext` 现在输出 `nextAction`（`work` / `confirm` / `done`），把“要不要续跑”从 Agent 推断变成引擎给出的确定性指令——`work` = 组合 capability、`decide`、再 `next`，不要停下来问是否继续；`confirm` = 先干活、再停下让用户确认后才 `decide` 确认类决策；`done` = 工作流完成。判定只来自引擎已有信息（`terminal` / `requires_user` / `missing`），不绑定任何上游 skill。借鉴自 comet 的 `NEXT: auto|manual|done`，但因 Hikspine 是“一个状态多 skill 自由组合 + 决策驱动”，指令指向循环动作而非具体 skill，保持 skill 无关。两份 spine skill 同步说明如何先读 `nextAction`。
 - **流转纪律下沉到引擎（skill-agnostic）**: `computeNext` 现在在每次 `next`/`decide` 的返回里带 `transitionPolicy` 字段，`formatNextAction` 也输出同一句提示：阶段流转由 workflow 决定、不由组合的 skill 决定；任何组合 skill 结束或抛出“是否继续”都不是停止点，应记录该状态的 `needs` 再 `next`，唯一真正停下问用户的点是 `requiresUser`。提示是 skill 无关的，不绑定任何上游 skill，符合“引擎只编排、上游 skill 不可改”的设计理念。两份 spine skill 和 `rules/hikspine-workflow.md` 同步补充同一条 skill 无关的流转纪律。
 

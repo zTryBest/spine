@@ -19,6 +19,8 @@ states:
     forbid: [write-source]
     requires_user: true
     capabilities: [brainstorming, company.platform-design, company.knowledge]
+    rules:
+      - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
     needs: [design_documented, design_confirmed]
     next: build
 

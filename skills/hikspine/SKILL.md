@@ -73,6 +73,7 @@ A composed skill has its own stance and may end by offering a choice or asking w
 nextAction            deterministic directive: work | confirm | done (see below)
 current/goal/forbid   current state, its goal, forbidden side effects (e.g. write-source)
 capabilities          skills you may compose freely ({ id, ref, description })
+rules                 workflow-authored requirements for this state — follow them
 needs / missing       decision keys to leave this state / those not yet recorded
 requiresUser          true = stop and ask the user first
 rollback/transitions  rollback marker / events that happened this call
@@ -87,7 +88,7 @@ confirm  do the work, then stop and ask the user before recording the confirming
 done     the workflow is complete; nothing more to do.
 ```
 
-1. Read `goal` and `forbid` to know what to do and what is off-limits here.
+1. Read `goal` and `forbid` to know what to do and what is off-limits here. Read `rules` and treat each as a hard requirement for this state — a workflow may, for example, mandate a specific skill. The engine does not enforce `rules`; honoring them is your responsibility.
 2. Pick and load skills from `capabilities`. For company frameworks, components, platforms, middleware, permissions, release, or history, use `company.knowledge` first; for platform or scaffold decisions, use `company.platform-design`. Do not hand-write an approximation of a skill that clearly applies (e.g. `brainstorming` in design).
 3. Record each satisfied decision with `decide <key> <value>`; pass real results for valued decisions (`review_result pass`, `verify_result fail`). A `fail` triggers a cross-state rollback per `fail_when`, clearing downstream decisions so the work is redone.
 4. Act on the next state returned by `decide` and repeat.

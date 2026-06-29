@@ -148,6 +148,10 @@ eq "design requires user confirmation" \
   "$(printf '%s' "$DECIDE2" | json_get "j.requiresUser ? 'yes' : 'no'")" "yes"
 eq "design nextAction is confirm" \
   "$(printf '%s' "$DECIDE2" | json_get 'j.nextAction')" "confirm"
+eq "design surfaces workflow-authored rules" \
+  "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/brainstorming/.test(r))" && echo yes || echo no)" "yes"
+eq "open state has no rules" \
+  "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.length === 0" && echo yes || echo no)" "yes"
 eq "design has brainstorming capability" \
   "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
 eq "design forbids write-source" \
