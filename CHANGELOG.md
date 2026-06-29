@@ -1,3 +1,21 @@
+## What's Changed [0.4.0] - 2026-06-29
+
+可视化编排 Phase 2：本地 web 看板。纯 Node、无第三方依赖，复用 `lib/`，浏览器与 Agent 共享同一批 `.hikspine` 文件，不分叉状态。
+
+### Added
+
+- **本地 web 看板（`hikspine ui`）**: `lib/server.mjs` 起一个 dependency-free 的 `node:http` 服务，默认 `http://127.0.0.1:4319`。看板（`lib/board-html.mjs`，单页 vanilla JS，3 秒轮询）展示所有并发 change（按 `nextAction` work/confirm/done 着色、显示 workflow/当前状态/缺失决策）、可从任一 workflow 启动新 run、点击切换 active。`ui`/`serve` 命令启动，`--port` 可改端口。
+- **`board` 命令 + 聚合层**: `hikspine board [--json]` 输出看板数据（`{root, active, changes, workflows, skills}`），与 web 服务 `/api/state` 同源。聚合逻辑抽到 `lib/board.mjs`（`boardState` / `changeSummary` / `listChangeSummaries`），CLI 与服务器共用。
+- **看板 HTTP 接口**: `GET /api/state`（聚合）、`POST /api/launch {change, workflow}`（创建并发 run，复用 `createState`，校验 change 名）、`POST /api/active {change}`（切换 active）。两份 spine skill 增加“启动本地看板”一行。
+
+### Changed
+
+- **`cmdChanges` 复用聚合层**: `bin/hikspine.mjs` 的 changes 命令改用 `lib/board.mjs` 的 `listChangeSummaries`，与看板逻辑单一来源。
+
+### Tests
+
+- 新增 `board --json` 聚合断言（changes + workflows + skills + active 全部就位、两个并发 change）。web 服务的 HTTP 层（`GET /`、`/api/state`、`/api/launch` 含非法 change 名拒绝、`/api/active`）已手动冒烟验证通过；因跨平台 file-URL 绑定脆弱未纳入自动套件。共 94 passed。
+
 ## What's Changed [0.3.0] - 2026-06-29
 
 可视化编排（界面 + 多 workflow + 自动选流程）的 Phase 1：纯引擎/CLI 底座，可测试，UI 在后续 Phase 叠加。

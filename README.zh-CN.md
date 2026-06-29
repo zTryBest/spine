@@ -11,7 +11,7 @@ skills/hikspine/SKILL.md
   用户入口。用户可以输入 "/hs ..." 或 "用 hikspine ..." 触发这个 skill。
 
 bin/hikspine.mjs
-  很薄的公开 CLI。Agent 主协议只有 next。
+  很薄的公开 CLI。Agent 主循环是 next + decide；skills、workflows、changes 是只读列表，供路由和工具使用。
 
 lib/store.mjs
   配置、workflow 加载、状态文件位置、active change。
@@ -21,6 +21,9 @@ lib/checks.mjs
 
 lib/transitions.mjs
   自动节点/阶段流转。
+
+lib/skills.mjs
+  Skill 发现。把 workflow 的 capabilities（真实 Claude Code skill 名）按 Claude Code 读取的同一批文件系统位置解析出来。没有 registry。
 
 lib/rules.mjs
   把插件内置 Markdown 规则幂等分发到项目 `.claude/rules`。
@@ -109,6 +112,8 @@ Agent 再调 next
 - `hotfix`：`inspect -> patch -> verify`
 - `new-project`：`open -> design -> scaffold -> build -> review -> verify`
 
+每个 workflow 都声明一个 `intent`（一句话说明“何时该用这条流程”），供 Agent 路由请求；见 `hikspine workflows --json`。
+
 自定义 workflow 是一等入口。把 workflow 放到：
 
 ```text
@@ -159,8 +164,8 @@ inputs:
       useBefore: [brainstorming]
 skills:
   required: [brainstorming]
-  recommended: [company.knowledge, company.platform-design]
-  output: [openspec.design]
+  recommended: []
+  output: [openspec-verify-change]
 agent:
   rules:
     - Read proposal.md, tasks.md, and specs/ before running brainstorming.
@@ -191,9 +196,7 @@ exit:
 
 - 先运行 brainstorming，再选择设计方向。
 - brainstorming 前必须先读取 `proposal.md`、`tasks.md` 和 `specs/`。
-- 涉及公司框架、组件、平台、中间件、权限、监控、发布或历史系统时，先咨询 `company.knowledge`。
-- 需要平台或脚手架判断时，使用 `company.platform-design`。
-- 把头脑风暴结论、备选方案、最终方向、公司约束和开放问题写入 OpenSpec design.md。
+- 把头脑风暴结论、备选方案、最终方向、约束和开放问题写入 OpenSpec design.md。
 
 引擎只检查：
 

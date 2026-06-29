@@ -8,7 +8,7 @@
 
 import process from 'node:process';
 import { publicRuleSync, syncProjectRules } from '../lib/rules.mjs';
-import { computeNext, formatNextAction, recordDecision, summarize } from '../lib/transitions.mjs';
+import { computeNext, formatNextAction, recordDecision } from '../lib/transitions.mjs';
 import {
   cwd,
   die,
@@ -18,13 +18,14 @@ import {
 } from '../lib/utils.mjs';
 import {
   getActive,
-  listStates,
   listWorkflows,
   loadOrCreatePair,
   loadState,
   loadWorkflow,
 } from '../lib/store.mjs';
 import { discoverSkills } from '../lib/skills.mjs';
+import { boardState, listChangeSummaries } from '../lib/board.mjs';
+import { startBoard } from '../lib/server.mjs';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -62,27 +63,6 @@ function cmdDecide(args) {
   emit(action, opts);
 }
 
-function summarizeChange(root, change, active) {
-  try {
-    const state = loadState(root, change);
-    const workflow = loadWorkflow(root, state.workflow);
-    const sum = summarize(workflow, state);
-    return {
-      change,
-      workflow: state.workflow,
-      active: change === active,
-      current: sum.current,
-      goal: sum.goal,
-      nextAction: sum.nextAction,
-      requiresUser: sum.requiresUser,
-      missing: sum.missing,
-      complete: sum.complete,
-    };
-  } catch (err) {
-    return { change, active: change === active, error: err.message };
-  }
-}
-
 // Registry of all in-flight changes (each its own workflow + state), so a
 // board can show and switch between concurrent runs. Read-only: it never
 // auto-advances or mutates any change.
@@ -90,7 +70,7 @@ function cmdChanges(args) {
   const opts = parseOptions(args);
   const root = cwd();
   const active = getActive(root);
-  const changes = listStates(root).map(({ change }) => summarizeChange(root, change, active));
+  const changes = listChangeSummaries(root, active);
   if (opts.json) { printJson({ active, changes }); return; }
   if (!changes.length) { process.stdout.write('No Hikspine changes yet. Start one with: next <change> --workflow <id>\n'); return; }
   const lines = ['HIKSPINE changes:'];
@@ -128,6 +108,33 @@ function cmdSkills(args) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
+// Aggregate everything the orchestration board shows: changes, workflows,
+// skills. Same data the web UI serves at /api/state.
+function cmdBoard(args) {
+  const opts = parseOptions(args);
+  const root = cwd();
+  const state = boardState(root);
+  if (opts.json) { printJson(state); return; }
+  const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
+  for (const c of state.changes) {
+    if (c.error) { lines.push(`  ${c.change}  [error: ${c.error}]`); continue; }
+    const mark = c.active ? '*' : ' ';
+    const tail = c.complete ? 'done' : `${c.nextAction} (${c.current})`;
+    lines.push(`${mark} ${c.change}  [${c.workflow}]  ${tail}`);
+  }
+  lines.push('', `workflows (${state.workflows.length}): ${state.workflows.map((w) => w.id).join(', ')}`);
+  lines.push(`skills: ${state.skills.length} discoverable`);
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
+// Launch the local web board. Long-running; the user runs this in a terminal.
+function cmdUi(args) {
+  const opts = parseOptions(args);
+  const root = cwd();
+  const port = opts.port ? Number(opts.port) : 4319;
+  startBoard(root, { port }).catch((err) => die(`Cannot start board: ${err.message}`));
+}
+
 function help() {
   process.stdout.write(`Usage:
   hikspine next [change] [--workflow <id>] [--storage openspec|standalone] [--json]
@@ -135,6 +142,8 @@ function help() {
   hikspine changes [--json]
   hikspine workflows [--json]
   hikspine skills [--json]
+  hikspine board [--json]
+  hikspine ui [--port <n>]
 
 Agent protocol:
   next       Show the current state: its missing decisions and the skills you may compose.
@@ -143,6 +152,8 @@ Agent protocol:
   changes    List every in-flight change (concurrent runs) with its workflow and next step.
   workflows  List available workflows with their selection intent (for routing a request).
   skills     List every Claude Code skill discoverable here (valid capability names).
+  board      Aggregate changes + workflows + skills (the web board's data).
+  ui         Start the local web board (default http://127.0.0.1:4319).
 
 Examples:
   hikspine next entrance-monitor --workflow feature --json
@@ -164,6 +175,9 @@ const commands = {
   changes: cmdChanges,
   workflows: cmdWorkflows,
   skills: cmdSkills,
+  board: cmdBoard,
+  ui: cmdUi,
+  serve: cmdUi,
   help,
   '--help': help,
   '-h': help,

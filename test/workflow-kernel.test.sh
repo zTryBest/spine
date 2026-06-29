@@ -431,6 +431,13 @@ eq "changes report nextAction per run" \
 eq "changes mark the active run" \
   "$(printf '%s' "$CH_LIST" | json_get 'j.active')" "feat-x"
 
+# board aggregates everything the web UI serves at /api/state
+BOARD="$(run board --json)"
+eq "board aggregates changes, workflows, and skills" \
+  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length >= 4 && j.skills.length > 0 && j.changes.length === 2" && echo yes || echo no)" "yes"
+eq "board marks the active change" \
+  "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
+
 rm -rf "$T"
 
 # ─── edge cases ────────────────────────────────────────────────────────────
