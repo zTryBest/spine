@@ -1,3 +1,13 @@
+## What's Changed [0.6.3] - 2026-06-29
+
+### Changed
+
+- **看板技能展示**: Web 看板的“技能”区域从只显示总数改为分页技能卡片，按 Claude Code scope 统计 project、user、local、marketplace 技能，并在卡片中显示中文来源说明、技能说明、用法和路径，方便确认当前项目能读取哪些 capability。
+
+### Tests
+
+- **Skill scope 发现**: 新增 project scope 技能发现断言，验证项目 `.claude/skills` 下的 skill 会带 `scope: project` 出现在看板数据中。
+
 ## What's Changed [0.6.2] - 2026-06-29
 
 ### Added

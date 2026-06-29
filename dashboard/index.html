@@ -98,7 +98,25 @@
   .wf-chip .id { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
   .wf-chip .tag { font-size:10px; color:var(--dim); font-family:ui-monospace,monospace; border:1px solid var(--line2); border-radius:5px; padding:0 5px; }
   .wf-chip .it { color:var(--muted); font-size:12px; margin-top:5px; }
-  .skills { color:var(--muted); font-size:12.5px; }
+  .skill-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; color:var(--muted); font-size:12px; flex-wrap:wrap; }
+  .skill-total b { color:var(--text); font-weight:700; }
+  .skill-pages { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+  .skill-pages button { font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:8px; padding:5px 10px; cursor:pointer; }
+  .skill-pages button:disabled { opacity:.42; cursor:not-allowed; }
+  .scope-summary { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+  .scope-pill { color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 9px; font-size:11px; }
+  .scope-pill b { color:var(--text); font-weight:700; }
+  .skill-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .skill-card { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line); border-radius:12px; padding:13px 14px; min-width:0; }
+  .skill-card-head { display:flex; align-items:center; gap:9px; min-width:0; }
+  .skill-name { font-weight:760; color:var(--text); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .skill-scope-tag { margin-left:auto; flex:0 0 auto; color:#b9c6dc; background:var(--panel2); border:1px solid var(--line2); border-radius:999px; padding:2px 8px; font-size:10.5px; }
+  .skill-field { margin-top:9px; min-width:0; }
+  .skill-field .k { color:var(--dim); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase; margin-bottom:2px; }
+  .skill-field .v { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+  .skill-field.desc .v { color:#b9c0d2; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .skill-field.path .v { color:var(--dim); font-family:ui-monospace,monospace; font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .skill-empty { padding:14px 13px; color:var(--dim); font-size:12px; font-style:italic; }
   .empty { color:var(--dim); font-style:italic; }
 </style>
 </head>
@@ -170,7 +188,13 @@ const DEMO = {
     { id:'feature', intent:'已有代码库的新需求，需要设计与 OpenSpec 产物。' },
     { id:'fix', intent:'Bug 或轻量变动（含线上紧急修复），无需设计阶段。' },
   ],
-  skills:new Array(70),
+  skills:[
+    { name:'hikspine', scope:'local', source:'local', path:'skills/hikspine/SKILL.md', description:'驱动 Hikspine next / decide 工作流。' },
+    { name:'hikspine-ui', scope:'local', source:'local', path:'skills/hikspine-ui/SKILL.md', description:'启动本地 Hikspine 看板并指向当前项目。' },
+    { name:'brainstorming', scope:'marketplace', source:'marketplace', path:'~/.claude/plugins/marketplaces/hikspine/skills/brainstorming/SKILL.md', description:'探索方案、问题、取舍与开放点。' },
+    { name:'requirement-analysis', scope:'user', source:'user', path:'~/.claude/skills/requirement-analysis/SKILL.md', description:'个人级需求分析流程。' },
+    { name:'project-review', scope:'project', source:'project', path:'.claude/skills/project-review/SKILL.md', description:'项目内共享的评审规则。' },
+  ],
 };
 
 function pipe(c) {
@@ -231,6 +255,77 @@ function renderWorkflows(workflows) {
     (WF_NAME[w.id]?'<span class="tag">'+WF_NAME[w.id]+'</span>':'')+'</div><div class="it">'+esc(w.intent||'')+'</div></div>').join('');
 }
 
+const SCOPE_ORDER = ['project','user','local','marketplace','unknown'];
+const SCOPE_LABEL = {
+  project:'项目级',
+  user:'用户级',
+  local:'本地插件',
+  marketplace:'插件市场',
+  unknown:'未知来源',
+};
+const SCOPE_HELP = {
+  project:'当前项目 .claude/skills，优先级最高，适合项目专属流程。',
+  user:'用户级 ~/.claude/skills，适合个人常用技能。',
+  local:'本 Hikspine 插件随包分发的 skills，安装插件后可用。',
+  marketplace:'Claude Code 插件市场中的 skills，由已安装插件提供。',
+  unknown:'来源未识别，仍会作为可发现技能展示。',
+};
+let skillPage = 1;
+const SKILL_PAGE_SIZE = 12;
+
+function scopeOf(skill) {
+  const raw = skill.scope || skill.source || 'unknown';
+  if (raw === 'personal') return 'user';
+  if (raw === 'plugin') return 'local';
+  return SCOPE_ORDER.includes(raw) ? raw : 'unknown';
+}
+
+function skillUsage(skill, scope) {
+  if (skill.name === 'hikspine-ui') return '在 Claude Code 中说“启动 Hikspine UI”或“打开 Hikspine 看板”，由该技能启动本地看板。';
+  if (skill.name === 'hikspine') return '在 Claude Code 中说“/hs ...”或“使用 hikspine ...”，由该技能驱动 next / decide 工作流。';
+  return '在 Claude Code 中描述符合该技能说明的任务即可触发；也可在 workflow 的 capabilities 中引用 `' + skill.name + '`。';
+}
+
+function skillSort(a, b) {
+  const sa = scopeOf(a), sb = scopeOf(b);
+  const da = SCOPE_ORDER.indexOf(sa), db = SCOPE_ORDER.indexOf(sb);
+  if (da !== db) return da - db;
+  return String(a.name).localeCompare(String(b.name));
+}
+
+function renderSkills(skills) {
+  skills = Array.isArray(skills) ? skills : [];
+  const counts = new Map(SCOPE_ORDER.map(scope => [scope, 0]));
+  skills.forEach(skill => counts.set(scopeOf(skill), (counts.get(scopeOf(skill)) || 0) + 1));
+  const sorted = [...skills].sort(skillSort);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / SKILL_PAGE_SIZE));
+  skillPage = Math.max(1, Math.min(skillPage, pageCount));
+  const start = (skillPage - 1) * SKILL_PAGE_SIZE;
+  const pageItems = sorted.slice(start, start + SKILL_PAGE_SIZE);
+  const summary = SCOPE_ORDER.map(scope =>
+    '<span class="scope-pill">'+esc(SCOPE_LABEL[scope])+' <b>'+counts.get(scope)+'</b></span>'
+  ).join('');
+  const cards = pageItems.length ? pageItems.map(s => {
+    const scope = scopeOf(s);
+    return '<article class="skill-card" title="'+esc((s.description||'')+'\n'+(s.path||''))+'">'+
+      '<div class="skill-card-head"><div class="skill-name">'+esc(s.name)+'</div><span class="skill-scope-tag">'+esc(SCOPE_LABEL[scope])+'</span></div>'+
+      '<div class="skill-field"><div class="k">来源说明</div><div class="v">'+esc(SCOPE_HELP[scope])+'</div></div>'+
+      '<div class="skill-field desc"><div class="k">技能说明</div><div class="v">'+esc(s.description || '暂无说明。')+'</div></div>'+
+      '<div class="skill-field"><div class="k">用法</div><div class="v">'+esc(skillUsage(s, scope))+'</div></div>'+
+      '<div class="skill-field path"><div class="k">位置</div><div class="v">'+esc(s.path || '')+'</div></div>'+
+    '</article>';
+  }).join('') : '<div class="skill-empty">未发现技能。</div>';
+  $('skills').innerHTML =
+    '<div class="skill-toolbar"><div class="skill-total"><b>'+skills.length+'</b> 个可发现技能</div>'+
+    '<div class="skill-pages"><button id="skillPrev" '+(skillPage<=1?'disabled':'')+'>上一页</button>'+
+    '<span>第 '+skillPage+' / '+pageCount+' 页 · 每页 '+SKILL_PAGE_SIZE+' 个</span>'+
+    '<button id="skillNext" '+(skillPage>=pageCount?'disabled':'')+'>下一页</button></div></div>'+
+    '<div class="scope-summary">'+summary+'</div>'+
+    '<div class="skill-cards">'+cards+'</div>';
+  $('skillPrev').onclick = () => { if (skillPage > 1) { skillPage -= 1; renderSkills(skills); } };
+  $('skillNext').onclick = () => { if (skillPage < pageCount) { skillPage += 1; renderSkills(skills); } };
+}
+
 async function refresh() {
   let s, demo=false;
   try { s = await api('/api/state'); } catch (e) { s = DEMO; demo = true; }
@@ -241,7 +336,7 @@ async function refresh() {
   renderStats(s.changes);
   renderChanges(s.changes, s.active);
   renderWorkflows(s.workflows);
-  $('skills').textContent = (s.skills?s.skills.length:0) + ' 个可发现技能（每个阶段的 capabilities 从中挑选）';
+  renderSkills(s.skills);
 }
 
 $('go').onclick = async () => {

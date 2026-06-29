@@ -256,7 +256,7 @@ hikspine board [--json]      # 当前项目的看板聚合数据
 hikspine ui [--port <n>]     # 本地 Web 看板，默认 http://127.0.0.1:4319
 ```
 
-- `skills`：扫描 Claude Code 读取的同一批位置（项目 `.claude/skills`、个人 `~/.claude/skills`、`~/.claude/plugins/marketplaces/**/skills` 下的 plugin marketplace，以及本插件 `skills/`），按 skill `name` 去重，项目 skill 覆盖。既是挑选 capability 的数据源，也是合法 capability 名的来源。
+- `skills`：扫描 Claude Code 读取的同一批位置（项目 `.claude/skills`、个人 `~/.claude/skills`、`~/.claude/plugins/marketplaces/**/skills` 下的 plugin marketplace，以及本插件 `skills/`），按 skill `name` 去重，项目 skill 覆盖。既是挑选 capability 的数据源，也是合法 capability 名的来源。看板会按 Claude Code scope 分组展示：project、user、local、marketplace。
 - `workflows`：列出每个 workflow 的 `intent`（“何时该用这条流程”），供 Agent 路由请求；项目 workflow 按 id 覆盖内置。
 - `changes`：并发运行的只读注册表；不会 auto-advance 或改动任何 change。
 - `board` / `ui`：读取和 Agent 主循环相同的项目状态。如果是从插件安装目录、用户目录，或不在目标项目里的终端启动看板，需要显式传项目根：

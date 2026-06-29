@@ -444,11 +444,15 @@ eq "workflows lists builtins" \
 eq "workflows carry selection intent" \
   "$(printf '%s' "$WF_LIST" | json_test "j.workflows.find(w=>w.id==='fix').intent.length > 0" && echo yes || echo no)" "yes"
 
+mkdir -p "$T/.claude/skills/project-only"
+printf '%s\n' '---' 'name: project-only' 'description: Project scoped skill for discovery tests.' '---' > "$T/.claude/skills/project-only/SKILL.md"
 SK_LIST="$(run skills --json)"
 eq "skills discovers real Claude Code skills by name" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='brainstorming' && s.description.length > 0)" && echo yes || echo no)" "yes"
 eq "skills discovers the Hikspine UI launcher skill" \
-  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='hikspine-ui')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='hikspine-ui' && s.scope==='local')" && echo yes || echo no)" "yes"
+eq "skills discovers project scope skills" \
+  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='project-only' && s.scope==='project')" && echo yes || echo no)" "yes"
 
 # Two concurrent changes on different workflows coexist
 run next bug-1 --workflow fix --json > /dev/null

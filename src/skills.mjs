@@ -25,27 +25,27 @@ function frontmatter(file) {
   }
 }
 
-function skillFromDir(dir, source) {
+function skillFromDir(dir, scope) {
   const file = path.join(dir, 'SKILL.md');
   if (!fs.existsSync(file)) return null;
   const fm = frontmatter(file);
-  return { name: fm.name || path.basename(dir), description: fm.description || '', source, file };
+  return { name: fm.name || path.basename(dir), description: fm.description || '', scope, source: scope, file };
 }
 
 // Direct children: <base>/<skill>/SKILL.md
-function scanSkillsDir(base, source) {
+function scanSkillsDir(base, scope) {
   const out = [];
   if (!base || !fs.existsSync(base)) return out;
   for (const d of fs.readdirSync(base, { withFileTypes: true })) {
     if (!d.isDirectory()) continue;
-    const s = skillFromDir(path.join(base, d.name), source);
+    const s = skillFromDir(path.join(base, d.name), scope);
     if (s) out.push(s);
   }
   return out;
 }
 
 // Find every `skills/` directory under a marketplace tree and scan it.
-function scanMarketplaces(base, source) {
+function scanMarketplaces(base, scope) {
   const out = [];
   if (!base || !fs.existsSync(base)) return out;
   const walk = (dir, depth) => {
@@ -59,7 +59,7 @@ function scanMarketplaces(base, source) {
     for (const e of entries) {
       if (!e.isDirectory()) continue;
       const full = path.join(dir, e.name);
-      if (e.name === 'skills') out.push(...scanSkillsDir(full, source));
+      if (e.name === 'skills') out.push(...scanSkillsDir(full, scope));
       else walk(full, depth + 1);
     }
   };
@@ -72,16 +72,16 @@ function scanMarketplaces(base, source) {
 export function discoverSkills(root) {
   const home = homeDir();
   const sources = [
-    scanSkillsDir(path.join(PLUGIN_ROOT, 'skills'), 'plugin'),
+    scanSkillsDir(path.join(PLUGIN_ROOT, 'skills'), 'local'),
     home ? scanMarketplaces(path.join(home, '.claude', 'plugins', 'marketplaces'), 'marketplace') : [],
-    home ? scanSkillsDir(path.join(home, '.claude', 'skills'), 'personal') : [],
+    home ? scanSkillsDir(path.join(home, '.claude', 'skills'), 'user') : [],
     scanSkillsDir(path.join(root, '.claude', 'skills'), 'project'),
   ];
   const map = new Map();
   for (const list of sources) {
     for (const s of list) {
       if (!s.name) continue;
-      map.set(s.name, { name: s.name, description: s.description, source: s.source, path: rel(root, s.file) });
+      map.set(s.name, { name: s.name, description: s.description, scope: s.scope, source: s.source, path: rel(root, s.file) });
     }
   }
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));

@@ -243,7 +243,9 @@ hikspine ui [--port <n>]     # local web board, default http://127.0.0.1:4319
   personal `~/.claude/skills`, plugin marketplaces under
   `~/.claude/plugins/marketplaces/**/skills`, and the plugin's own `skills/`),
   deduping by skill `name` so project skills win. This is both the data source
-  for picking capabilities and the set of valid capability names.
+  for picking capabilities and the set of valid capability names. The board
+  groups these skills by Claude Code scope: project, user, local, and
+  marketplace.
 - `workflows` lists each workflow's `intent` ("when to use this flow"), so the
   agent can route a request to the right workflow. Project workflows override
   builtins by id.
