@@ -2,9 +2,6 @@ version: 1
 
 defaultWorkflow: feature
 
-registries:
-  - .hikspine/registries/company.yaml
-
 guard:
   sourceRoots:
     - src/

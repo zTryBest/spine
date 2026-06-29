@@ -13,7 +13,8 @@ skills/hikspine/SKILL.md
   User-facing entry. Trigger it with text such as "/hs ..." or "use hikspine ...".
 
 bin/hikspine.mjs
-  Thin public CLI. Agent-facing protocol is `next`.
+  Thin public CLI. Agent loop is `next` + `decide`; `skills`, `workflows`, and
+  `changes` are read-only listings for routing and tooling.
 
 lib/store.mjs
   Config, workflow loading, state file placement, and active change handling.
@@ -23,6 +24,10 @@ lib/checks.mjs
 
 lib/transitions.mjs
   Automatic node/phase advancement.
+
+lib/skills.mjs
+  Skill discovery. Resolves a workflow's `capabilities` (real Claude Code skill
+  names) by scanning the same filesystem locations Claude Code reads. No registry.
 
 lib/rules.mjs
   Idempotent distribution of plugin-authored Markdown rules into project `.claude/rules`.
@@ -111,6 +116,9 @@ The engine no longer asks Agent to write facts such as `no_open_questions=true` 
 - `hotfix`: `inspect -> patch -> verify`
 - `new-project`: `open -> design -> scaffold -> build -> review -> verify`
 
+Each workflow declares an `intent` (a one-line "when to use this flow") so the
+agent can route a request; see `hikspine workflows --json`.
+
 Custom workflows are first-class. Put a workflow at:
 
 ```text
@@ -161,8 +169,8 @@ inputs:
       useBefore: [brainstorming]
 skills:
   required: [brainstorming]
-  recommended: [company.knowledge, company.platform-design]
-  output: [openspec.design]
+  recommended: []
+  output: [openspec-verify-change]
 agent:
   rules:
     - Read proposal.md, tasks.md, and specs/ before running brainstorming.
@@ -210,26 +218,39 @@ Optional project config:
 # .hikspine/config.yaml
 version: 1
 defaultWorkflow: <workflow-id>
-registries:
-  - .hikspine/registries/company.yaml
 guard:
   sourceRoots:
     - src/
     - app/
 ```
 
-Optional company registry:
+A workflow's `capabilities` are real Claude Code skill names, resolved by
+filesystem discovery — there is no registry to configure. To make a skill usable
+in a state, install it where Claude Code looks (project `.claude/skills`, personal
+`~/.claude/skills`, or a plugin marketplace) and add its `name` to that state's
+`capabilities`. Run `hikspine skills --json` to see what is discoverable here.
 
-```yaml
-# .hikspine/registries/company.yaml
-id: company
-version: 1
-skills:
-  company.knowledge:
-    ref: company-knowledge
-    description: Query company knowledge and platform rules.
-    sideEffects: []
+## CLI Commands
+
+Beyond the `next` + `decide` agent loop, three read-only listings support routing
+and tooling:
+
+```bash
+hikspine skills [--json]     # every Claude Code skill discoverable here (valid capability names)
+hikspine workflows [--json]  # available workflows (builtin + project) with their selection intent
+hikspine changes [--json]    # every in-flight change with its workflow, current state, and next step
 ```
+
+- `skills` scans the same sources Claude Code reads (project `.claude/skills`,
+  personal `~/.claude/skills`, plugin marketplaces under
+  `~/.claude/plugins/marketplaces/**/skills`, and the plugin's own `skills/`),
+  deduping by skill `name` so project skills win. This is both the data source
+  for picking capabilities and the set of valid capability names.
+- `workflows` lists each workflow's `intent` ("when to use this flow"), so the
+  agent can route a request to the right workflow. Project workflows override
+  builtins by id.
+- `changes` is a read-only registry of concurrent runs; it never auto-advances or
+  mutates any change.
 
 ## Verification
 
