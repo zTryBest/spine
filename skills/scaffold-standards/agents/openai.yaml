@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scaffold Standards"
+  short_description: "Capture scaffold docs and enforce structure rules."
+  default_prompt: "Use $scaffold-standards to analyze our scaffold docs, directory layout, and dependency rules."

@@ -49,6 +49,7 @@
 ### Changed
 
 - **`summarize` 抽取（只读状态摘要）**: `lib/transitions.mjs` 抽出 `summarize(workflow, state)`——不 auto-advance、不存盘、不加载 registry，返回 `current/goal/missing/nextAction/rules` 等。`computeNext` 复用它，`changes` 列表也用它逐个汇总并发 change，`nextAction` 判定单一来源。
+- **文档同步到无 registry 模型**: `docs/architecture.md`、`README.md`、`README.zh-CN.md` 仍在描述已删除的 Skill Registry 和 `company.*` 命名空间（registry 章节、`registries:` 配置、`company-registry.example.yaml`、`superpowers.*`/`openspec.*` 别名等），照此理解会误以为 capability 要经 registry 映射、公司 skill 与开源 skill 有别。改为：capabilities 是文件系统发现解析的真实 skill 名（项目 `.claude/skills`、个人 `~/.claude/skills`、marketplace、插件四处来源），states/transitions 是稳定骨架、各状态 `capabilities` 可自由增删替换；删除 `templates/company-registry.example.yaml`，并从 `templates/hikspine-config.example.yaml` 及各 `.hikspine/config.yaml` 示例移除 `registries:`；补充 `skills`/`workflows`/`changes` 三个只读命令与 workflow 级 `intent` 的文档。
 
 ### Tests
 

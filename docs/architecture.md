@@ -54,12 +54,10 @@ Events          可选的审计与 UI 时间线，不是状态基础
 ```text
 project/
   .hikspine/
-    config.yaml                    # 项目配置：默认 workflow、registry、guard
+    config.yaml                    # 项目配置：默认 workflow、guard
     active                         # 当前 change 指针
     workflows/                     # 可选：项目自定义 workflow 或 override
       feature.yaml
-    registries/                    # 可选：项目/公司 skill 绑定
-      company.yaml
     changes/                       # 非 OpenSpec 的轻量 change 状态
       fix-login-timeout.yaml
 
@@ -76,7 +74,7 @@ project/
 
 - 基于 OpenSpec 的 change，状态写在 `openspec/changes/<change>/.hikspine.yaml`。
 - `simple-fix` / `hotfix` 等轻量任务（storage = standalone），状态写在 `.hikspine/changes/<change>.yaml`。
-- 没有 events 时，引擎也必须能仅凭 workflow + registry + state 正常运行。
+- 没有 events 时，引擎也必须能仅凭 workflow + 已发现的 skill + state 正常运行。
 
 ## 4. 项目配置
 
@@ -87,9 +85,6 @@ project/
 version: 1
 defaultWorkflow: feature
 
-registries:
-  - .hikspine/registries/company.yaml
-
 guard:
   sourceRoots:
     - src/
@@ -99,40 +94,27 @@ guard:
 
 `framework_choice`、`component_mapping` 这类属于运行期**决策**，记录在状态文件的 `decisions` 中，不写入项目配置。
 
-## 5. Skill Registry
+## 5. Skill 发现
 
-Registry 将 workflow 中的 capability id 绑定到实际 skill。内置绑定见 `lib/registry.mjs`，项目可叠加覆盖。
+没有 registry，也没有 capability id→skill 的映射层。workflow 里的 `capabilities` 直接写**真实的 Claude Code skill 名**——就是 Agent 传给 Skill 工具的那个 `name`。引擎按 Claude Code 自己读取的同一批文件系统位置发现 skill（`lib/skills.mjs` 的 `discoverSkills`）：
 
-```yaml
-# .hikspine/registries/company.yaml
-id: company
-version: 1
-
-skills:
-  company.knowledge:
-    ref: company-knowledge
-    description: 查询公司知识库、历史方案、平台规范和业务术语
-    sideEffects: []
-  company.platform-design:
-    ref: company-java-design
-    description: 检查框架、组件、脚手架、接口、数据规范
-    sideEffects: []
-  company.review:
-    ref: company-java-review
-    description: 按公司规范做代码审查
-    sideEffects: []
-  company.security:
-    ref: company-security-review
-    description: 检查权限、数据、接口、日志、合规风险
-    sideEffects: []
+```text
+1. 本插件自带         <plugin>/skills/
+2. plugin marketplace ~/.claude/plugins/marketplaces/**/skills/
+3. 个人               ~/.claude/skills/
+4. 项目               <project>/.claude/skills/
 ```
+
+每个 skill 读其 `SKILL.md` frontmatter 的 `name` / `description`，按 `name` 去重——后面的源覆盖前面的，因此项目 skill 胜出。解析 `capabilities` 时从发现结果取 description；workflow 里引用了一个本机未安装的 skill 名也照样透传（标 `unknown`），不会报错。
+
+开源 skill 与公司 skill 不再有任何区分——它们都只是 skill，装在上面四个位置之一即可被发现。`hikspine skills --json` 列出当前能发现的全部 skill（既是编排界面挑选器的数据源，也是合法 capability 名的来源）。
 
 要点：
 
 ```text
 skill 不声明自己属于哪个状态。
-状态用 capabilities 声明它可以组合哪些 skill。
-替换 skill = 改 capabilities 或 registry，流转图不变。
+状态用 capabilities 声明它可以组合哪些真实 skill 名。
+换 skill = 改某个状态的 capabilities（装好对应 skill 即可），流转图不变。
 ```
 
 ## 6. Workflow 模型：状态 + 决策流转
@@ -186,19 +168,19 @@ states:
     goal: Explore the technical path, document it, and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming, company.platform-design, company.knowledge]
+    capabilities: [brainstorming]
     needs: [design_documented, design_confirmed]
     next: build
 
   - id: build
     goal: Implement the confirmed design.
-    capabilities: [superpowers.plan, superpowers.implement]
+    capabilities: [writing-plans, executing-plans]
     needs: [implemented]
     next: review
 
   - id: review
     goal: Review the implementation before verification.
-    capabilities: [superpowers.review, company.review, company.security]
+    capabilities: [requesting-code-review]
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -207,7 +189,7 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [superpowers.verify, openspec.verify]
+    capabilities: [verification-before-completion, openspec-verify-change]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -218,7 +200,7 @@ states:
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec.archive]
+    capabilities: [openspec-archive-change]
     needs: [archived]
     terminal: true
 ```
@@ -235,19 +217,19 @@ start: inspect
 states:
   - id: inspect
     goal: Understand the issue and the smallest safe change.
-    capabilities: [superpowers.inspect, company.knowledge]
+    capabilities: [systematic-debugging]
     needs: [issue_understood]
     next: fix
 
   - id: fix
     goal: Apply the minimal patch.
-    capabilities: [superpowers.implement]
+    capabilities: [executing-plans]
     needs: [patched]
     next: verify
 
   - id: verify
     goal: Run focused verification.
-    capabilities: [superpowers.verify]
+    capabilities: [verification-before-completion]
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: fix
@@ -320,8 +302,7 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]
   "forbid": ["write-source"],
   "requiresUser": true,
   "capabilities": [
-    { "id": "brainstorming", "ref": "brainstorming", "description": "Explore options, unknowns, tradeoffs, and questions." },
-    { "id": "company.platform-design", "ref": "company-platform-design", "description": "Check framework, component reuse, scaffold, API, data, and platform constraints." }
+    { "id": "brainstorming", "name": "brainstorming", "description": "Explore options, unknowns, tradeoffs, and questions.", "source": "marketplace" }
   ],
   "needs": ["design_documented", "design_confirmed"],
   "missing": ["design_documented", "design_confirmed"],
@@ -333,6 +314,20 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]
 ```
 
 AI 无需猜测：当前在哪个状态、可以组合哪些 skill、还缺哪些决策、记录后如何取下一步。
+
+### 8.1 只读列表命令
+
+除了驱动状态机的 `next` / `decide`，CLI 还有三个**只读**列表命令，用于路由和工具，不会 auto-advance 或改动任何 change：
+
+```text
+node "$HIKSPINE_ENGINE" skills [--json]
+node "$HIKSPINE_ENGINE" workflows [--json]
+node "$HIKSPINE_ENGINE" changes [--json]
+```
+
+- **skills**：`discoverSkills` 的输出——当前能发现的全部 Claude Code skill（`name` / `description` / `source` / `path`），按 name 去重。既是挑选 capability 的数据源，也是合法 capability 名的来源。
+- **workflows**：列出可用 workflow（内置 + 项目，项目按 id 覆盖内置），每个带 `intent`（声明「何时该用这条流程」），供 Agent 把请求路由到正确的 workflow。
+- **changes**：扫描所有在跑的 change（两种存储），逐个给出 workflow、当前状态、`nextAction`、缺失决策和是否 active。是并发运行的只读注册表，也是后续看板的数据源。
 
 ## 9. 流转与回退规则
 
@@ -384,27 +379,27 @@ build / fix / patch 状态允许写 sourceRoots。
 
 Guard 采用 **fail-open**：无 active change 或解析异常时放行，不阻塞正常编辑。
 
-## 11. 与 OpenSpec、Superpowers、公司 Skill 的衔接
+## 11. 与 OpenSpec、Superpowers 等 Skill 的衔接
 
-三者均以 capability 进入 registry，由状态通过 `capabilities` 组合：
+所有 skill 都以真实 skill 名进入状态的 `capabilities`，由文件系统发现解析。无论来自 OpenSpec、Superpowers，还是某个公司 marketplace、个人或项目目录，在引擎眼里都只是 skill：
 
 ```text
-OpenSpec     openspec-explore / openspec-propose / openspec.design / openspec.verify / openspec.archive
-Superpowers  superpowers.inspect / plan / implement / review / verify
-Company      company.knowledge / platform-design / review / security
+OpenSpec      openspec-explore / openspec-propose / openspec-verify-change / openspec-archive-change
+Superpowers   systematic-debugging / writing-plans / executing-plans / requesting-code-review / verification-before-completion
+其它（公司等） 装到 ~/.claude/skills、某个 marketplace 或项目 .claude/skills 即可被发现并写入 capabilities
 ```
 
 例如 review 状态：
 
 ```yaml
 - id: review
-  capabilities: [superpowers.review, company.review, company.security]
+  capabilities: [requesting-code-review]
   needs: [review_result=pass]
   fail_when: review_result=fail
   fail_to: build
 ```
 
-公司 skill 无需声明「我用于 review 阶段」或「完成后做什么」——这些由状态的 `capabilities` / `needs` 和 next-action 告知 AI。要新增一个公司专属评审 skill，只需在 `capabilities` 中加入一个 id，`needs`（`review_result=pass`）保持不变。
+skill 无需声明「我用于 review 阶段」或「完成后做什么」——这些由状态的 `capabilities` / `needs` 和 next-action 告知 AI。要新增一个公司专属评审 skill，只需把它装到被发现的位置，再在 `capabilities` 中加入它的 `name`，`needs`（`review_result=pass`）保持不变。
 
 ## 12. 内置工作流
 
@@ -431,7 +426,7 @@ hotfix        inspect -> patch -> verify
 
 2. 内置 workflow（feature / new-project / simple-fix / hotfix），states schema
 
-3. Skill registry（lib/registry.mjs + 项目/公司 registry 叠加）
+3. Skill 发现（lib/skills.mjs：从 Claude Code 读取的同一批文件系统位置发现真实 skill，无 registry）
 
 4. Change state（OpenSpec colocated .hikspine.yaml / standalone .hikspine/changes/<change>.yaml）
 
@@ -476,7 +471,7 @@ Designer -> workflow.yaml -> engine -> state / events -> board / timeline
 events.ndjson 成为完整审计日志
 board.json 成为 UI 投影缓存
 workflow 支持条件分支、并行、子工作流
-registry 支持 marketplace 与版本管理
+skill 发现支持版本管理与更丰富的 marketplace 元数据
 ```
 
 ## 16. 分层总结
@@ -488,8 +483,8 @@ State Machine Kernel
 Workflow (states)
   状态、needs（决策）、capabilities（可组合 skill）、流转边、回退边
 
-Skill Registry
-  capability id 到实际 skill / ref / 描述 / 副作用的绑定
+Skill Discovery
+  从文件系统发现真实 skill（name / description / source），capabilities 即 skill 名
 
 Change State
   current 状态、decisions、rollback、history（一个可读文件）
@@ -505,6 +500,6 @@ Optional Events
 
 ```text
 Hikspine 的内核是一个可组合的状态机——
-状态与决策流转构成骨架，skill 通过 registry 自由插入状态；
+状态与决策流转构成稳定骨架，每个状态的 capabilities（真实 skill 名，文件系统发现）可自由增删替换；
 替换 skill 不改动流转。状态流转，而非文件观察。
 ```
