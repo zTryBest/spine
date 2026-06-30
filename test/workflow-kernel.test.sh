@@ -176,6 +176,10 @@ eq "open surfaces codegraph exploration rule" \
   "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "design has brainstorming capability" \
   "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
+eq "design has planning capability" \
+  "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
+eq "design planning capability carries discovered description" \
+  "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.find(c=>c.id==='writing-plans').description.length > 0" && echo yes || echo no)" "yes"
 eq "design forbids write-source" \
   "$(printf '%s' "$DECIDE2" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "yes"
 
@@ -209,14 +213,14 @@ eq "design still missing design_confirmed" \
 DECIDE4="$(run decide design_confirmed --json)"
 eq "decide design_confirmed advances to build" \
   "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
-eq "build surfaces subagent planning rule" \
+eq "build surfaces implementation skill selection rule" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/subagent/i.test(r))" && echo yes || echo no)" "yes"
-eq "build has plan capability" \
-  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
   "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"
+eq "build has subagent implementation capability" \
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='subagent-driven-development') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "capabilities carry discovered skill descriptions" \
-  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.find(c=>c.id==='writing-plans').description.length > 0" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.find(c=>c.id==='executing-plans').description.length > 0" && echo yes || echo no)" "yes"
 eq "build does not forbid source writes" \
   "$(printf '%s' "$DECIDE4" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "no"
 
@@ -358,7 +362,7 @@ NP_BUILD="$(run decide design_confirmed --json)"
 eq "design confirmation advances directly to build" \
   "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
 eq "build has implement capability" \
-  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='executing-plans') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='executing-plans') && j.capabilities.some(c=>c.id==='subagent-driven-development') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
@@ -478,24 +482,60 @@ printf '%s\n' '# Verify' '' 'Focused verification artifact.' > "$T/.hikspine/art
 mkdir -p "$T/openspec/changes/feat-x/specs/auth"
 printf '%s\n' '# Proposal' '' 'Feature proposal artifact.' > "$T/openspec/changes/feat-x/proposal.md"
 printf '%s\n' '# Auth spec' '' 'Spec artifact.' > "$T/openspec/changes/feat-x/specs/auth/spec.md"
+mkdir -p "$T/openspec/changes/archive/2026-06-30-archived-x/specs/payments"
+cat > "$T/openspec/changes/archive/2026-06-30-archived-x/.hikspine.yaml" <<'YAML'
+version: 1
+change: archived-x
+workflow: feature
+current: archive
+decisions:
+  requirements_clarified: true
+  proposal_ready: true
+  design_documented: true
+  design_confirmed: true
+  implemented: true
+  review_result: pass
+  verify_result: pass
+  archived: true
+history:
+  -
+    at: 2026-06-30T00:00:00.000Z
+    type: started
+    workflow: feature
+    state: open
+  -
+    at: 2026-06-30T00:10:00.000Z
+    type: complete
+    state: archive
+YAML
+printf '%s\n' '# Archived Proposal' '' 'Archived feature proposal.' > "$T/openspec/changes/archive/2026-06-30-archived-x/proposal.md"
+printf '%s\n' '# Archived Spec' '' 'Archived spec artifact.' > "$T/openspec/changes/archive/2026-06-30-archived-x/specs/payments/spec.md"
 CH_LIST="$(run changes --json)"
 eq "changes lists all in-flight runs" \
-  "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 2 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 3 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature') && j.changes.some(c=>c.change==='archived-x'&&c.workflow==='feature'&&c.archived)" && echo yes || echo no)" "yes"
 eq "changes report nextAction per run" \
   "$(printf '%s' "$CH_LIST" | json_test "j.changes.every(c=>typeof c.nextAction==='string')" && echo yes || echo no)" "yes"
 eq "changes mark the active run" \
   "$(printf '%s' "$CH_LIST" | json_get 'j.active')" "feat-x"
 
+mkdir -p "$T/.hikspine"
+cat > "$T/.hikspine/notifications.json" <<'JSON'
+[
+  {"at":"2026-06-30T00:20:00.000Z","type":"idle_prompt","message":"Need your confirmation","session":"s1"},
+  {"id":"done-1","at":"2026-06-30T00:05:00.000Z","type":"permission_prompt","message":"Allow edit?","session":"s1","handledAt":"2026-06-30T00:06:00.000Z"}
+]
+JSON
+
 # board aggregates everything the web UI serves at /api/state
 BOARD="$(run board --json)"
 eq "board aggregates changes, workflows, and skills" \
-  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length === 3 && j.skills.length > 0 && j.changes.length === 2" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.changes) && j.workflows.length === 3 && j.skills.length > 0 && j.changes.length === 3" && echo yes || echo no)" "yes"
 eq "board marks the active change" \
   "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
 eq "board changes carry history and decisions" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>Array.isArray(c.history) && c.history.length>=1 && c.history[0].type==='started' && typeof c.decisions==='object' && c.startedAt)" && echo yes || echo no)" "yes"
-eq "board exposes notifications array" \
-  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.notifications)" && echo yes || echo no)" "yes"
+eq "board exposes normalized notifications" \
+  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.notifications) && j.notifications.length === 2 && j.notifications.every(n=>n.id && typeof n.handled==='boolean') && j.notifications.some(n=>n.type==='idle_prompt' && !n.handled) && j.notifications.some(n=>n.id==='done-1' && n.handled)" && echo yes || echo no)" "yes"
 eq "board exposes workflow stage details" \
   "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities)))" && echo yes || echo no)" "yes"
 eq "board exposes stage durations and markdown artifacts" \
@@ -504,6 +544,8 @@ eq "board annotates artifact types" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('proposal.md') && a.type==='proposal') && j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('/specs/auth/spec.md') && a.type==='spec') && j.changes.find(c=>c.change==='bug-1').artifacts.some(a=>a.path.endsWith('verify.md') && a.type==='verification')" && echo yes || echo no)" "yes"
 eq "board discovers standalone Hikspine markdown artifacts" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.find(c=>c.change==='bug-1').artifacts.some(a=>a.path.endsWith('.hikspine/artifacts/bug-1/verify.md') && a.stage==='verify')" && echo yes || echo no)" "yes"
+eq "board keeps archived OpenSpec changes visible" \
+  "$(printf '%s' "$BOARD" | json_test "j.changes.some(c=>c.change==='archived-x' && c.archived && c.complete && /openspec\\/changes\\/archive\\/2026-06-30-archived-x/.test(c.archivePath) && c.artifacts.some(a=>a.path.endsWith('archive/2026-06-30-archived-x/proposal.md') && a.type==='proposal'))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
@@ -535,7 +577,7 @@ mkdir -p "$T/openspec/changes/collision" "$T/.hikspine/changes"
 printf 'change: collision\nworkflow: feature\ncurrent: open\n' > "$T/openspec/changes/collision/.hikspine.yaml"
 printf 'change: collision\nworkflow: fix\ncurrent: inspect\n' > "$T/.hikspine/changes/collision.yaml"
 COLLISION="$(run next collision --json 2>&1 || true)"
-has "same change in both storage locations is rejected" "$COLLISION" "exists in both openspec/changes and .hikspine/changes"
+has "same change in both storage locations is rejected" "$COLLISION" "exists in multiple Hikspine storage locations"
 
 rm -rf "$T"
 

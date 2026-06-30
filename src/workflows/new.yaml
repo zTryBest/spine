@@ -1,5 +1,5 @@
 id: new
-version: 8
+version: 9
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -34,7 +34,9 @@ states:
 
   - id: build
     goal: Scaffold and implement the initial project from the confirmed design.
-    capabilities: [executing-plans]
+    capabilities: [executing-plans, subagent-driven-development]
+    rules:
+      - Choose exactly one implementation skill before editing source. Use executing-plans for small, local, mostly sequential implementation work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
     needs: [implemented]
     next: review
 

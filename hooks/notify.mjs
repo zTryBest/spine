@@ -5,12 +5,11 @@
 
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 import process from 'node:process';
+import { appendNotification } from '../src/notifications.mjs';
 
 // Notification types that mean "Claude is waiting on the user".
 const NEEDS_USER = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
-const MAX = 20;
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -33,21 +32,13 @@ if (!NEEDS_USER.has(type)) process.exit(0);
 
 const cwd = payload.cwd || process.env.HIKSPINE_PROJECT_ROOT || process.cwd();
 const root = gitToplevel(cwd) || cwd;
-const dir = path.join(root, '.hikspine');
-const file = path.join(dir, 'notifications.json');
 
 try {
-  fs.mkdirSync(dir, { recursive: true });
-  let list = [];
-  try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { list = []; }
-  if (!Array.isArray(list)) list = [];
-  list.push({
-    at: new Date().toISOString(),
+  appendNotification(root, {
     type,
     message: payload.message || '',
     session: payload.session_id || '',
   });
-  fs.writeFileSync(file, JSON.stringify(list.slice(-MAX)));
 } catch {
   // Best-effort; never block the session.
 }

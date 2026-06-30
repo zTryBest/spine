@@ -42,16 +42,29 @@
   .lang button { font:inherit; font-size:12px; color:var(--muted); background:transparent; border:none; border-radius:999px; padding:4px 11px; cursor:pointer; }
   .lang button.on { color:#07100b; background:linear-gradient(135deg,var(--accent),#d7e17d); font-weight:700; }
 
-  .notice { display:flex; align-items:center; gap:12px; margin:20px 0 0; padding:13px 16px; border-radius:13px;
-    background:linear-gradient(180deg, rgba(240,198,74,.16), rgba(240,198,74,.06)); border:1px solid rgba(240,198,74,.45);
-    box-shadow:0 10px 30px -20px rgba(240,198,74,.6); animation:rise .35s ease both; }
-  .notice .bell { font-size:18px; animation:shake 1.4s ease-in-out infinite; }
-  @keyframes shake { 0%,92%,100%{transform:rotate(0)} 94%{transform:rotate(12deg)} 96%{transform:rotate(-10deg)} 98%{transform:rotate(6deg)} }
-  .notice .nx { flex:1; min-width:0; }
-  .notice .nt { font-weight:700; color:#f4d77a; font-size:13px; }
-  .notice .nm { color:var(--text); font-size:13px; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .notice .ntime { color:var(--muted); font-size:11.5px; white-space:nowrap; }
-  .notice .ncount { background:rgba(240,198,74,.2); color:#f4d77a; border-radius:999px; padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .notice-module { margin:20px 0 0; border:1px solid rgba(231,189,83,.34); border-radius:8px; overflow:hidden;
+    background:linear-gradient(180deg,rgba(35,31,20,.96),rgba(17,20,25,.98)); box-shadow:0 18px 42px -30px rgba(231,189,83,.72); animation:rise .35s ease both; }
+  .notice-module[hidden] { display:none; }
+  .notice-head { display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid rgba(231,189,83,.16); }
+  .notice-mark { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex:0 0 auto;
+    color:#1b1405; background:linear-gradient(135deg,#f0c64a,#fff0a4); font-weight:900; box-shadow:0 10px 24px -18px #f0c64a; }
+  .notice-copy { min-width:0; flex:1; }
+  .notice-title { font-weight:800; color:#ffe08a; line-height:1.15; }
+  .notice-sub { color:var(--muted); font-size:12px; margin-top:2px; }
+  .notice-actions { display:flex; align-items:center; gap:8px; }
+  .notice-btn { font:inherit; border:1px solid rgba(240,198,74,.34); color:#ffe08a; background:rgba(240,198,74,.08);
+    border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; white-space:nowrap; }
+  .notice-btn:hover { border-color:rgba(240,198,74,.64); background:rgba(240,198,74,.14); }
+  .notice-btn:disabled { cursor:default; opacity:.48; }
+  .notice-list { display:grid; }
+  .notice-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:11px 15px; border-top:1px solid rgba(255,255,255,.045); }
+  .notice-item:first-child { border-top:none; }
+  .notice-item.handled { opacity:.62; }
+  .notice-line { min-width:0; }
+  .notice-type { color:#ffe08a; font-size:12px; font-weight:800; }
+  .notice-msg { color:var(--text); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .notice-meta { color:var(--dim); font-size:11.5px; margin-top:3px; }
+  .notice-done { align-self:center; }
 
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0 8px; }
   .stat { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(14,17,23,.96)); border:1px solid var(--line);
@@ -80,7 +93,8 @@
   .star { color:var(--accent); }
   .badge { margin-left:auto; font-size:10.5px; padding:4px 11px; border-radius:999px; font-weight:800; letter-spacing:.4px; }
   .badge.work{background:rgba(63,208,122,.15);color:var(--work)} .badge.confirm{background:rgba(240,198,74,.15);color:var(--confirm)}
-  .badge.done{background:rgba(154,123,255,.18);color:#b9a6ff} .badge.error{background:rgba(255,107,99,.15);color:var(--err)}
+  .badge.done{background:rgba(154,123,255,.18);color:#b9a6ff} .badge.archived{background:rgba(98,210,162,.18);color:var(--accent)}
+  .badge.error{background:rgba(255,107,99,.15);color:var(--err)}
 
   .pipe { display:flex; align-items:flex-start; margin:6px 2px 14px; }
   .step { display:flex; align-items:center; flex:1; min-width:0; }
@@ -196,6 +210,10 @@
     .workflow-detail-head .it { flex-basis:100%; white-space:normal; }
     .artifact-stage { flex-direction:column; gap:5px; }
     .artifact-stage .stage-name { width:auto; }
+    .notice-head { align-items:flex-start; }
+    .notice-actions { flex-direction:column; align-items:stretch; }
+    .notice-item { grid-template-columns:1fr; }
+    .notice-done { justify-self:start; }
   }
 </style>
 </head>
@@ -213,7 +231,7 @@
     </div>
   </header>
 
-  <div id="notice"></div>
+  <section class="notice-module" id="noticeModule" hidden></section>
 
   <div class="stats" id="stats"></div>
 
@@ -261,7 +279,7 @@ const I18N = {
     stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
     secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
     empty:'还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。',
-    bWork:'进行中', bConfirm:'待确认', bDone:'完成', bError:'异常',
+    bWork:'进行中', bConfirm:'待确认', bDone:'完成', bArchived:'已归档', bError:'异常',
     cur:'当前', pending:'待办决策', recorded:'已决策', started:'开始于',
     timeline:'时间线', evStarted:'开始', evEnter:'进入', evDecide:'决策', evRollback:'回退', evDone:'完成',
     tNow:'刚刚', tMin:'分钟前', tHour:'小时前', tDay:'天前',
@@ -269,7 +287,8 @@ const I18N = {
     page:(p,t,n)=>'第 '+p+' / '+t+' 页 · 每页 '+n+' 个',
     fSource:'来源说明', fDesc:'技能说明', fUsage:'用法', fPath:'位置',
     noSkills:'未发现技能。', noDesc:'暂无说明。',
-    notice:'Claude 需要你处理', nMore:(n)=>'还有 '+n+' 条',
+    notice:'Claude 需要你处理', noticeSub:(p,h)=>p+' 条待处理 · '+h+' 条已处理',
+    nMarkDone:'标记处理', nMarkAll:'全部处理', nHandled:'已处理',
     nPermission:'权限确认', nIdle:'等待你的输入', nElicit:'需要你输入',
   },
   en: {
@@ -279,7 +298,7 @@ const I18N = {
     stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
     secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
     empty:'No tasks yet — the agent creates and drives them in Claude Code.',
-    bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bError:'Error',
+    bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bArchived:'Archived', bError:'Error',
     cur:'Current', pending:'Pending', recorded:'Decided', started:'Started',
     timeline:'Timeline', evStarted:'Started', evEnter:'Entered', evDecide:'Decided', evRollback:'Rolled back', evDone:'Completed',
     tNow:'just now', tMin:'m ago', tHour:'h ago', tDay:'d ago',
@@ -287,7 +306,8 @@ const I18N = {
     page:(p,t,n)=>'Page '+p+' of '+t+' · '+n+' per page',
     fSource:'Source', fDesc:'Description', fUsage:'Usage', fPath:'Location',
     noSkills:'No skills found.', noDesc:'No description.',
-    notice:'Claude needs you', nMore:(n)=>'+'+n+' more',
+    notice:'Claude needs you', noticeSub:(p,h)=>p+' pending · '+h+' handled',
+    nMarkDone:'Mark handled', nMarkAll:'Mark all', nHandled:'Handled',
     nPermission:'Permission needed', nIdle:'Waiting for your input', nElicit:'Input requested',
   },
 };
@@ -344,6 +364,7 @@ const SKILL_ZH = {
   brainstorming:'探索方案、未知点、取舍与待澄清问题。',
   'writing-plans':'编写实现计划。',
   'executing-plans':'执行实现计划或聚焦修复。',
+  'subagent-driven-development':'用隔离上下文的子 Agent 拆分实现、评审并修复。',
   'systematic-debugging':'理解问题并排查相关代码路径。',
   'requesting-code-review':'审查代码的正确性与可维护性。',
   'verification-before-completion':'完成前执行聚焦验证。',
@@ -362,7 +383,10 @@ const skillDesc = (s) => (lang==='zh' && SKILL_ZH[s.name]) ? SKILL_ZH[s.name] : 
 const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
 const DEMO = {
   demo:true, root:'(demo) D:\\\\company\\\\pipeline', active:'access-control-v2',
-  notifications:[ { at:ago(2), type:'idle_prompt', message:'access-control-v2 is waiting for your design confirmation' } ],
+  notifications:[
+    { id:'demo-1', at:ago(2), type:'idle_prompt', message:'access-control-v2 is waiting for your design confirmation' },
+    { id:'demo-2', at:ago(18), type:'permission_prompt', message:'Allow editing openspec/changes/access-control-v2/design.md?', handledAt:ago(12), handled:true },
+  ],
   changes:[
     { change:'access-control-v2', workflow:'feature', active:true, nextAction:'confirm', complete:false,
       current:'design', goal:'Explore the technical path, document it, and get user confirmation.',
@@ -411,7 +435,7 @@ const DEMO = {
         {at:ago(4),type:'decide',key:'verify_result',value:'fail'},
         {at:ago(4),type:'rollback',from:'verify',to:'fix'},
       ] },
-    { change:'perm-refactor', workflow:'feature', active:false, nextAction:'done', complete:true,
+    { change:'perm-refactor', workflow:'feature', active:false, nextAction:'done', complete:true, archived:true, archivePath:'openspec/changes/archive/2026-06-30-perm-refactor',
       current:'archive', goal:'Archive the completed change after user confirmation.',
       missing:[], decisions:{requirements_clarified:true,proposal_ready:true,design_documented:true,design_confirmed:true,implemented:true,review_result:'pass',verify_result:'pass',archived:true},
       stages:['open','design','build','review','verify','archive'], stageIndex:5,
@@ -432,7 +456,7 @@ const DEMO = {
         {id:'brainstorm',goal:'Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.',capabilities:['brainstorming'],needs:['brainstorming_done'],next:'openspec'},
         {id:'openspec',goal:'Create OpenSpec artifacts from the brainstormed direction.',capabilities:['openspec-propose'],needs:['proposal_ready'],next:'design'},
         {id:'design',goal:'Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.',capabilities:['writing-plans'],needs:['design_confirmed'],requiresUser:true,next:'build'},
-        {id:'build',goal:'Scaffold and implement the initial project from the confirmed design.',capabilities:['executing-plans'],needs:['implemented'],next:'review'},
+        {id:'build',goal:'Scaffold and implement the initial project from the confirmed design.',capabilities:['executing-plans','subagent-driven-development'],needs:['implemented'],next:'review'},
         {id:'review',goal:'Review implementation and company standards.',capabilities:['requesting-code-review'],needs:['review_result'],next:'verify'},
         {id:'verify',goal:'Verify behavior and OpenSpec coverage.',capabilities:['verification-before-completion','openspec-verify-change'],needs:['verify_result'],terminal:true}
       ] },
@@ -440,7 +464,7 @@ const DEMO = {
       stages:[
         {id:'open',goal:'Clarify the change and create OpenSpec artifacts.',capabilities:['openspec-explore','openspec-propose'],needs:['proposal_ready'],next:'design'},
         {id:'design',goal:'Explore the technical path, document it, and get user confirmation.',capabilities:['brainstorming','writing-plans'],needs:['design_confirmed'],requiresUser:true,next:'build'},
-        {id:'build',goal:'Implement the confirmed design.',capabilities:['executing-plans'],needs:['implemented'],next:'review'},
+        {id:'build',goal:'Implement the confirmed design.',capabilities:['executing-plans','subagent-driven-development'],needs:['implemented'],next:'review'},
         {id:'review',goal:'Review the implementation before verification.',capabilities:['requesting-code-review'],needs:['review_result'],next:'verify'},
         {id:'verify',goal:'Verify behavior and OpenSpec coverage.',capabilities:['verification-before-completion','openspec-verify-change'],needs:['verify_result'],next:'archive'},
         {id:'archive',goal:'Archive the completed change after user confirmation.',capabilities:['openspec-archive-change'],needs:['archived'],requiresUser:true,terminal:true}
@@ -456,6 +480,7 @@ const DEMO = {
     { name:'hikspine', scope:'local', path:'skills/hikspine/SKILL.md', description:'Drive the Hikspine next / decide workflow.' },
     { name:'hikspine-ui', scope:'local', path:'skills/hikspine-ui/SKILL.md', description:'Start the local Hikspine board pointed at the current project.' },
     { name:'brainstorming', scope:'marketplace', path:'~/.claude/plugins/marketplaces/hikspine/skills/brainstorming/SKILL.md', description:'Explore options, unknowns, tradeoffs, and questions.' },
+    { name:'subagent-driven-development', scope:'local', path:'skills/subagent-driven-development/SKILL.md', description:'Coordinate implementer, reviewer, and fixer subagents for split implementation work.' },
     { name:'requirement-analysis', scope:'user', path:'~/.claude/skills/requirement-analysis/SKILL.md', description:'Personal requirement-analysis flow.' },
     { name:'project-review', scope:'project', path:'.claude/skills/project-review/SKILL.md', description:'Project-shared review rules.' },
   ],
@@ -662,6 +687,7 @@ function pipe(c) {
 }
 function badge(c) {
   if (c.error) return '<span class="badge error">'+t('bError')+'</span>';
+  if (c.archived) return '<span class="badge archived">'+t('bArchived')+'</span>';
   if (c.complete) return '<span class="badge done">'+t('bDone')+'</span>';
   return '<span class="badge '+c.nextAction+'">'+(c.nextAction==='confirm'?t('bConfirm'):t('bWork'))+'</span>';
 }
@@ -808,29 +834,62 @@ function renderSkills(skills) {
   $('skillNext').onclick = () => { if (skillPage < pageCount) { skillPage += 1; renderSkills(skills); } };
 }
 
-const NOTICE_WINDOW_MS = 30 * 60 * 1000;
 const NTYPE = { permission_prompt:'nPermission', idle_prompt:'nIdle', elicitation_dialog:'nElicit' };
 let lastNotifiedAt = 0, notifPrimed = false;
 const noticeType = (type) => (NTYPE[type] ? t(NTYPE[type]) : type);
 
-function renderNotice(notifications) {
-  const now = Date.now();
-  const recent = (notifications || []).filter(n => n.at && (now - new Date(n.at).getTime()) < NOTICE_WINDOW_MS);
-  const box = $('notice');
-  if (!recent.length) { box.innerHTML = ''; return; }
-  const latest = recent[recent.length - 1];
-  const more = recent.length - 1;
-  box.innerHTML = '<span class="bell">🔔</span>'+
-    '<div class="nx"><div class="nt">'+t('notice')+' · '+esc(noticeType(latest.type))+'</div>'+
-    (latest.message ? '<div class="nm">'+esc(latest.message)+'</div>' : '')+'</div>'+
-    (more > 0 ? '<span class="ncount">'+t('nMore')(more)+'</span>' : '')+
-    '<span class="ntime">'+esc(relTime(latest.at))+'</span>';
-  const latestMs = new Date(latest.at).getTime();
-  if (notifPrimed && latestMs > lastNotifiedAt && 'Notification' in window && Notification.permission === 'granted') {
-    try { new Notification(t('notice'), { body: latest.message || noticeType(latest.type) }); } catch (e) {}
+function notificationRow(n, handled) {
+  return '<div class="notice-item '+(handled ? 'handled' : '')+'">'+
+    '<div class="notice-line"><div class="notice-type">'+esc(noticeType(n.type))+(handled ? ' · '+t('nHandled') : '')+'</div>'+
+    (n.message ? '<div class="notice-msg">'+esc(n.message)+'</div>' : '')+
+    '<div class="notice-meta">'+esc(relTime(n.at))+(n.handledAt ? ' · '+esc(relTime(n.handledAt)) : '')+'</div></div>'+
+    (handled ? '' : '<button class="notice-btn notice-done" data-notice-id="'+esc(n.id)+'" type="button">'+t('nMarkDone')+'</button>')+
+    '</div>';
+}
+
+function renderNotifications(notifications) {
+  const box = $('noticeModule');
+  const all = (notifications || [])
+    .filter(n => n && n.at)
+    .slice()
+    .sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime());
+  if (!all.length) { box.hidden = true; box.innerHTML = ''; return; }
+  const pending = all.filter(n => !n.handledAt);
+  const handled = all.filter(n => n.handledAt).slice(-3).reverse();
+  const rows = pending.concat(handled).map(n => notificationRow(n, !!n.handledAt)).join('');
+  box.hidden = false;
+  box.innerHTML =
+    '<div class="notice-head"><div class="notice-mark">!</div>'+
+    '<div class="notice-copy"><div class="notice-title">'+t('notice')+'</div>'+
+    '<div class="notice-sub">'+t('noticeSub')(pending.length, all.length-pending.length)+'</div></div>'+
+    '<div class="notice-actions">'+
+    '<button class="notice-btn" id="noticeDoneAll" type="button" '+(!pending.length?'disabled':'')+'>'+t('nMarkAll')+'</button>'+
+    '</div></div>'+
+    '<div class="notice-list">'+rows+'</div>';
+  $('noticeDoneAll').onclick = () => markNotifications({ all:true });
+  box.querySelectorAll('.notice-done').forEach((button) => {
+    button.onclick = () => markNotifications({ id: button.dataset.noticeId });
+  });
+  const latest = pending[pending.length - 1];
+  if (latest) {
+    const latestMs = new Date(latest.at).getTime();
+    if (notifPrimed && latestMs > lastNotifiedAt && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(t('notice'), { body: latest.message || noticeType(latest.type) }); } catch (e) {}
+    }
+    lastNotifiedAt = Math.max(lastNotifiedAt, latestMs);
   }
-  lastNotifiedAt = Math.max(lastNotifiedAt, latestMs);
   notifPrimed = true;
+}
+
+async function markNotifications(payload) {
+  try {
+    await api('/api/notifications/handled', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+  } catch (e) {}
+  refresh();
 }
 
 function renderAll() {
@@ -846,7 +905,7 @@ function renderAll() {
   $('livetext').textContent = last.demo ? t('demo') : t('live');
   $('lzh').classList.toggle('on', lang==='zh');
   $('len').classList.toggle('on', lang==='en');
-  renderNotice(last.notifications || []);
+  renderNotifications(last.notifications || []);
   renderStats(last.changes || []);
   renderChanges(last.changes || []);
   renderWorkflows(last.workflows || []);

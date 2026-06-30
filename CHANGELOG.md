@@ -1,3 +1,45 @@
+## What's Changed [0.6.21] - 2026-06-30
+
+### Added
+
+- **看板通知中心**: 看板顶部的临时通知横幅升级为通知模块，集中展示 Claude 等待用户处理的推送消息，并区分待处理与已处理状态，让实时提示不再挤成单条醒目横幅。
+- **通知处理状态**: 通知记录现在带稳定 `id`，看板提供单条“标记处理”和“全部处理”动作，处理后写回 `.hikspine/notifications.json` 的 `handledAt`，刷新后仍能保持状态。
+
+### Tests
+
+- **通知状态覆盖**: 扩展 board 聚合测试，验证旧通知会自动补齐 `id`，并随 `/api/state` 暴露待处理/已处理状态。
+
+## What's Changed [0.6.20] - 2026-06-30
+
+### Fixed
+
+- **归档任务仍显示在看板**: 看板聚合层现在会扫描 `openspec/changes/archive/YYYY-MM-DD-<change>` 下保留下来的 `.hikspine.yaml`，已归档 OpenSpec change 不再从任务看板消失，并会带 `archived` / `archivePath` 标记与“已归档”状态徽章。
+- **归档产物继续可预览**: 阶段产物扫描会把归档目录作为产物来源，归档后的 proposal、design、tasks、spec 等 Markdown 仍能在任务卡中展示并预览。
+
+### Tests
+
+- **归档看板覆盖**: 扩展 board 聚合测试，验证归档目录中的 OpenSpec change 会继续出现在 `/api/state` / `board --json`，并保留归档路径和 Markdown 产物。
+
+## What's Changed [0.6.19] - 2026-06-30
+
+### Changed
+
+- **Feature 设计阶段承接 writing-plans**: `feature` workflow 的 `design` 阶段现在同时暴露 `brainstorming` 与 `writing-plans`，先探索技术路径与取舍，再用 `writing-plans` 形成实施设计、任务拆解和验证方案；`build` 阶段保持只负责编码实现候选，不再承担写计划职责。
+
+### Tests
+
+- **设计/实现职责边界覆盖**: 更新 workflow kernel 测试，验证 `feature.design` 返回 `writing-plans`，而 `feature.build` 只返回实现类 capability（`executing-plans` / `subagent-driven-development`）。
+
+## What's Changed [0.6.18] - 2026-06-30
+
+### Changed
+
+- **Build 阶段实现策略选择**: `new` 与 `feature` workflow 的 `build` 阶段不再只走单一实现方式，而是同时暴露 `executing-plans` 与 `subagent-driven-development` 两个候选 skill，并通过阶段 `rules` 要求 Agent 在编辑源码前按任务规模选择一种：小型顺序改动走 `executing-plans`，可拆分、多模块或需要隔离上下文的实现走 `subagent-driven-development`。
+
+### Tests
+
+- **Build capability 覆盖**: 扩展 workflow kernel 测试，验证 `new` / `feature` 的 build 阶段会返回 `executing-plans` 与 `subagent-driven-development`，且不再把 `writing-plans` 当作 build 实现 capability。
+
 ## What's Changed [0.6.17] - 2026-06-30
 
 ### Fixed

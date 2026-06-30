@@ -5,20 +5,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { getActive, listStates, listWorkflows, loadState, loadWorkflow } from './store.mjs';
+import { getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
 import { discoverSkills } from './skills.mjs';
-
-// Live notifications recorded by the Notification hook (Claude waiting on the
-// user). Read-only; best-effort.
-function readNotifications(root) {
-  try {
-    const list = JSON.parse(fs.readFileSync(path.join(root, '.hikspine', 'notifications.json'), 'utf8'));
-    return Array.isArray(list) ? list.slice(-20) : [];
-  } catch {
-    return [];
-  }
-}
+import { readNotifications } from './notifications.mjs';
 import { rel, toPosix } from './utils.mjs';
 
 function minutesBetween(start, end) {
@@ -150,13 +140,15 @@ function pushArtifact(out, seen, root, base, file, stages, source) {
 
 function candidateArtifactDirs(root, state) {
   const change = state.change;
-  return [
+  const dirs = [
+    state.__dir ? [state.__archived ? 'openspec-archive' : 'state-dir', state.__dir] : null,
     ['openspec', path.join(root, 'openspec', 'changes', change)],
     ['hikspine', path.join(root, '.hikspine', 'artifacts', change)],
     ['hikspine', path.join(root, '.hikspine', 'changes', change)],
     ['docs', path.join(root, 'docs', 'changes', change)],
     ['docs', path.join(root, 'docs', 'hikspine', change)],
   ];
+  return dirs.filter(Boolean);
 }
 
 function changeArtifacts(root, state, stages) {
@@ -206,17 +198,21 @@ function workflowDetails(root, summary) {
 }
 
 // One change's status. Read-only: never auto-advances or mutates the change.
-export function changeSummary(root, change, active) {
+export function changeSummary(root, entryOrChange, active) {
   try {
-    const state = loadState(root, change);
+    const entry = typeof entryOrChange === 'string' ? { change: entryOrChange } : entryOrChange;
+    const state = entry.file ? loadStateEntry(root, entry) : loadState(root, entry.change);
     const workflow = loadWorkflow(root, state.workflow);
     const sum = summarize(workflow, state);
     const stages = workflow.states.map((s) => s.id);
     const history = Array.isArray(state.history) ? state.history : [];
+    const change = state.change || entry.change;
     return {
       change,
       workflow: state.workflow,
       active: change === active,
+      archived: !!state.__archived,
+      archivePath: state.__archivePath || '',
       current: sum.current,
       goal: sum.goal,
       nextAction: sum.nextAction,
@@ -234,12 +230,13 @@ export function changeSummary(root, change, active) {
       updatedAt: history.length ? history[history.length - 1].at : null,
     };
   } catch (err) {
+    const change = typeof entryOrChange === 'string' ? entryOrChange : entryOrChange.change;
     return { change, active: change === active, error: err.message };
   }
 }
 
 export function listChangeSummaries(root, active = getActive(root)) {
-  return listStates(root).map(({ change }) => changeSummary(root, change, active));
+  return listStates(root).map((entry) => changeSummary(root, entry, active));
 }
 
 export function boardState(root) {

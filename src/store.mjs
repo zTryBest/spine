@@ -132,24 +132,51 @@ export function standaloneStateFile(root, change) {
   return path.join(root, '.hikspine', 'changes', `${change}.yaml`);
 }
 
+function archivedOpenSpecStates(root) {
+  const out = [];
+  const archiveBase = path.join(root, 'openspec', 'changes', 'archive');
+  if (!fs.existsSync(archiveBase)) return out;
+  for (const dirent of fs.readdirSync(archiveBase, { withFileTypes: true })) {
+    if (!dirent.isDirectory()) continue;
+    const dir = path.join(archiveBase, dirent.name);
+    const file = path.join(dir, '.hikspine.yaml');
+    if (!fs.existsSync(file)) continue;
+    let change = dirent.name.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+    try {
+      const state = readYamlFile(file);
+      if (state.change) change = state.change;
+    } catch {
+      // Keep the date-stripped directory name as a best-effort label.
+    }
+    out.push({ change, file, archived: true, archivedName: dirent.name, archivePath: rel(root, dir) });
+  }
+  return out;
+}
+
 function stateCandidates(root, change) {
   const openSpec = openSpecStateFile(root, change);
   const standalone = standaloneStateFile(root, change);
+  const archived = archivedOpenSpecStates(root).find((entry) => entry.change === change) || null;
   return {
     openSpec,
     standalone,
+    archived: archived?.file || '',
+    archivedEntry: archived,
     hasOpenSpec: fs.existsSync(openSpec),
     hasStandalone: fs.existsSync(standalone),
+    hasArchived: !!archived,
   };
 }
 
 export function stateFileFor(root, change, workflowId = '') {
   const c = stateCandidates(root, change);
-  if (c.hasOpenSpec && c.hasStandalone) {
-    die(`Change '${change}' exists in both openspec/changes and .hikspine/changes. Rename or archive one before continuing.`);
+  const locations = [c.hasOpenSpec, c.hasStandalone, c.hasArchived].filter(Boolean).length;
+  if (locations > 1) {
+    die(`Change '${change}' exists in multiple Hikspine storage locations. Rename or archive one before continuing.`);
   }
   if (c.hasOpenSpec) return c.openSpec;
   if (c.hasStandalone) return c.standalone;
+  if (c.hasArchived) return c.archived;
   return workflowId === 'fix' ? c.standalone : c.openSpec;
 }
 
@@ -176,6 +203,7 @@ export function listStates(root) {
       const file = openSpecStateFile(root, dirent.name);
       if (fs.existsSync(file)) out.push({ change: dirent.name, file });
     }
+    out.push(...archivedOpenSpecStates(root));
   }
   const simpleBase = path.join(root, '.hikspine', 'changes');
   if (fs.existsSync(simpleBase)) {
@@ -225,7 +253,7 @@ export function createState(root, change, workflowId, storageArg) {
   validateChangeName(change);
   const workflow = loadWorkflow(root, workflowId);
   const c = stateCandidates(root, change);
-  if (c.hasOpenSpec || c.hasStandalone) {
+  if (c.hasOpenSpec || c.hasStandalone || c.hasArchived) {
     die(`Change '${change}' already exists. Use a different change name or resume it without changing workflow.`);
   }
   const storage = storageArg || (workflow.id === 'fix' ? 'standalone' : 'openspec');
@@ -241,14 +269,26 @@ export function loadState(root, change) {
   const name = resolveChange(root, change);
   const file = stateFileFor(root, name);
   if (!fs.existsSync(file)) die(`Change state not found for '${name}'.`);
+  const archivedEntry = stateCandidates(root, name).archivedEntry;
+  return loadStateEntry(root, { change: name, file, ...(file === archivedEntry?.file ? archivedEntry : {}) });
+}
+
+export function loadStateEntry(root, entry) {
+  const file = entry.file;
   const state = readYamlFile(file);
   state.version ||= 1;
-  state.change ||= name;
+  state.change ||= entry.change;
   // tolerate legacy `current: { phase, node }` shape
   if (typeof state.current !== 'string') state.current = state.current?.phase || '';
   state.decisions ||= {};
   state.history ||= [];
   state.__file = file;
+  state.__dir = path.dirname(file);
+  if (entry.archived) {
+    state.__archived = true;
+    state.__archivePath = entry.archivePath || rel(root, path.dirname(file));
+    state.__archivedName = entry.archivedName || path.basename(path.dirname(file));
+  }
   return state;
 }
 

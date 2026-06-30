@@ -8,6 +8,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { boardState } from './board.mjs';
+import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
 import { setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 
@@ -95,6 +96,14 @@ export function createBoardServer(root) {
         } catch (err) {
           sendJson(res, 400, { error: err.message });
         }
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/notifications/handled') {
+        const body = await readBody(req);
+        const result = body.all
+          ? markAllNotificationsHandled(root)
+          : markNotificationsHandled(root, body.ids || body.id);
+        sendJson(res, 200, result);
         return;
       }
       sendJson(res, 404, { error: 'Not found' });
