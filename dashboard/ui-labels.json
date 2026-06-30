@@ -1,0 +1,15 @@
+{
+  "stages": {
+    "brainstorm": { "zh": "头脑风暴", "en": "Brainstorm" },
+    "openspec": { "zh": "OpenSpec", "en": "OpenSpec" },
+    "open": { "zh": "需求", "en": "Open" },
+    "inspect": { "zh": "排查", "en": "Inspect" },
+    "design": { "zh": "设计", "en": "Design" },
+    "scaffold": { "zh": "脚手架", "en": "Scaffold" },
+    "build": { "zh": "实现", "en": "Build" },
+    "fix": { "zh": "修复", "en": "Fix" },
+    "review": { "zh": "评审", "en": "Review" },
+    "verify": { "zh": "验证", "en": "Verify" },
+    "archive": { "zh": "归档", "en": "Archive" }
+  }
+}

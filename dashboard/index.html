@@ -271,6 +271,7 @@ let lang = localStorage.getItem('hikspine-lang') || 'zh';
 let last = null;
 let lastRenderKey = '';
 let hasRendered = false;
+let uiLabels = { stages:{} };
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
@@ -316,14 +317,13 @@ const I18N = {
 };
 const t = (k) => I18N[lang][k];
 
-// Stage ids → bilingual labels (engine ids stay English).
-const STAGE = {
-  brainstorm:{zh:'头脑风暴',en:'Brainstorm'}, openspec:{zh:'OpenSpec',en:'OpenSpec'},
-  open:{zh:'需求',en:'Open'}, inspect:{zh:'排查',en:'Inspect'}, design:{zh:'设计',en:'Design'},
-  scaffold:{zh:'脚手架',en:'Scaffold'}, build:{zh:'实现',en:'Build'}, fix:{zh:'修复',en:'Fix'},
-  review:{zh:'评审',en:'Review'}, verify:{zh:'验证',en:'Verify'}, archive:{zh:'归档',en:'Archive'},
+// Stage ids stay English in workflow state; display labels come from
+// dashboard/ui-labels.json plus optional project .hikspine/ui-labels.json.
+const label = (id) => {
+  const item = uiLabels.stages && uiLabels.stages[id];
+  if (!item || typeof item !== 'object') return id;
+  return item[lang] || item.zh || item.en || id;
 };
-const label = (id) => (STAGE[id] ? STAGE[id][lang] : id);
 
 // Workflow id → bilingual short name + Chinese intent (English intent comes
 // from the workflow YAML; Chinese is overlaid here).
@@ -927,10 +927,16 @@ $('artifactClose').onclick = closeArtifact;
 $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
 
 async function refresh() {
+  try {
+    const labels = await api('/api/ui-labels');
+    uiLabels = labels && typeof labels === 'object' ? labels : { stages:{} };
+  } catch (e) {
+    uiLabels = { stages:{} };
+  }
   let s;
   try { s = await api('/api/state'); } catch (e) { s = DEMO; }
   if (!s.demo && (!s.changes)) s.demo = true;
-  const renderKey = JSON.stringify(s) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
+  const renderKey = JSON.stringify(s) + '|' + JSON.stringify(uiLabels) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
   if (renderKey === lastRenderKey) return;
   lastRenderKey = renderKey;
   last = s;

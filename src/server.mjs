@@ -13,6 +13,7 @@ import { setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
+const DASHBOARD_LABELS = path.join(PLUGIN_ROOT, 'dashboard', 'ui-labels.json');
 
 function artifactType(filePath) {
   const p = String(filePath || '').replace(/\\/g, '/').toLowerCase();
@@ -43,6 +44,32 @@ function readBody(req) {
   });
 }
 
+function readJsonFile(file) {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeUiLabels(base, override) {
+  return {
+    ...base,
+    ...override,
+    stages: {
+      ...(base.stages && typeof base.stages === 'object' ? base.stages : {}),
+      ...(override.stages && typeof override.stages === 'object' ? override.stages : {}),
+    },
+  };
+}
+
+function readUiLabels(root) {
+  const defaults = readJsonFile(DASHBOARD_LABELS);
+  const project = readJsonFile(path.join(root, '.hikspine', 'ui-labels.json'));
+  return mergeUiLabels(defaults, project);
+}
+
 export function createBoardServer(root) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -54,6 +81,10 @@ export function createBoardServer(root) {
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
         sendJson(res, 200, boardState(root));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
+        sendJson(res, 200, readUiLabels(root));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/artifact') {
