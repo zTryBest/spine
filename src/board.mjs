@@ -48,7 +48,7 @@ function artifactStage(relPath, stages = []) {
   const p = toPosix(relPath).toLowerCase();
   const name = path.posix.basename(p);
   const hasStage = (id) => stages.includes(id);
-  if (name === 'proposal.md' || name === 'tasks.md' || p.includes('/specs/')) return hasStage('openspec') ? 'openspec' : (hasStage('open') ? 'open' : 'openspec');
+  if (name === 'proposal.md' || name === 'tasks.md' || p.startsWith('specs/') || p.includes('/specs/')) return hasStage('openspec') ? 'openspec' : (hasStage('open') ? 'open' : 'openspec');
   if (name === 'design.md') return 'design';
   if (p.includes('/plans/') || name.includes('plan')) return 'build';
   if (name.includes('review')) return 'review';
@@ -63,8 +63,22 @@ function artifactLabel(relPath) {
   if (name === 'proposal.md') return 'Proposal';
   if (name === 'design.md') return 'Design';
   if (name === 'tasks.md') return 'Tasks';
-  if (p.includes('/specs/')) return `Spec: ${name}`;
+  if (p.startsWith('specs/') || p.includes('/specs/')) return `Spec: ${name}`;
   return name;
+}
+
+function artifactType(relPath) {
+  const p = toPosix(relPath).toLowerCase();
+  const name = path.posix.basename(p);
+  if (name === 'proposal.md') return 'proposal';
+  if (name === 'design.md') return 'design';
+  if (name === 'tasks.md') return 'tasks';
+  if (p.startsWith('specs/') || p.includes('/specs/')) return 'spec';
+  if (name.includes('review')) return 'review';
+  if (name.includes('verify') || name.includes('verification')) return 'verification';
+  if (name.includes('brainstorm')) return 'brainstorm';
+  if (p.includes('/plans/') || name.includes('plan')) return 'plan';
+  return 'markdown';
 }
 
 function listMarkdownFiles(dir, out = []) {
@@ -115,6 +129,7 @@ function pushArtifact(out, seen, root, base, file, stages, source) {
   out.push({
     path: rel(root, abs),
     title: artifactLabel(local),
+    type: artifactType(local),
     stage: artifactStage(local, stages),
     size: stat.size,
     updatedAt: stat.mtime.toISOString(),

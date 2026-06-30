@@ -13,6 +13,20 @@ import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
 
+function artifactType(filePath) {
+  const p = String(filePath || '').replace(/\\/g, '/').toLowerCase();
+  const name = path.posix.basename(p);
+  if (name === 'proposal.md') return 'proposal';
+  if (name === 'design.md') return 'design';
+  if (name === 'tasks.md') return 'tasks';
+  if (p.startsWith('specs/') || p.includes('/specs/')) return 'spec';
+  if (name.includes('review')) return 'review';
+  if (name.includes('verify') || name.includes('verification')) return 'verification';
+  if (name.includes('brainstorm')) return 'brainstorm';
+  if (p.includes('/plans/') || name.includes('plan')) return 'plan';
+  return 'markdown';
+}
+
 function sendJson(res, code, value) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value));
@@ -64,6 +78,7 @@ export function createBoardServer(root) {
         }
         sendJson(res, 200, {
           path: rel(rootAbs, abs),
+          type: artifactType(requested || abs),
           content: fs.readFileSync(abs, 'utf8'),
           size: stat.size,
           updatedAt: stat.mtime.toISOString(),
