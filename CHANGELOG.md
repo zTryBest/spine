@@ -1,3 +1,13 @@
+## What's Changed [0.6.28] - 2026-07-01
+
+### Changed
+
+- **writing-plans 分片计划**: `new.design` 与 `feature.design` 的 workflow 规则进一步收紧：主 Agent 在派发 planning subAgent 前不得读取 OpenSpec 产物内容；多 spec 或超过 6 个任务组时必须按 spec 拆成多个 Superpowers 子计划，并生成一个短 manifest 总计划 `docs/superpowers/plans/{change}.md` 串联执行顺序、共享契约和集成验证，避免单个 `writing-plans` 子代理生成巨型计划导致超时。
+
+### Tests
+
+- **分片计划规则覆盖**: 扩展 workflow kernel 测试，验证 `new` / `feature` 的 design 阶段都会暴露主上下文零读取、按 spec 分片、子计划路径和 manifest 总计划规则。
+
 ## What's Changed [0.6.27] - 2026-06-30
 
 ### Changed

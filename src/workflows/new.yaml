@@ -1,5 +1,5 @@
 id: new
-version: 10
+version: 11
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -28,9 +28,12 @@ states:
     capabilities: [writing-plans]
     rules:
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
-      - Run writing-plans in a subagent (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, or other OpenSpec artifact contents into the prompt.
-      - Handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs.
-      - Keep the output compatible with Superpowers by writing the plan to docs/superpowers/plans/{change}.md. The main agent should bring back only the plan path, a concise summary, and any blockers, then ask the user to confirm.
+      - In the main context, do not Read proposal.md, tasks.md, design.md, or specs before dispatching planning subagents. Only list or test artifact paths, then pass paths.
+      - Run writing-plans in subagents (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, design.md, or OpenSpec summaries into the prompt.
+      - Single-plan handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, optional openspec/changes/{change}/design.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs and write docs/superpowers/plans/{change}.md.
+      - If specs/**/*.md has more than one file, or tasks.md has more than 6 task groups, shard the plan by dispatching one writing-plans subagent per spec, passing proposal.md, tasks.md, optional design.md, and exactly one specs/{spec-id}/spec.md path. Each child plan writes docs/superpowers/plans/{change}-{spec-id}.md.
+      - After sharded child plans exist, create a concise manifest at docs/superpowers/plans/{change}.md that links child plans, states execution order, shared contracts, and integration verification. Do not duplicate child implementation steps in the manifest.
+      - The main agent should bring back only the manifest or plan path, child plan paths when sharded, a concise summary, and any blockers, then ask the user to confirm.
     needs: [design_documented, design_confirmed]
     next: build
 

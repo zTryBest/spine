@@ -174,6 +174,8 @@ eq "design surfaces workflow-authored rules" \
   "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/brainstorming/.test(r))" && echo yes || echo no)" "yes"
 eq "design uses file handoff for writing-plans" \
   "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/file handoff only/.test(r)) && j.rules.some(r=>/docs\\/superpowers\\/plans\\/\\{change\\}\\.md/.test(r))" && echo yes || echo no)" "yes"
+eq "design sharding keeps writing-plans small" \
+  "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/do not Read proposal\\.md/.test(r)) && j.rules.some(r=>/shard the plan/.test(r)) && j.rules.some(r=>/\\{change\\}-\\{spec-id\\}\\.md/.test(r)) && j.rules.some(r=>/concise manifest/.test(r))" && echo yes || echo no)" "yes"
 eq "open surfaces codegraph exploration rule" \
   "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "design has brainstorming capability" \
@@ -361,6 +363,8 @@ eq "design has writing-plans capability" \
   "$(printf '%s' "$NP_DESIGN" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "new design uses Superpowers-compatible file handoff" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/file handoff only/.test(r)) && j.rules.some(r=>/docs\\/superpowers\\/plans\\/\\{change\\}\\.md/.test(r))" && echo yes || echo no)" "yes"
+eq "new design shards multi-spec writing plans" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/do not Read proposal\\.md/.test(r)) && j.rules.some(r=>/shard the plan/.test(r)) && j.rules.some(r=>/\\{change\\}-\\{spec-id\\}\\.md/.test(r)) && j.rules.some(r=>/concise manifest/.test(r))" && echo yes || echo no)" "yes"
 
 run decide design_documented --json > /dev/null
 NP_BUILD="$(run decide design_confirmed --json)"
