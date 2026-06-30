@@ -58,4 +58,19 @@ states:
     fail_when: verify_result=fail
     fail_to: build
     fail_reason: Verification did not pass.
+    next: archive
+    
+  - id: archive
+    goal: Archive the completed change after user confirmation.
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [openspec-archive-change]
+    needs: [archived]
+    next: hido
+    
+  - id: hido
+    goal: 进行svn构建,需要询问用户确认是否构建
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [custom-component-creator]
     terminal: true
