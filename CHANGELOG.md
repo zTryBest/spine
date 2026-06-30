@@ -1,4 +1,15 @@
+## What's Changed [0.6.24] - 2026-06-30
+
+### Fixed
+
+- **`.hikspine` 落到不同目录、文件夹混乱**: 引擎用 `--project-root`/`HIKSPINE_PROJECT_ROOT`/cwd 定位项目根（change 状态写在那里），而 `Notification` / `SessionEnd` hook 用 `gitToplevel(cwd)`——两套不一致。当 Agent 在代码子目录（如 `workspace/patpps`，本身是独立 git 仓库）触发通知时，git 顶层 = 子目录，于是 `notifications.json` 落到了 `子目录/.hikspine`，和 change 状态所在的 `项目根/.hikspine` 分叉。修复：新增 `findProjectRoot()`（`src/utils.mjs`）——从 cwd 向上找**真正的 Hikspine 项目根**（优先认有 `openspec/changes`、`.hikspine/active`、`.hikspine/changes` 的目录，跳过只含通知/pid 的空壳 `.hikspine`），两个 hook 都改用它。这样 notification 与 ui pid 都锚定到引擎写状态的同一个 `.hikspine`，不再按 git 顶层分散，并能绕开已经误建的空壳 `.hikspine`。
+  - 历史遗留的空壳目录（如 `workspace/patpps/.hikspine`）可手动删除；新逻辑不会再往那里写。
+
 ## What's Changed [0.6.23] - 2026-06-30
+
+### Added
+
+- **看板阶段名称配置**: 阶段显示名从前端内联表迁移到 `dashboard/ui-labels.json`，并新增 `/api/ui-labels` 合并项目级 `.hikspine/ui-labels.json` 覆盖；自定义 workflow 新增阶段时可只配置展示名称，不需要修改 UI 源码或污染 Agent 执行上下文。
 
 ### Fixed
 

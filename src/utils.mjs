@@ -46,6 +46,30 @@ export function resolveProjectRoot(opts = {}) {
   return root;
 }
 
+// Walk up from startDir to the Hikspine project root that owns the state, so
+// hooks (notifications, ui pid) anchor to the SAME .hikspine the engine writes
+// — not the git toplevel of whatever subdirectory the agent happens to be in.
+// Prefers a "real" project (has openspec/changes, .hikspine/active, or
+// .hikspine/changes) over a bare .hikspine (which may be a stray from a wrong
+// cwd), and falls back to startDir when nothing is found.
+export function findProjectRoot(startDir) {
+  let dir;
+  try { dir = path.resolve(startDir || '.'); } catch { return path.resolve('.'); }
+  const start = dir;
+  let weakHit = '';
+  for (;;) {
+    const strong = fs.existsSync(path.join(dir, 'openspec', 'changes'))
+      || fs.existsSync(path.join(dir, '.hikspine', 'active'))
+      || fs.existsSync(path.join(dir, '.hikspine', 'changes'));
+    if (strong) return dir;
+    if (!weakHit && fs.existsSync(path.join(dir, '.hikspine'))) weakHit = dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return weakHit || start;
+}
+
 export function nowIso() {
   return new Date().toISOString();
 }

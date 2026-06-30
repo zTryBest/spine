@@ -3,10 +3,10 @@
 // (permission prompt, idle waiting for input, MCP elicitation), record it into
 // the project's .hikspine/notifications.json so the board can surface it live.
 
-import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import process from 'node:process';
 import { appendNotification } from '../src/notifications.mjs';
+import { findProjectRoot } from '../src/utils.mjs';
 
 // Notification types that mean "Claude is waiting on the user".
 const NEEDS_USER = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog']);
@@ -18,20 +18,16 @@ function parse(text) {
   if (!text.trim()) return {};
   try { return JSON.parse(text); } catch { return {}; }
 }
-function gitToplevel(dir) {
-  try {
-    return childProcess.execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000,
-    }).trim();
-  } catch { return ''; }
-}
 
 const payload = parse(readStdin());
 const type = payload.notification_type || payload.type || '';
 if (!NEEDS_USER.has(type)) process.exit(0);
 
+// Anchor to the same project root the engine writes state into (the nearest
+// ancestor with .hikspine/openspec), not the git toplevel of the current
+// subdirectory — otherwise notifications scatter into a code-path .hikspine.
 const cwd = payload.cwd || process.env.HIKSPINE_PROJECT_ROOT || process.cwd();
-const root = gitToplevel(cwd) || cwd;
+const root = findProjectRoot(cwd);
 
 try {
   appendNotification(root, {

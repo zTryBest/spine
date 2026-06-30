@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { findProjectRoot } from '../src/utils.mjs';
 
 function readStdin() {
   try {
@@ -24,18 +25,6 @@ function parsePayload(text) {
   }
 }
 
-function gitToplevel(dir) {
-  try {
-    return childProcess.execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 3000,
-    }).trim();
-  } catch {
-    return '';
-  }
-}
-
 function candidatesFromPayload(payload) {
   const base = [
     process.env.HIKSPINE_PROJECT_ROOT,
@@ -47,12 +36,12 @@ function candidatesFromPayload(payload) {
     payload.workspace?.current_dir,
     process.cwd(),
   ].filter(Boolean);
-  // The UI is started with --project-root = the git toplevel, so its pid file
-  // lives at <repo-root>/.hikspine. If Claude is exited from a subdirectory,
-  // cwd is the subdir — also resolve each candidate's git toplevel so we still
-  // find the pid file at the repo root.
-  const tops = base.map(gitToplevel).filter(Boolean);
-  return [...base, ...tops];
+  // The pid file lives at the Hikspine project root's .hikspine. If Claude is
+  // exited from a subdirectory, cwd is the subdir — resolve each candidate up
+  // to the project root (nearest ancestor with .hikspine/openspec) so we still
+  // find the pid file, and anchor to the same root the engine/notify use.
+  const roots = base.map(findProjectRoot).filter(Boolean);
+  return [...base, ...roots];
 }
 
 function uniqueRoots(roots) {
