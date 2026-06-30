@@ -172,8 +172,8 @@ eq "design nextAction is confirm" \
   "$(printf '%s' "$DECIDE2" | json_get 'j.nextAction')" "confirm"
 eq "design surfaces workflow-authored rules" \
   "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/brainstorming/.test(r))" && echo yes || echo no)" "yes"
-eq "open state has no rules" \
-  "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.length === 0" && echo yes || echo no)" "yes"
+eq "open surfaces codegraph exploration rule" \
+  "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "design has brainstorming capability" \
   "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
 eq "design forbids write-source" \
@@ -209,6 +209,8 @@ eq "design still missing design_confirmed" \
 DECIDE4="$(run decide design_confirmed --json)"
 eq "decide design_confirmed advances to build" \
   "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
+eq "a state without rules returns empty rules" \
+  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.length === 0" && echo yes || echo no)" "yes"
 eq "build has plan capability" \
   "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "build has implement capability" \

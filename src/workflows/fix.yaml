@@ -1,5 +1,5 @@
 id: fix
-version: 6
+version: 7
 name: Fix
 intent: Fix a bug or make a small, lightweight change. Use when the change is well understood and low risk (including urgent production fixes) and does not need a design phase or OpenSpec artifacts.
 start: inspect
@@ -8,6 +8,8 @@ states:
   - id: inspect
     goal: Understand the issue and the smallest safe change.
     capabilities: [systematic-debugging]
+    rules:
+      - To understand the bug and its blast radius in the existing code, prefer the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) over blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
     needs: [issue_understood]
     next: fix
 

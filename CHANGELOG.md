@@ -1,3 +1,9 @@
+## What's Changed [0.6.12] - 2026-06-30
+
+### Added
+
+- **codegraph 代码图谱接入（探索阶段）**: 在"已有代码"的工作流的探索阶段，通过状态 `rules` 引导 Agent 优先用 codegraph 的 MCP 工具 `codegraph_explore`（缺图时先 `codegraph init`）来定位符号、调用链与改动影响面，而不是盲目 grep/glob/逐文件读；未安装 codegraph 时回退普通检索。落点：`feature` 的 `open`（澄清时探索）与 `design`（基于代码做设计）、`fix` 的 `inspect`（理解 bug 与 blast radius）。**`new`（空仓库无代码）和 workflow 选择阶段都不接 codegraph**——选择阶段只用轻量 `git ls-files` 判断有无代码，正好决定下游是否走到 codegraph。不改上游 skill、不写进引擎，纯 workflow `rules` 声明。`feature`/`fix` 的 workflow `version` 各 +1。
+
 ## What's Changed [0.6.11] - 2026-06-30
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "hikspine",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Skill-first workflow kernel for Claude Code. Hikspine guides phased AI coding work through a plugin-level runtime, builtin workflows, and skill orchestration without slash-command files.",
   "author": {
     "name": "Your Team"

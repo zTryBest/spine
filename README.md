@@ -116,6 +116,23 @@ The engine no longer asks Agent to write facts such as `no_open_questions=true` 
 Each workflow declares an `intent` (a one-line "when to use this flow") so the
 agent can route a request; see `hikspine workflows --json`.
 
+### Optional: codegraph code exploration
+
+The code-bearing workflows (`feature`, `fix`) carry a state `rule` that asks the
+agent to explore the existing codebase with [codegraph](https://github.com/colbymchenry/codegraph)'s
+MCP tool `codegraph_explore` (symbols, call paths, blast radius) instead of blind
+grep/glob. It is optional — if codegraph is not installed, the rule says to fall
+back to normal search. To enable it:
+
+```bash
+npm i -g @colbymchenry/codegraph
+codegraph install          # register the MCP server with Claude Code
+cd <your-project> && codegraph init   # build the graph (auto-syncs after)
+```
+
+codegraph is used only for exploring an existing codebase. Workflow selection and
+the `new` (0 → 1) workflow do not use it — an empty repo has nothing to index.
+
 Custom workflows are first-class. Put a workflow at:
 
 ```text

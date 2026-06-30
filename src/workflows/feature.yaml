@@ -1,5 +1,5 @@
 id: feature
-version: 5
+version: 6
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -12,6 +12,8 @@ states:
     goal: Clarify the change and create OpenSpec artifacts.
     forbid: [write-source]
     capabilities: [openspec-explore, openspec-propose]
+    rules:
+      - When exploring the existing codebase to clarify the change, prefer the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) to find symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
     needs: [requirements_clarified, proposal_ready]
     next: design
 
@@ -22,6 +24,7 @@ states:
     capabilities: [brainstorming]
     rules:
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
+      - Ground the design in the existing code via the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) — trace call paths and blast radius for the areas you will touch. Fall back to normal search if codegraph is unavailable.
     needs: [design_documented, design_confirmed]
     next: build
 
