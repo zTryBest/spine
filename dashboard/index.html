@@ -42,30 +42,46 @@
   .lang button { font:inherit; font-size:12px; color:var(--muted); background:transparent; border:none; border-radius:999px; padding:4px 11px; cursor:pointer; }
   .lang button.on { color:#07100b; background:linear-gradient(135deg,var(--accent),#d7e17d); font-weight:700; }
 
-  .notice-module { margin:20px 0 0; border:1px solid rgba(231,189,83,.34); border-radius:8px; overflow:hidden;
-    background:linear-gradient(180deg,rgba(35,31,20,.96),rgba(17,20,25,.98)); box-shadow:0 18px 42px -30px rgba(231,189,83,.72); animation:rise .35s ease both; }
-  body.no-enter-animation .notice-module, body.no-enter-animation .card { animation:none; }
-  .notice-module[hidden] { display:none; }
-  .notice-head { display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid rgba(231,189,83,.16); }
-  .notice-mark { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex:0 0 auto;
-    color:#1b1405; background:linear-gradient(135deg,#f0c64a,#fff0a4); font-weight:900; box-shadow:0 10px 24px -18px #f0c64a; }
+  body.no-enter-animation .card { animation:none; }
+  .notice-dock { position:fixed; right:22px; bottom:22px; z-index:70; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:none; }
+  .notice-dock[hidden], .notice-panel[hidden], .notice-toast[hidden] { display:none; }
+  .notice-fab, .notice-panel, .notice-toast { pointer-events:auto; }
+  .notice-fab { position:relative; width:46px; height:46px; border-radius:14px; border:1px solid var(--line2);
+    background:rgba(15,18,24,.94); color:var(--muted); box-shadow:0 18px 38px -28px rgba(0,0,0,.9); cursor:pointer;
+    display:grid; place-items:center; font:900 19px/1 ui-sans-serif,system-ui; transition:transform .16s ease,border-color .16s ease,background .16s ease,color .16s ease; }
+  .notice-fab:hover { transform:translateY(-1px); border-color:rgba(98,210,162,.45); color:var(--text); }
+  .notice-fab.has-pending { color:#1b1405; border-color:rgba(240,198,74,.76); background:linear-gradient(135deg,#f0c64a,#fff0a4); }
+  .notice-count { position:absolute; right:-5px; top:-6px; min-width:20px; height:20px; padding:0 6px; border-radius:999px;
+    display:grid; place-items:center; background:var(--err); color:white; border:2px solid #11151c; font-size:10.5px; font-weight:900; }
+  .notice-toast { width:min(360px, calc(100vw - 32px)); border:1px solid rgba(240,198,74,.36); border-radius:8px;
+    background:rgba(17,20,25,.96); box-shadow:0 24px 58px -34px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.03);
+    padding:12px 13px; animation:toastIn .18s ease both; cursor:pointer; }
+  @keyframes toastIn { from{opacity:0; transform:translateY(8px) scale(.98)} to{opacity:1; transform:none} }
+  .notice-panel { width:min(390px, calc(100vw - 32px)); max-height:min(540px, calc(100vh - 104px)); overflow:hidden;
+    border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(14,17,23,.98);
+    box-shadow:0 26px 70px -34px rgba(0,0,0,.98),0 0 0 1px rgba(255,255,255,.03); display:flex; flex-direction:column; }
+  .notice-head { display:flex; align-items:center; gap:10px; padding:13px 14px; border-bottom:1px solid var(--line); }
+  .notice-mark { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; flex:0 0 auto;
+    color:#1b1405; background:linear-gradient(135deg,#f0c64a,#fff0a4); font-weight:900; }
   .notice-copy { min-width:0; flex:1; }
-  .notice-title { font-weight:800; color:#ffe08a; line-height:1.15; }
+  .notice-title { font-weight:800; line-height:1.15; }
   .notice-sub { color:var(--muted); font-size:12px; margin-top:2px; }
-  .notice-actions { display:flex; align-items:center; gap:8px; }
-  .notice-btn { font:inherit; border:1px solid rgba(240,198,74,.34); color:#ffe08a; background:rgba(240,198,74,.08);
-    border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; font-weight:700; white-space:nowrap; }
-  .notice-btn:hover { border-color:rgba(240,198,74,.64); background:rgba(240,198,74,.14); }
-  .notice-btn:disabled { cursor:default; opacity:.48; }
-  .notice-list { display:grid; }
-  .notice-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:11px 15px; border-top:1px solid rgba(255,255,255,.045); }
+  .notice-actions { display:flex; align-items:center; gap:7px; }
+  .notice-btn { font:inherit; border:1px solid var(--line2); color:var(--text); background:rgba(255,255,255,.035);
+    border-radius:6px; padding:6px 9px; cursor:pointer; font-size:12px; font-weight:700; white-space:nowrap; }
+  .notice-btn:hover { border-color:rgba(98,210,162,.42); background:rgba(98,210,162,.08); }
+  .notice-btn:disabled { cursor:default; opacity:.45; }
+  .notice-close { width:30px; height:30px; padding:0; display:grid; place-items:center; color:var(--muted); }
+  .notice-list { display:grid; overflow:auto; }
+  .notice-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:11px 14px; border-top:1px solid rgba(255,255,255,.055); }
   .notice-item:first-child { border-top:none; }
-  .notice-item.handled { opacity:.62; }
+  .notice-item.handled { opacity:.56; }
   .notice-line { min-width:0; }
   .notice-type { color:#ffe08a; font-size:12px; font-weight:800; }
   .notice-msg { color:var(--text); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .notice-meta { color:var(--dim); font-size:11.5px; margin-top:3px; }
   .notice-done { align-self:center; }
+  .notice-empty { color:var(--dim); padding:14px; font-style:italic; }
 
   .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0 8px; }
   .stat { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(14,17,23,.96)); border:1px solid var(--line);
@@ -211,6 +227,8 @@
     .workflow-detail-head .it { flex-basis:100%; white-space:normal; }
     .artifact-stage { flex-direction:column; gap:5px; }
     .artifact-stage .stage-name { width:auto; }
+    .notice-dock { left:12px; right:12px; bottom:12px; }
+    .notice-panel, .notice-toast { width:100%; }
     .notice-head { align-items:flex-start; }
     .notice-actions { flex-direction:column; align-items:stretch; }
     .notice-item { grid-template-columns:1fr; }
@@ -232,8 +250,6 @@
     </div>
   </header>
 
-  <section class="notice-module" id="noticeModule" hidden></section>
-
   <div class="stats" id="stats"></div>
 
   <h2 id="secTasks"></h2>
@@ -244,6 +260,12 @@
 
   <h2 id="secWorkflowDetail"></h2>
   <div class="workflow-detail" id="workflowDetail"></div>
+</div>
+
+<div class="notice-dock" id="noticeDock" hidden>
+  <div class="notice-toast" id="noticeToast" hidden></div>
+  <section class="notice-panel" id="noticePanel" hidden></section>
+  <button class="notice-fab" id="noticeFab" type="button" title="Notifications">!</button>
 </div>
 
 <div class="modal" id="artifactModal" hidden>
@@ -291,8 +313,8 @@ const I18N = {
     page:(p,t,n)=>'第 '+p+' / '+t+' 页 · 每页 '+n+' 个',
     fSource:'来源说明', fDesc:'技能说明', fUsage:'用法', fPath:'位置',
     noSkills:'未发现技能。', noDesc:'暂无说明。',
-    notice:'Claude 需要你处理', noticeSub:(p,h)=>p+' 条待处理 · '+h+' 条已处理',
-    nMarkDone:'标记处理', nMarkAll:'全部处理', nHandled:'已处理',
+    notice:'通知', noticeSub:(p,h)=>p+' 条待处理 · '+h+' 条已处理',
+    nMarkDone:'处理', nMarkAll:'全部处理', nHandled:'已处理', nClose:'关闭', nEmpty:'暂无待处理通知',
     nPermission:'权限确认', nIdle:'等待你的输入', nElicit:'需要你输入',
   },
   en: {
@@ -310,8 +332,8 @@ const I18N = {
     page:(p,t,n)=>'Page '+p+' of '+t+' · '+n+' per page',
     fSource:'Source', fDesc:'Description', fUsage:'Usage', fPath:'Location',
     noSkills:'No skills found.', noDesc:'No description.',
-    notice:'Claude needs you', noticeSub:(p,h)=>p+' pending · '+h+' handled',
-    nMarkDone:'Mark handled', nMarkAll:'Mark all', nHandled:'Handled',
+    notice:'Notifications', noticeSub:(p,h)=>p+' pending · '+h+' handled',
+    nMarkDone:'Handle', nMarkAll:'Mark all', nHandled:'Handled', nClose:'Close', nEmpty:'No pending notifications',
     nPermission:'Permission needed', nIdle:'Waiting for your input', nElicit:'Input requested',
   },
 };
@@ -839,6 +861,7 @@ function renderSkills(skills) {
 
 const NTYPE = { permission_prompt:'nPermission', idle_prompt:'nIdle', elicitation_dialog:'nElicit' };
 let lastNotifiedAt = 0, notifPrimed = false;
+let noticeOpen = false, noticeToastId = '', noticeToastTimer = 0;
 const noticeType = (type) => (NTYPE[type] ? t(NTYPE[type]) : type);
 
 function notificationRow(n, handled) {
@@ -850,32 +873,72 @@ function notificationRow(n, handled) {
     '</div>';
 }
 
+function noticeToast(n) {
+  return '<div class="notice-type">'+esc(noticeType(n.type))+'</div>'+
+    (n.message ? '<div class="notice-msg">'+esc(n.message)+'</div>' : '')+
+    '<div class="notice-meta">'+esc(relTime(n.at))+'</div>';
+}
+
+function showNoticeToast(n) {
+  const toast = $('noticeToast');
+  if (!n || noticeOpen || noticeToastId === n.id) return;
+  noticeToastId = n.id;
+  toast.innerHTML = noticeToast(n);
+  toast.hidden = false;
+  toast.onclick = () => { noticeOpen = true; toast.hidden = true; renderNotifications(last?.notifications || []); };
+  clearTimeout(noticeToastTimer);
+  noticeToastTimer = setTimeout(() => { toast.hidden = true; }, 6500);
+}
+
 function renderNotifications(notifications) {
-  const box = $('noticeModule');
+  const dock = $('noticeDock');
+  const panel = $('noticePanel');
+  const fab = $('noticeFab');
+  const toast = $('noticeToast');
   const all = (notifications || [])
     .filter(n => n && n.at)
     .slice()
     .sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime());
-  if (!all.length) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!all.length) {
+    dock.hidden = true;
+    panel.hidden = true;
+    toast.hidden = true;
+    noticeOpen = false;
+    return;
+  }
   const pending = all.filter(n => !n.handledAt);
   const handled = all.filter(n => n.handledAt).slice(-3).reverse();
-  const rows = pending.concat(handled).map(n => notificationRow(n, !!n.handledAt)).join('');
-  box.hidden = false;
-  box.innerHTML =
+  const rows = pending.length
+    ? pending.concat(handled).map(n => notificationRow(n, !!n.handledAt)).join('')
+    : '<div class="notice-empty">'+t('nEmpty')+'</div>'+handled.map(n => notificationRow(n, true)).join('');
+  dock.hidden = false;
+  fab.classList.toggle('has-pending', pending.length > 0);
+  fab.innerHTML = '!'+(pending.length ? '<span class="notice-count">'+pending.length+'</span>' : '');
+  fab.title = t('notice');
+  fab.onclick = () => {
+    noticeOpen = !noticeOpen;
+    toast.hidden = true;
+    renderNotifications(last?.notifications || []);
+  };
+  panel.hidden = !noticeOpen;
+  panel.innerHTML =
     '<div class="notice-head"><div class="notice-mark">!</div>'+
     '<div class="notice-copy"><div class="notice-title">'+t('notice')+'</div>'+
     '<div class="notice-sub">'+t('noticeSub')(pending.length, all.length-pending.length)+'</div></div>'+
     '<div class="notice-actions">'+
     '<button class="notice-btn" id="noticeDoneAll" type="button" '+(!pending.length?'disabled':'')+'>'+t('nMarkAll')+'</button>'+
+    '<button class="notice-btn notice-close" id="noticeClose" type="button" title="'+t('nClose')+'">×</button>'+
     '</div></div>'+
     '<div class="notice-list">'+rows+'</div>';
   $('noticeDoneAll').onclick = () => markNotifications({ all:true });
-  box.querySelectorAll('.notice-done').forEach((button) => {
+  $('noticeClose').onclick = () => { noticeOpen = false; panel.hidden = true; };
+  panel.querySelectorAll('.notice-done').forEach((button) => {
     button.onclick = () => markNotifications({ id: button.dataset.noticeId });
   });
   const latest = pending[pending.length - 1];
   if (latest) {
     const latestMs = new Date(latest.at).getTime();
+    if (notifPrimed && latestMs > lastNotifiedAt) showNoticeToast(latest);
     if (notifPrimed && latestMs > lastNotifiedAt && 'Notification' in window && Notification.permission === 'granted') {
       try { new Notification(t('notice'), { body: latest.message || noticeType(latest.type) }); } catch (e) {}
     }

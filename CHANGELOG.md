@@ -29,6 +29,10 @@
 
 - **看板阶段名称配置**: 阶段显示名从前端内联表迁移到 `dashboard/ui-labels.json`，并新增 `/api/ui-labels` 合并项目级 `.hikspine/ui-labels.json` 覆盖；自定义 workflow 新增阶段时可只配置展示名称，不需要修改 UI 源码或污染 Agent 执行上下文。
 
+### Changed
+
+- **通知改为右下角浮窗**: 看板通知从顶部占位模块改为右下角通知入口、toast 提醒与可关闭浮层，待处理数量通过角标提示，避免通知长期占用任务看板空间。
+
 ### Fixed
 
 - **退出 Claude 杀不掉 UI（pid 写错了）**: 真正根因——`hikspine-ui` skill 用 `printf '%s' "$!"` 写 pid，但在 Windows Git Bash 里后台 `node ... &` 的 `$!` 是 **MSYS pid，不是 node.exe 的真实 Windows pid**。SessionEnd cleanup 用 `process.kill` 校验这个假 pid 时判定"已死/陈旧"，删掉 pid 文件却放过了真正的 UI 进程。修复：`hikspine ui` 命令（`startBoard`）**启动时自己把 `process.pid`（真实 OS pid）写进 `.hikspine/hikspine-ui.pid`**，并在自身退出/收到 SIGINT/SIGTERM 时删除；`hikspine-ui` skill 不再写 `$!`，改为读引擎写好的 pid 文件。端到端实测：cleanup 现在能正确终止 UI（`stopped UI pid(s): <real-pid>`，端口释放）。
