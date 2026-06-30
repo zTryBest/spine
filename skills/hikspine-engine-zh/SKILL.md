@@ -9,7 +9,7 @@ description: "Hikspine 引擎中文操作说明。Use when the user wants Chines
 
 ## 加载 Runtime
 
-Bash 工具每次调用都是新 shell。定位 runtime 和执行 `node "$HIKSPINE_ENGINE" ...` 必须放在同一次 Bash 调用里。
+Bash 工具每次调用都是新 shell。定位 runtime 和执行 `node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ...` 必须放在同一次 Bash 调用里。
 
 ```bash
 _hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
@@ -37,8 +37,8 @@ unset -f _hs_norm_root
 启动或恢复 change：
 
 ```bash
-node "$HIKSPINE_ENGINE" next <change> --workflow <workflow-id> --json   # 新 change 指定 workflow
-node "$HIKSPINE_ENGINE" next <change> --json                            # 已存在则省略 --workflow
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --workflow <workflow-id> --json   # 新 change 指定 workflow
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --json                            # 已存在则省略 --workflow
 ```
 
 用户/项目指定了 workflow 就用那个 id；项目配了 `.hikspine/config.yaml` 的 `defaultWorkflow` 时可省略 `--workflow`。
@@ -48,7 +48,7 @@ node "$HIKSPINE_ENGINE" next <change> --json                            # 已存
 用户没指定、项目也没 `defaultWorkflow` 时，自己选：
 
 ```bash
-node "$HIKSPINE_ENGINE" workflows --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --json
 ```
 
 每个 workflow 声明了 `intent`。选之前**必须先真实检查项目里有没有代码——不要凭感觉判定为空项目**。先探一下项目根目录：
@@ -69,18 +69,18 @@ ls -A <项目根目录>                          # 或直接看目录
 多个 change 可以同时在跑，各自一条 workflow：
 
 ```bash
-node "$HIKSPINE_ENGINE" changes --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" changes --json
 ```
 
-`changes` 列出每个运行的 workflow、当前状态和 `nextAction`，用于恢复或在并行 change 间切换；`next <change>` / `decide --change <change>` 指定某一个。想在浏览器里看所有运行的流水线进度，启动本地看板：`node "$HIKSPINE_ENGINE" ui`（默认 `http://127.0.0.1:4319`）。如果从插件目录、用户目录或不在目标项目里的终端启动看板，传 `--project-root <项目根目录>`，或设置 `HIKSPINE_PROJECT_ROOT`；这个全局选项也适用于 `next`、`decide`、`changes`、`workflows`、`skills` 和 `board`。
+`changes` 列出每个运行的 workflow、当前状态和 `nextAction`，用于恢复或在并行 change 间切换；`next <change>` / `decide --change <change>` 指定某一个。想在浏览器里看所有运行的流水线进度，启动本地看板：`node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui`（默认 `http://127.0.0.1:4319`）。如果从插件目录、用户目录或不在目标项目里的终端启动看板，传 `--project-root <项目根目录>`，或设置 `HIKSPINE_PROJECT_ROOT`；这个全局选项也适用于 `next`、`decide`、`changes`、`workflows`、`skills` 和 `board`。
 
 ## 主循环：next → 干活 → decide → next
 
 只有两个动词：
 
 ```bash
-node "$HIKSPINE_ENGINE" next [change] [--json]
-node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # value 默认 true，可传 pass/fail
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next [change] [--json]
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <key> [value] [--change <change>] [--json]   # value 默认 true，可传 pass/fail
 ```
 
 ```text

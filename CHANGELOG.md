@@ -1,9 +1,19 @@
-## What's Changed [0.6.21] - 2026-06-30
+## What's Changed [0.6.22] - 2026-06-30
+
+### Fixed
+
+- **恢复 session 后引擎命令静默失败，导致"找不到 change"**: 每次 Bash 调用都是新 shell，环境变量不持久。恢复会话后 Agent 若在与 locator **不同**的 Bash 调用里跑 `node "$HIKSPINE_ENGINE" ...`，`$HIKSPINE_ENGINE` 为空、`node ""` 会**静默退出 0、无任何输出**，Agent 看到空输出就误判"没有进行中的 change / 没有 workflow"，反复瞎试。修复：三份 spine skill（`hikspine`、`hikspine-engine-zh`、`hikspine-ui`）的所有引擎调用改用 `node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}"`——`$HIKSPINE_ENGINE` 为空时 bash 直接报错退出，而非静默成功；并在"加载 Runtime"段写明该症状（命令无输出且退出 0 = 变量为空，要在同一次 Bash 调用里 source locator，不要据此断定"没有 change"）。
+
+
 
 ### Added
 
 - **看板通知中心**: 看板顶部的临时通知横幅升级为通知模块，集中展示 Claude 等待用户处理的推送消息，并区分待处理与已处理状态，让实时提示不再挤成单条醒目横幅。
 - **通知处理状态**: 通知记录现在带稳定 `id`，看板提供单条“标记处理”和“全部处理”动作，处理后写回 `.hikspine/notifications.json` 的 `handledAt`，刷新后仍能保持状态。
+
+### Fixed
+
+- **看板轮询闪屏**: 2 秒轮询现在会先比较状态快照，数据没有变化时跳过 DOM 重绘；首次渲染后也会关闭任务卡和通知模块的入场动画，避免进行中的任务在周期刷新时反复闪动。
 
 ### Tests
 

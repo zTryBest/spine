@@ -5,7 +5,7 @@ description: "Use when the user asks to start, open, launch, run, or view the Hi
 
 # Hikspine UI
 
-启动 Hikspine 本地看板时使用本 skill。目标是让用户不需要切换到插件目录或手写 `node "$HIKSPINE_ENGINE" ui --project-root ...`。
+启动 Hikspine 本地看板时使用本 skill。目标是让用户不需要切换到插件目录或手写 `node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --project-root ...`。
 
 ## 选择项目根目录
 
@@ -56,7 +56,7 @@ mkdir -p "$PROJECT_ROOT/.hikspine"
 LOG_FILE="$PROJECT_ROOT/.hikspine/hikspine-ui.log"
 PID_FILE="$PROJECT_ROOT/.hikspine/hikspine-ui.pid"
 
-node "$HIKSPINE_ENGINE" ui --project-root "$PROJECT_ROOT" --port "$PORT" > "$LOG_FILE" 2>&1 &
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --project-root "$PROJECT_ROOT" --port "$PORT" > "$LOG_FILE" 2>&1 &
 printf '%s\n' "$!" > "$PID_FILE"
 sleep 1
 cat "$LOG_FILE"

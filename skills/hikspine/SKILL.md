@@ -11,7 +11,9 @@ Treat `/hs ...` as a natural-language trigger for this skill, not a slash-comman
 
 ## Load The Runtime
 
-The Bash tool starts a fresh shell each call. Locate the runtime and run `node "$HIKSPINE_ENGINE" ...` in the **same** Bash invocation; exported variables do not persist across calls.
+The Bash tool starts a fresh shell each call, and exported variables do **not** persist between calls. So **every** Bash call that runs the engine must source the locator block below first, in that same call — including after resuming a session.
+
+The examples below write `node "${HIKSPINE_ENGINE:?...}"` on purpose: if `HIKSPINE_ENGINE` is empty (you forgot the locator in this call), bash aborts with that message instead of running `node ` with no script. **Symptom to recognize:** if an engine command prints nothing and exits 0, `HIKSPINE_ENGINE` was empty — you ran the command in a different Bash call than the locator. Re-run with the locator block in the same call; do not conclude "no change / no workflow" from empty output.
 
 ```bash
 _hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
@@ -39,8 +41,8 @@ unset -f _hs_norm_root
 Start or resume a change:
 
 ```bash
-node "$HIKSPINE_ENGINE" next <change> --workflow <workflow-id> --json   # new change: name the workflow
-node "$HIKSPINE_ENGINE" next <change> --json                            # existing change: omit --workflow
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --workflow <workflow-id> --json   # new change: name the workflow
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --json                            # existing change: omit --workflow
 ```
 
 Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `defaultWorkflow`, omit `--workflow` for new changes.
@@ -50,7 +52,7 @@ Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `
 If the user did not name a workflow and the project has no `defaultWorkflow`, pick one yourself:
 
 ```bash
-node "$HIKSPINE_ENGINE" workflows --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --json
 ```
 
 Each workflow declares an `intent`. Before choosing, **actually check whether the project already has source code — never assume it is empty.** Probe the real project root first:
@@ -71,18 +73,18 @@ Weigh real signals: whether code already exists (the decisive one for `new` vs t
 Several changes can be in flight at once, each on its own workflow. List them with:
 
 ```bash
-node "$HIKSPINE_ENGINE" changes --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" changes --json
 ```
 
-`changes` shows every run with its workflow, current state, and `nextAction`. Use it to resume or switch between concurrent changes; `next <change>` / `decide --change <change>` target a specific one. For a browser status view that shows every run's pipeline progress, start the local board: `node "$HIKSPINE_ENGINE" ui` (default `http://127.0.0.1:4319`). If the board is launched from the plugin install directory, user home, or any terminal outside the target project, pass `--project-root <project-root>` or set `HIKSPINE_PROJECT_ROOT`; this global option also works for `next`, `decide`, `changes`, `workflows`, `skills`, and `board`.
+`changes` shows every run with its workflow, current state, and `nextAction`. Use it to resume or switch between concurrent changes; `next <change>` / `decide --change <change>` target a specific one. For a browser status view that shows every run's pipeline progress, start the local board: `node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui` (default `http://127.0.0.1:4319`). If the board is launched from the plugin install directory, user home, or any terminal outside the target project, pass `--project-root <project-root>` or set `HIKSPINE_PROJECT_ROOT`; this global option also works for `next`, `decide`, `changes`, `workflows`, `skills`, and `board`.
 
 ## The Loop: next → work → decide → next
 
 There are exactly two verbs:
 
 ```bash
-node "$HIKSPINE_ENGINE" next [change] [--json]
-node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # value defaults to true; pass pass/fail
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next [change] [--json]
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <key> [value] [--change <change>] [--json]   # value defaults to true; pass pass/fail
 ```
 
 ```text
