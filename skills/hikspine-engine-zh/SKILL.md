@@ -92,6 +92,8 @@ node "$HIKSPINE_ENGINE" decide <key> [value] [--change <change>] [--json]   # va
 
 **让流程前进的唯一动作是 `decide`。** `next` 只读决策、不读文件，单调 `next` 不会前进。干完一个状态的活，必须把它 `needs` 里的每个决策键都 `decide` 一遍。**产出产物后不要停下来问用户“要不要进入下一阶段”**——除非该状态 `requiresUser: true`。决策没记录就停，会卡死整条流程。
 
+不要根据下面的“内置工作流”参考、记忆或用户上一句话推断当前状态。每次启动/恢复工作必须先运行 `next --json`；每次阶段流转必须来自 `decide`。
+
 ## 流转只由 workflow 决定，不由组合的 skill 决定
 
 组合进来的 skill 各有自己的 stance，可能在结束时提供选择、或问“要不要继续 / 要不要落地产物”。**那是该 skill 自身的边界，不是工作流的阶段边界。** 阶段流转只看 workflow：一个状态的 `needs` 决策记齐了就该走。所以任何组合 skill 结束、或抛出“是否继续”时，回到工作流——把该状态的 `needs` 用 `decide` 记下，再 `next`。唯一真正停下来等用户的点是 `requiresUser: true`。组合的 skill 决定“怎么干”，workflow 决定“何时流转”。
@@ -117,11 +119,25 @@ done     工作流已完成，无需再做。
 ```
 
 1. 按 `goal`、`forbid` 明确做什么、禁止什么。读 `rules`，把每一条当作本状态的硬性要求遵守——workflow 可能借此强制使用某个 skill。引擎不强制 `rules`，遵守与否由你负责。
-2. 从 `capabilities` 选并加载 skill 去完成。每个 capability 都是真实的 Claude Code skill 名，带 description；挑契合该状态 `goal` 和 `rules` 的加载。明显该用的 skill（如设计阶段 `brainstorming`）不要用手写内容近似替代。
+2. 干任何本状态工作之前，必须用 Claude Code 的 Skill 工具加载 capability 对应的 skill。每个 capability 都是真实的 Claude Code skill 名，带 description。不要凭记忆总结或模拟某个 skill；必须先加载再行动。
 3. 每满足一个决策就 `decide <key> <value>`；带值决策传真实结果（`review_result pass` / `verify_result fail`）。`fail` 会按 `fail_when` 触发跨状态回退并清空下游决策，需重做。
 4. 看 `decide` 返回的下一个状态继续循环。
 
 若 `next --json` 返回 `projectRules.readNow`，立刻读取列出的规则文件，让本次 session 吃到规则。
+
+## 必须加载对应 Skill
+
+每次 `next --json` 之后，检查 `capabilities`。当前状态和 `rules` 需要哪个 capability，就必须在任何排查、规划、编辑或验证之前加载对应 skill。这是数据驱动的：使用 `next` 返回的 `id`（有 `ref` 时可按 `ref` 定位），包括自定义 workflow 返回的 capability。
+
+对每个选中的 capability，使用下面的固定触发表述，把 `<capability-id>` 替换成运行时返回的 skill 名：
+
+```text
+**立即执行：** 使用 Skill 工具加载 <capability-id> 技能。禁止跳过此步骤。
+```
+
+示例：如果 `capabilities` 包含 `{ "id": "systematic-debugging" }`，就立即加载 `systematic-debugging`。如果自定义 workflow 返回 `{ "id": "company-security-review" }`，也用同样方式立即加载 `company-security-review`。不要维护或依赖写死的内置 skill 列表。
+
+如果 Claude Code 的 Skill 工具不可用，或指定 skill 加载失败，停下来报告这个阻塞，不要直接自己做该状态的工作。fallback 不是“自己实现一遍”；workflow 依赖组合 skill 的操作指令。
 
 ## 用户确认点（requiresUser）
 
@@ -132,6 +148,8 @@ done     工作流已完成，无需再做。
 按用户当前触发工作流的语言执行：解释、澄清、阶段总结、工作流产物默认同一语言；用户显式切换则跟最新。代码标识符、命令、路径、API 名、引用原文保持原样。
 
 ## 内置工作流
+
+这里只是路由参考，不是当前状态，不能替代 `next --json`。
 
 ```text
 new       brainstorm -> openspec -> design -> build -> review -> verify   (从 0 到 1)

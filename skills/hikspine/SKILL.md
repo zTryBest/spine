@@ -94,6 +94,8 @@ Continue until complete: true
 
 **The only thing that advances the workflow is `decide`.** `next` reads decisions, not files; calling `next` alone never moves forward. After finishing a state's work, record every decision in its `needs`. **Do not stop and ask the user "should I move to the next phase?" after producing artifacts** — unless the state is `requiresUser: true`. Leaving decisions unrecorded stalls the whole workflow.
 
+Do not infer the current state from the Builtin Workflows reference below, from memory, or from the user's last message. Every user request that starts/resumes work must first run `next --json`; every state transition must come from `decide`.
+
 ## Transitions Are Governed By The Workflow, Not Composed Skills
 
 A composed skill has its own stance and may end by offering a choice or asking whether to proceed or capture an artifact. That is the skill's own boundary, not the workflow's phase boundary. Phase flow is governed only by the workflow: a state is done when its `needs` decisions are recorded. So whenever a composed skill finishes or asks whether to continue, return to the workflow — record the state's `needs` with `decide`, then call `next`. The only real stop for the user is `requiresUser: true`. Composed skills decide *how* to do the work; the workflow decides *when* to transition.
@@ -120,11 +122,25 @@ done     the workflow is complete; nothing more to do.
 ```
 
 1. Read `goal` and `forbid` to know what to do and what is off-limits here. Read `rules` and treat each as a hard requirement for this state — a workflow may, for example, mandate a specific skill. The engine does not enforce `rules`; honoring them is your responsibility.
-2. Pick and load skills from `capabilities`. Each capability is a real Claude Code skill name with its description; load the ones that fit the state's goal and `rules`. Do not hand-write an approximation of a skill that clearly applies (e.g. `brainstorming` in design).
+2. Before doing any state work, load the required capability skills with Claude Code's Skill tool. Each capability is a real Claude Code skill name with its description. Do not summarize or imitate a skill from memory; the skill must be loaded before acting.
 3. Record each satisfied decision with `decide <key> <value>`; pass real results for valued decisions (`review_result pass`, `verify_result fail`). A `fail` triggers a cross-state rollback per `fail_when`, clearing downstream decisions so the work is redone.
 4. Act on the next state returned by `decide` and repeat.
 
 If `next --json` returns `projectRules.readNow`, read those rule files immediately so they affect this session.
+
+## Required Skill Loading
+
+After each `next --json`, inspect `capabilities`. For every capability required by the current state and its `rules`, immediately load that skill before any investigation, planning, editing, or verification. This is data-driven: use the `id` (or `ref` when present) returned by `next`, including capabilities from custom workflows.
+
+For each selected capability, use this exact trigger form with the runtime skill name substituted:
+
+```text
+**Immediately execute:** Use the Skill tool to load the <capability-id> skill. Skipping this step is prohibited.
+```
+
+Example: if `capabilities` contains `{ "id": "systematic-debugging" }`, immediately load `systematic-debugging`. If a custom workflow returns `{ "id": "company-security-review" }`, immediately load `company-security-review` the same way. Do not maintain or rely on a hardcoded builtin skill list.
+
+If Claude Code's Skill tool is unavailable or the named skill cannot be loaded, stop and report that blocker instead of doing the state's work directly. The fallback is not "do it yourself"; the workflow depends on the composed skill's instructions.
 
 ## User Confirmation Checkpoints (requiresUser)
 
@@ -135,6 +151,8 @@ When `requiresUser: true` (e.g. `design` confirmation, `archive`), **stop and as
 Match the language of the user's current workflow request for explanations, clarification questions, summaries, and workflow artifacts; if the user switches later, follow the newest. Keep code identifiers, commands, paths, API names, and quoted source unchanged.
 
 ## Builtin Workflows
+
+This section is only a routing reference. It is not the current state and must never replace `next --json`.
 
 ```text
 new       brainstorm -> openspec -> design -> build -> review -> verify   (0 to 1)

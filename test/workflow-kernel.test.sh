@@ -525,6 +525,18 @@ run next change-c --workflow fix --json > /dev/null  # create one more so resolv
 INVALID="$(run next 'bad/name' --workflow feature --json 2>&1 || true)"
 has "invalid change name rejected" "$INVALID" "Invalid change name"
 
+run next same-name --workflow feature --json > /dev/null
+SAME_AS_FIX="$(run next same-name --workflow fix --json 2>&1 || true)"
+has "same change cannot be reused with another workflow" "$SAME_AS_FIX" "already uses workflow 'feature'"
+
+rm -rf "$T"
+T="$(sandbox)"
+mkdir -p "$T/openspec/changes/collision" "$T/.hikspine/changes"
+printf 'change: collision\nworkflow: feature\ncurrent: open\n' > "$T/openspec/changes/collision/.hikspine.yaml"
+printf 'change: collision\nworkflow: fix\ncurrent: inspect\n' > "$T/.hikspine/changes/collision.yaml"
+COLLISION="$(run next collision --json 2>&1 || true)"
+has "same change in both storage locations is rejected" "$COLLISION" "exists in both openspec/changes and .hikspine/changes"
+
 rm -rf "$T"
 
 # ─── summary ───────────────────────────────────────────────────────────────

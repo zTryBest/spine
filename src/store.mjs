@@ -132,12 +132,25 @@ export function standaloneStateFile(root, change) {
   return path.join(root, '.hikspine', 'changes', `${change}.yaml`);
 }
 
-export function stateFileFor(root, change, workflowId = '') {
+function stateCandidates(root, change) {
   const openSpec = openSpecStateFile(root, change);
   const standalone = standaloneStateFile(root, change);
-  if (fs.existsSync(openSpec)) return openSpec;
-  if (fs.existsSync(standalone)) return standalone;
-  return workflowId === 'fix' ? standalone : openSpec;
+  return {
+    openSpec,
+    standalone,
+    hasOpenSpec: fs.existsSync(openSpec),
+    hasStandalone: fs.existsSync(standalone),
+  };
+}
+
+export function stateFileFor(root, change, workflowId = '') {
+  const c = stateCandidates(root, change);
+  if (c.hasOpenSpec && c.hasStandalone) {
+    die(`Change '${change}' exists in both openspec/changes and .hikspine/changes. Rename or archive one before continuing.`);
+  }
+  if (c.hasOpenSpec) return c.openSpec;
+  if (c.hasStandalone) return c.standalone;
+  return workflowId === 'fix' ? c.standalone : c.openSpec;
 }
 
 export function activeFile(root) {
@@ -211,6 +224,10 @@ export function initializeState(root, change, workflow, storage) {
 export function createState(root, change, workflowId, storageArg) {
   validateChangeName(change);
   const workflow = loadWorkflow(root, workflowId);
+  const c = stateCandidates(root, change);
+  if (c.hasOpenSpec || c.hasStandalone) {
+    die(`Change '${change}' already exists. Use a different change name or resume it without changing workflow.`);
+  }
   const storage = storageArg || (workflow.id === 'fix' ? 'standalone' : 'openspec');
   if (storage === 'openspec') ensureDir(path.join(root, 'openspec', 'changes', change, 'specs'));
   else ensureDir(path.join(root, '.hikspine', 'changes'));
@@ -248,6 +265,9 @@ export function loadOrCreatePair(root, changeArg, opts = {}) {
     const existingFile = stateFileFor(root, change, opts.workflow || '');
     if (fs.existsSync(existingFile)) {
       const state = loadState(root, change);
+      if (opts.workflow && state.workflow !== opts.workflow) {
+        die(`Change '${change}' already uses workflow '${state.workflow}', not '${opts.workflow}'. Use a different change name or resume without --workflow.`);
+      }
       const workflow = loadWorkflow(root, state.workflow);
       setActive(root, state.change);
       return { state, workflow, created: false };
