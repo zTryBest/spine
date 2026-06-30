@@ -100,29 +100,52 @@
 
   .legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:12px; }
   .wf-chip { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  button.wf-chip { color:var(--text); font:inherit; text-align:left; width:100%; cursor:pointer; }
+  .wf-chip.active { border-color:rgba(110,168,254,.58); box-shadow:0 0 0 1px rgba(110,168,254,.28); }
   .wf-chip .id { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
   .wf-chip .tag { font-size:10px; color:var(--dim); font-family:ui-monospace,monospace; border:1px solid var(--line2); border-radius:5px; padding:0 5px; }
   .wf-chip .it { color:var(--muted); font-size:12px; margin-top:5px; }
-  .skill-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; color:var(--muted); font-size:12px; flex-wrap:wrap; }
-  .skill-total b { color:var(--text); font-weight:700; }
-  .skill-pages { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
-  .skill-pages button { font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:8px; padding:5px 10px; cursor:pointer; }
-  .skill-pages button:disabled { opacity:.42; cursor:not-allowed; }
-  .scope-summary { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
-  .scope-pill { color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 9px; font-size:11px; }
-  .scope-pill b { color:var(--text); font-weight:700; }
-  .skill-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
-  .skill-card { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line); border-radius:12px; padding:13px 14px; min-width:0; }
-  .skill-card-head { display:flex; align-items:center; gap:9px; min-width:0; }
-  .skill-name { font-weight:760; color:var(--text); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .skill-scope-tag { margin-left:auto; flex:0 0 auto; color:#b9c6dc; background:var(--panel2); border:1px solid var(--line2); border-radius:999px; padding:2px 8px; font-size:10.5px; }
-  .skill-field { margin-top:9px; min-width:0; }
-  .skill-field .k { color:var(--dim); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase; margin-bottom:2px; }
-  .skill-field .v { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
-  .skill-field.desc .v { color:#b9c0d2; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-  .skill-field.path .v { color:var(--dim); font-family:ui-monospace,monospace; font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .skill-empty { padding:14px 13px; color:var(--dim); font-size:12px; font-style:italic; }
+  .node .mins { color:var(--dim); font-size:10px; line-height:1; white-space:nowrap; }
+  .artifacts { margin-top:12px; border-top:1px solid var(--line); padding-top:11px; }
+  .artifact-head { color:var(--dim); font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; margin-bottom:8px; }
+  .artifact-stage { display:flex; align-items:flex-start; gap:9px; padding:4px 0; min-width:0; }
+  .artifact-stage .stage-name { color:var(--muted); font-size:11px; width:72px; flex:0 0 auto; padding-top:4px; }
+  .artifact-files { display:flex; flex-wrap:wrap; gap:7px; min-width:0; }
+  .artifact-btn { color:#dbe7ff; background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:4px 8px; font:inherit; font-size:11px; cursor:pointer; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .artifact-btn:hover { border-color:rgba(110,168,254,.65); }
+  .workflow-detail { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .workflow-detail-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .workflow-detail-head b { font-size:15px; }
+  .workflow-detail-head .it { color:var(--muted); font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .workflow-stage { display:grid; grid-template-columns:120px 1fr; gap:12px; border-top:1px solid var(--line); padding:12px 0; }
+  .workflow-stage:first-of-type { border-top:none; }
+  .stage-id { display:flex; align-items:center; gap:8px; min-width:0; }
+  .stage-num { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; background:var(--panel2); border:1px solid var(--line2); color:var(--accent); font-size:11px; font-weight:700; }
+  .stage-title { font-weight:700; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .stage-goal { color:var(--muted); font-size:12px; margin-bottom:8px; }
+  .cap-list, .need-list { display:flex; flex-wrap:wrap; gap:6px; }
+  .cap, .need { border:1px solid var(--line2); border-radius:999px; padding:3px 8px; font-size:11px; background:var(--panel2); color:#cbd5e8; }
+  .need { color:var(--muted); background:transparent; }
+  .stage-flags { color:var(--dim); font-size:11px; margin-top:7px; }
+  .modal { position:fixed; inset:0; background:rgba(2,4,9,.76); display:grid; place-items:center; padding:24px; z-index:20; }
+  .modal[hidden] { display:none; }
+  .modal-panel { width:min(900px,96vw); max-height:86vh; background:var(--bg2); border:1px solid var(--line2); border-radius:14px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
+  .modal-head { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); }
+  .modal-title { font-weight:750; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .modal-path { color:var(--dim); font-family:ui-monospace,monospace; font-size:11px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .modal-close { margin-left:auto; color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:5px 9px; font:inherit; cursor:pointer; }
+  .md-pre { margin:0; padding:18px; overflow:auto; color:#dbe2f1; white-space:pre-wrap; font:12.5px/1.62 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .empty { color:var(--dim); font-style:italic; }
+  @media (max-width:760px) {
+    .wrap { padding:22px 14px 52px; }
+    header { align-items:flex-start; }
+    .hbar { flex-direction:column; align-items:flex-end; }
+    .stats { grid-template-columns:repeat(2,1fr); }
+    .cards { grid-template-columns:1fr; }
+    .workflow-stage { grid-template-columns:1fr; gap:7px; }
+    .artifact-stage { flex-direction:column; gap:5px; }
+    .artifact-stage .stage-name { width:auto; }
+  }
 </style>
 </head>
 <body>
@@ -147,8 +170,21 @@
   <h2 id="secWf"></h2>
   <div class="legend" id="legend"></div>
 
-  <h2 id="secSkills"></h2>
-  <div class="skills" id="skills"></div>
+  <h2 id="secWorkflowDetail"></h2>
+  <div class="workflow-detail" id="workflowDetail"></div>
+</div>
+
+<div class="modal" id="artifactModal" hidden>
+  <div class="modal-panel">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="artifactTitle"></div>
+        <div class="modal-path" id="artifactPath"></div>
+      </div>
+      <button class="modal-close" id="artifactClose" type="button"></button>
+    </div>
+    <pre class="md-pre" id="artifactBody"></pre>
+  </div>
 </div>
 
 <script>
@@ -158,6 +194,7 @@ const api = (p,o) => fetch(p,o).then(r=>r.json());
 
 let lang = localStorage.getItem('hikspine-lang') || 'zh';
 let last = null;
+let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
 const I18N = {
@@ -270,6 +307,11 @@ const DEMO = {
       current:'design', goal:'Explore the technical path, document it, and get user confirmation.',
       missing:['design_confirmed'], decisions:{requirements_clarified:true,proposal_ready:true,design_documented:true},
       stages:['open','design','build','review','verify','archive'], stageIndex:1,
+      stageDurations:{open:14,design:32,build:0,review:0,verify:0,archive:0},
+      artifacts:[
+        {stage:'openspec',title:'Proposal',path:'openspec/changes/access-control-v2/proposal.md',content:'# Proposal\n\nAccess-control v2 expands role rules and audit boundaries.'},
+        {stage:'design',title:'Design',path:'openspec/changes/access-control-v2/design.md',content:'# Design\n\nUse policy evaluation at the service boundary and keep audit events append-only.'}
+      ],
       history:[
         {at:ago(52),type:'started',workflow:'feature',state:'open'},
         {at:ago(44),type:'decide',key:'requirements_clarified',value:true},
@@ -281,6 +323,11 @@ const DEMO = {
       current:'build', goal:'Scaffold and implement the initial project from the confirmed design.',
       missing:['implemented'], decisions:{brainstorming_done:true,proposal_ready:true,design_documented:true,design_confirmed:true},
       stages:['brainstorm','openspec','design','build','review','verify'], stageIndex:3,
+      stageDurations:{brainstorm:15,openspec:26,design:18,build:131,review:0,verify:0},
+      artifacts:[
+        {stage:'brainstorm',title:'Brainstorm notes',path:'openspec/changes/ops-dashboard/brainstorm.md',content:'# Brainstorm\n\nOperators need queue health, incident status, and recent deployment context.'},
+        {stage:'openspec',title:'Tasks',path:'openspec/changes/ops-dashboard/tasks.md',content:'# Tasks\n\n- Build read-only status board\n- Add incident filters\n- Verify polling behavior'}
+      ],
       history:[
         {at:ago(190),type:'started',workflow:'new',state:'brainstorm'},
         {at:ago(176),type:'decide',key:'brainstorming_done',value:true},
@@ -319,9 +366,30 @@ const DEMO = {
       ] },
   ],
   workflows:[
-    { id:'new', intent:'Build a project from scratch (0 to 1): brainstorm, create OpenSpec artifacts, confirm design, then build.' },
-    { id:'feature', intent:'A new feature or non-trivial change in an existing project; needs design and OpenSpec artifacts.' },
-    { id:'fix', intent:'Fix a bug or make a small change (including urgent production fixes); no design phase.' },
+    { id:'new', intent:'Build a project from scratch (0 to 1): brainstorm, create OpenSpec artifacts, confirm design, then build.',
+      stages:[
+        {id:'brainstorm',goal:'Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.',capabilities:['brainstorming'],needs:['brainstorming_done'],next:'openspec'},
+        {id:'openspec',goal:'Create OpenSpec artifacts from the brainstormed direction.',capabilities:['openspec-propose'],needs:['proposal_ready'],next:'design'},
+        {id:'design',goal:'Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.',capabilities:['writing-plans'],needs:['design_confirmed'],requiresUser:true,next:'build'},
+        {id:'build',goal:'Scaffold and implement the initial project from the confirmed design.',capabilities:['executing-plans'],needs:['implemented'],next:'review'},
+        {id:'review',goal:'Review implementation and company standards.',capabilities:['requesting-code-review'],needs:['review_result'],next:'verify'},
+        {id:'verify',goal:'Verify behavior and OpenSpec coverage.',capabilities:['verification-before-completion','openspec-verify-change'],needs:['verify_result'],terminal:true}
+      ] },
+    { id:'feature', intent:'A new feature or non-trivial change in an existing project; needs design and OpenSpec artifacts.',
+      stages:[
+        {id:'open',goal:'Clarify the change and create OpenSpec artifacts.',capabilities:['openspec-explore','openspec-propose'],needs:['proposal_ready'],next:'design'},
+        {id:'design',goal:'Explore the technical path, document it, and get user confirmation.',capabilities:['brainstorming','writing-plans'],needs:['design_confirmed'],requiresUser:true,next:'build'},
+        {id:'build',goal:'Implement the confirmed design.',capabilities:['executing-plans'],needs:['implemented'],next:'review'},
+        {id:'review',goal:'Review the implementation before verification.',capabilities:['requesting-code-review'],needs:['review_result'],next:'verify'},
+        {id:'verify',goal:'Verify behavior and OpenSpec coverage.',capabilities:['verification-before-completion','openspec-verify-change'],needs:['verify_result'],next:'archive'},
+        {id:'archive',goal:'Archive the completed change after user confirmation.',capabilities:['openspec-archive-change'],needs:['archived'],requiresUser:true,terminal:true}
+      ] },
+    { id:'fix', intent:'Fix a bug or make a small change (including urgent production fixes); no design phase.',
+      stages:[
+        {id:'inspect',goal:'Understand the issue and the smallest safe change.',capabilities:['systematic-debugging'],needs:['issue_understood'],next:'fix'},
+        {id:'fix',goal:'Apply the minimal patch.',capabilities:['executing-plans'],needs:['patched'],next:'verify'},
+        {id:'verify',goal:'Run focused verification.',capabilities:['verification-before-completion'],needs:['verify_result'],terminal:true}
+      ] },
   ],
   skills:[
     { name:'hikspine', scope:'local', path:'skills/hikspine/SKILL.md', description:'Drive the Hikspine next / decide workflow.' },
@@ -397,6 +465,23 @@ function timeline(c) {
     '<span>· '+t('recorded')+' <b>'+decided+'</b></span></div>';
   return '<div class="tl">'+head+items+'</div>';
 }
+function artifactList(c) {
+  const artifacts = Array.isArray(c.artifacts) ? c.artifacts : [];
+  if (!artifacts.length) return '';
+  const baseStages = Array.isArray(c.stages) ? c.stages : [];
+  const extraStages = artifacts.map(a => a.stage || 'openspec').filter(stage => !baseStages.includes(stage));
+  const stages = [...baseStages, ...extraStages];
+  const rows = stages.map(stage => {
+    const files = artifacts.filter(a => (a.stage || 'openspec') === stage);
+    if (!files.length) return '';
+    const buttons = files.slice(0, 8).map(a =>
+      '<button type="button" class="artifact-btn" data-artifact="'+esc(a.path)+'" title="'+esc(a.path)+'">'+
+      esc(a.title || a.path)+'</button>'
+    ).join('');
+    return '<div class="artifact-stage"><div class="stage-name">'+esc(label(stage))+'</div><div class="artifact-files">'+buttons+'</div></div>';
+  }).join('');
+  return rows ? '<div class="artifacts"><div class="artifact-head">'+(lang==='zh'?'阶段产物':'Stage artifacts')+'</div>'+rows+'</div>' : '';
+}
 function pipe(c) {
   if (c.error || !Array.isArray(c.stages)) return '';
   let h = '<div class="pipe">';
@@ -404,7 +489,9 @@ function pipe(c) {
     const isDone = c.complete ? true : i < c.stageIndex;
     const isCurr = !c.complete && i === c.stageIndex;
     const cls = isDone ? 'done' : (isCurr ? 'curr '+(c.nextAction==='confirm'?'cf':'') : '');
-    h += '<div class="step"><div class="node '+cls+'"><div class="bub">'+(isDone?'✓':(i+1))+'</div><div class="lbl">'+esc(label(id))+'</div></div>';
+    const mins = c.stageDurations && Number(c.stageDurations[id]) ? Number(c.stageDurations[id]) : 0;
+    const minsHtml = mins ? '<div class="mins">'+mins+' '+(lang==='zh'?'分钟':'min')+'</div>' : '';
+    h += '<div class="step"><div class="node '+cls+'"><div class="bub">'+(isDone?'✓':(i+1))+'</div><div class="lbl">'+esc(label(id))+'</div>'+minsHtml+'</div>';
     if (i < c.stages.length-1) h += '<div class="bar '+(isDone?'done':'')+'"></div>';
     h += '</div>';
   });
@@ -424,6 +511,30 @@ function renderStats(changes) {
     '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">'+t('stConfirm')+'</div></div>'+
     '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">'+t('stDone')+'</div></div>';
 }
+async function openArtifact(path) {
+  let data;
+  const demo = last && last.demo;
+  if (demo) {
+    const found = (last.changes || []).flatMap(c => c.artifacts || []).find(a => a.path === path);
+    data = found ? { path, content: found.content || '# '+(found.title || path)+'\n\nDemo artifact preview.' } : null;
+  } else {
+    data = await api('/api/artifact?path='+encodeURIComponent(path));
+  }
+  if (!data || data.error) {
+    $('artifactTitle').textContent = lang==='zh' ? '无法预览' : 'Preview unavailable';
+    $('artifactPath').textContent = path || '';
+    $('artifactBody').textContent = data && data.error ? data.error : '';
+  } else {
+    $('artifactTitle').textContent = lang==='zh' ? 'Markdown 预览' : 'Markdown preview';
+    $('artifactPath').textContent = data.path || path;
+    $('artifactBody').textContent = data.content || '';
+  }
+  $('artifactClose').textContent = lang==='zh' ? '关闭' : 'Close';
+  $('artifactModal').hidden = false;
+}
+function closeArtifact() {
+  $('artifactModal').hidden = true;
+}
 function renderChanges(changes) {
   if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+t('empty')+'</div>'; return; }
   $('changes').innerHTML = changes.map(c => {
@@ -436,15 +547,60 @@ function renderChanges(changes) {
       pipe(c)+
       '<div class="foot"><span>'+t('cur')+' <b>'+esc(label(c.current))+'</b></span>'+
       (goal?'<span>'+esc(goal)+'</span>':'')+
-      '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div>'+timeline(c)+'</div>';
+      '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div>'+artifactList(c)+timeline(c)+'</div>';
   }).join('');
+  $('changes').querySelectorAll('.artifact-btn').forEach(btn => {
+    btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact); };
+  });
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
     card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); } catch(e){} refresh(); };
   });
 }
 function renderWorkflows(workflows) {
-  $('legend').innerHTML = workflows.map(w=>'<div class="wf-chip"><div class="id">'+esc(w.id)+
-    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+'</div><div class="it">'+esc(wfIntent(w))+'</div></div>').join('');
+  workflows = Array.isArray(workflows) ? workflows : [];
+  if (!workflows.length) {
+    $('legend').innerHTML = '';
+    $('workflowDetail').innerHTML = '<div class="empty">'+(lang==='zh'?'暂无工作流。':'No workflows found.')+'</div>';
+    return;
+  }
+  if (!selectedWorkflowId || !workflows.some(w => w.id === selectedWorkflowId)) selectedWorkflowId = workflows[0].id;
+  $('legend').innerHTML = workflows.map(w=>'<button type="button" class="wf-chip '+(w.id===selectedWorkflowId?'active':'')+'" data-workflow="'+esc(w.id)+'"><div class="id">'+esc(w.id)+
+    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+'</div><div class="it">'+esc(wfIntent(w))+'</div></button>').join('');
+  $('legend').querySelectorAll('[data-workflow]').forEach(btn => {
+    btn.onclick = () => {
+      selectedWorkflowId = btn.dataset.workflow;
+      localStorage.setItem('hikspine-workflow', selectedWorkflowId);
+      renderWorkflows(workflows);
+    };
+  });
+  renderWorkflowDetail(workflows);
+}
+
+function renderWorkflowDetail(workflows) {
+  const w = workflows.find(x => x.id === selectedWorkflowId) || workflows[0];
+  const skillIndex = new Map((last?.skills || []).map(s => [s.name, s]));
+  const stages = Array.isArray(w.stages) ? w.stages : [];
+  const stageHtml = stages.length ? stages.map((s, i) => {
+    const caps = (s.capabilities || []).map(name => {
+      const skill = skillIndex.get(name) || { name, description:'' };
+      const desc = skillDesc(skill);
+      return '<span class="cap" title="'+esc(desc)+'">'+esc(name)+'</span>';
+    }).join('') || '<span class="need">'+(lang==='zh'?'无指定技能':'No skill specified')+'</span>';
+    const needs = (s.needs || []).map(n => '<span class="need">'+esc(n)+'</span>').join('');
+    const flags = [
+      s.requiresUser ? (lang==='zh'?'需要用户确认':'Needs user confirmation') : '',
+      s.terminal ? (lang==='zh'?'终止阶段':'Terminal stage') : '',
+      s.next ? ((lang==='zh'?'下一阶段: ':'Next: ')+label(s.next)) : '',
+    ].filter(Boolean).join(' · ');
+    const goal = (lang==='zh' && GOAL_ZH[s.goal]) ? GOAL_ZH[s.goal] : (s.goal || '');
+    return '<div class="workflow-stage"><div class="stage-id"><span class="stage-num">'+(i+1)+'</span><span class="stage-title">'+esc(label(s.id))+'</span></div>'+
+      '<div><div class="stage-goal">'+esc(goal)+'</div><div class="cap-list">'+caps+'</div>'+
+      (needs?'<div class="need-list" style="margin-top:7px">'+needs+'</div>':'')+
+      (flags?'<div class="stage-flags">'+esc(flags)+'</div>':'')+'</div></div>';
+  }).join('') : '<div class="empty">'+(lang==='zh'?'这个工作流还没有阶段详情。':'This workflow has no stage details yet.')+'</div>';
+  $('workflowDetail').innerHTML = '<div class="workflow-detail-head"><b>'+esc(w.id)+'</b>'+
+    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+
+    '<span class="it">'+esc(wfIntent(w))+'</span></div>'+stageHtml;
 }
 
 let skillPage = 1;
@@ -494,7 +650,7 @@ function renderAll() {
   $('subtitle').textContent = t('subtitle');
   $('secTasks').textContent = t('secTasks');
   $('secWf').textContent = t('secWf');
-  $('secSkills').textContent = t('secSkills');
+  $('secWorkflowDetail').textContent = lang==='zh' ? '工作流阶段与技能' : 'Workflow stages & skills';
   $('root').textContent = last.root ? '  ·  '+last.root : '';
   $('dot').className = 'dot' + (last.demo?' demo':'');
   $('livetext').textContent = last.demo ? t('demo') : t('live');
@@ -503,14 +659,15 @@ function renderAll() {
   renderStats(last.changes || []);
   renderChanges(last.changes || []);
   renderWorkflows(last.workflows || []);
-  renderSkills(last.skills || []);
 }
 
 function setLang(l) {
-  lang = l; localStorage.setItem('hikspine-lang', l); skillPage = 1; renderAll();
+  lang = l; localStorage.setItem('hikspine-lang', l); renderAll();
 }
 $('lzh').onclick = () => setLang('zh');
 $('len').onclick = () => setLang('en');
+$('artifactClose').onclick = closeArtifact;
+$('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
 
 async function refresh() {
   let s;

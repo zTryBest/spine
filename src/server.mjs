@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { boardState } from './board.mjs';
 import { setActive } from './store.mjs';
-import { PLUGIN_ROOT, validateChangeName } from './utils.mjs';
+import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
 
@@ -39,6 +39,35 @@ export function createBoardServer(root) {
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
         sendJson(res, 200, boardState(root));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/artifact') {
+        const requested = url.searchParams.get('path') || '';
+        const abs = path.resolve(root, requested);
+        const rootAbs = path.resolve(root);
+        if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) {
+          sendJson(res, 400, { error: 'Artifact path must stay inside the project root.' });
+          return;
+        }
+        if (!/\.md$/i.test(abs)) {
+          sendJson(res, 400, { error: 'Only Markdown artifacts can be previewed.' });
+          return;
+        }
+        if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+          sendJson(res, 404, { error: 'Artifact not found.' });
+          return;
+        }
+        const stat = fs.statSync(abs);
+        if (stat.size > 1024 * 1024) {
+          sendJson(res, 413, { error: 'Artifact is too large to preview.' });
+          return;
+        }
+        sendJson(res, 200, {
+          path: rel(rootAbs, abs),
+          content: fs.readFileSync(abs, 'utf8'),
+          size: stat.size,
+          updatedAt: stat.mtime.toISOString(),
+        });
         return;
       }
       // Switch the active task (focus), without touching its state.

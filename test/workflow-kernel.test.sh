@@ -463,6 +463,9 @@ eq "skills discovers project scope skills" \
 # Two concurrent changes on different workflows coexist
 run next bug-1 --workflow fix --json > /dev/null
 run next feat-x --workflow feature --json > /dev/null
+mkdir -p "$T/openspec/changes/feat-x/specs/auth"
+printf '%s\n' '# Proposal' '' 'Feature proposal artifact.' > "$T/openspec/changes/feat-x/proposal.md"
+printf '%s\n' '# Auth spec' '' 'Spec artifact.' > "$T/openspec/changes/feat-x/specs/auth/spec.md"
 CH_LIST="$(run changes --json)"
 eq "changes lists all in-flight runs" \
   "$(printf '%s' "$CH_LIST" | json_test "j.changes.length === 2 && j.changes.some(c=>c.change==='bug-1'&&c.workflow==='fix') && j.changes.some(c=>c.change==='feat-x'&&c.workflow==='feature')" && echo yes || echo no)" "yes"
@@ -479,6 +482,10 @@ eq "board marks the active change" \
   "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
 eq "board changes carry history and decisions" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>Array.isArray(c.history) && c.history.length>=1 && c.history[0].type==='started' && typeof c.decisions==='object' && c.startedAt)" && echo yes || echo no)" "yes"
+eq "board exposes workflow stage details" \
+  "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities)))" && echo yes || echo no)" "yes"
+eq "board exposes stage durations and markdown artifacts" \
+  "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>typeof c.stageDurations==='object' && Array.isArray(c.artifacts)) && j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('proposal.md') && a.stage==='openspec')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

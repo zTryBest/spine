@@ -1,3 +1,29 @@
+## What's Changed [0.6.9] - 2026-06-30
+
+### Added
+
+- **SessionEnd 自动清理 UI**: 新增 Claude Code `SessionEnd` hook，在 session 结束时读取当前项目 `.hikspine/hikspine-ui.pid`，确认对应进程确实是 Hikspine UI 后再终止，避免用户退出会话后看板后台进程继续残留。
+
+### Changed
+
+- **UI 进程清理更安全**: 清理逻辑会校验进程命令行包含 `hikspine.mjs ui`，如果 pid 文件陈旧或 pid 已被复用，不会误杀无关进程，并会清理陈旧 pid 文件。
+
+## What's Changed [0.6.8] - 2026-06-30
+
+### Added
+
+- **任务阶段产物预览**: 看板任务卡按阶段展示 `openspec/changes/<change>` 下的 Markdown 产物，并支持在弹层中预览内容，方便在看板中直接核对 proposal、design、tasks 与 specs 等阶段产物。
+- **阶段耗时展示**: 看板聚合层根据任务 history 计算每个大阶段的分钟级耗时，任务流水线节点下直接显示累计分钟数，当前阶段会持续计入从进入阶段到现在的时间。
+- **工作流阶段技能详情**: 工作流卡片支持点击选中，详情区展示该工作流包含的阶段、阶段目标、needs、流转提示以及对应 capabilities/skills。
+
+### Changed
+
+- **技能区收敛为工作流详情**: 看板不再单独展示全局技能分页；技能信息保留在数据层，用于工作流阶段详情中的 capability 展示与中文说明提示。
+
+### Tests
+
+- **看板聚合数据覆盖**: 扩展 board 聚合测试，验证 workflow 阶段详情、阶段耗时对象与 Markdown 产物扫描会随 `/api/state` / `board --json` 一起输出。
+
 ## What's Changed [0.6.7] - 2026-06-29
 
 ### Changed
