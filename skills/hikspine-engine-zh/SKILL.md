@@ -43,6 +43,8 @@ node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next 
 
 用户/项目指定了 workflow 就用那个 id；项目配了 `.hikspine/config.yaml` 的 `defaultWorkflow` 时可省略 `--workflow`。
 
+引擎命令在项目根目录跑，或传 `--project-root <根>`。引擎会锚定到**已存在的 Hikspine 项目**（最近一个带 `openspec/` 或 `.hikspine/` 的上级目录），所以在代码子目录里恢复也能落对地方。但**全新项目的第一次 `next`** 会在当前目录创建状态——务必在项目根跑，让 `openspec/`、`.hikspine/` 落在根目录，而不是某个子文件夹里。
+
 ## 选择 workflow
 
 用户没指定、项目也没 `defaultWorkflow` 时，自己选：

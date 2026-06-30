@@ -47,6 +47,8 @@ node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next 
 
 Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `defaultWorkflow`, omit `--workflow` for new changes.
 
+Run engine commands from the project root, or pass `--project-root <root>`. The engine anchors to an existing Hikspine project (the nearest ancestor with `openspec/` or `.hikspine/`), so resuming from a code subdirectory still targets the right place. But the **first** `next` of a brand-new project creates state at the current directory — start it at the project root so `openspec/` and `.hikspine/` land there, not inside a subfolder.
+
 ## Choosing A Workflow
 
 If the user did not name a workflow and the project has no `defaultWorkflow`, pick one yourself:

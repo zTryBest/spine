@@ -1,3 +1,10 @@
+## What's Changed [0.6.26] - 2026-06-30
+
+### Fixed
+
+- **从代码子目录跑引擎会把 change 建歪（项目根唯一化）**: 引擎 `resolveProjectRoot` 在回退到 cwd 时（没传 `--project-root` / `HIKSPINE_PROJECT_ROOT`），现在用 `findProjectRoot` 向上锚定到**已存在的 Hikspine 项目根**（最近一个带 `openspec/` 或 `.hikspine/` 的上级目录）。这样即使 Agent 在代码子目录（如 `workspace/patpps`，本身是独立 git 仓库）里跑 `next`/`decide`，状态也落到项目根的 `openspec/changes`，不会在子目录里另建一套——与 hook 侧（0.6.24）和存储统一（0.6.25）彻底对齐，`.hikspine`/`openspec` 不再分散。显式传 `--project-root` 时仍原样使用，不走锚定。实测：在子目录无 `--project-root` 跑 `next another-change`，状态落到根 `openspec/changes` ✅。
+- **首个 change 的落点提示**: 两份 spine skill 补充——引擎命令在项目根跑或传 `--project-root`；全新项目的第一次 `next` 会在当前目录建状态，要在项目根启动，避免 `openspec/`、`.hikspine/` 落进子文件夹。
+
 ## What's Changed [0.6.25] - 2026-06-30
 
 ### Changed

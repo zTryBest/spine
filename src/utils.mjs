@@ -39,8 +39,13 @@ function normalizeProjectRootInput(value) {
 }
 
 export function resolveProjectRoot(opts = {}) {
-  const raw = normalizeProjectRootInput(opts['project-root'] || process.env.HIKSPINE_PROJECT_ROOT || cwd());
-  const root = path.resolve(raw);
+  const explicit = opts['project-root'] || process.env.HIKSPINE_PROJECT_ROOT || '';
+  let root = path.resolve(normalizeProjectRootInput(explicit || cwd()));
+  // When falling back to cwd (no explicit --project-root / HIKSPINE_PROJECT_ROOT),
+  // anchor to an existing Hikspine project up the tree so running an engine
+  // command from a code subdirectory still targets the project root where state
+  // lives — instead of scattering openspec/.hikspine into the subdirectory.
+  if (!explicit) root = findProjectRoot(root);
   if (!fs.existsSync(root)) die(`Project root does not exist: ${root}`);
   if (!fs.statSync(root).isDirectory()) die(`Project root is not a directory: ${root}`);
   return root;
