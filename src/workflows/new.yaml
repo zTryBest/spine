@@ -1,5 +1,5 @@
 id: new
-version: 9
+version: 10
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -28,7 +28,9 @@ states:
     capabilities: [writing-plans]
     rules:
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
-      - Run writing-plans in a subagent (the Task tool), passing the prior-phase OpenSpec artifacts (proposal.md, tasks.md, specs) as inputs so the plan is grounded in them and the main context stays lean; bring back only the plan, then ask the user to confirm.
+      - Run writing-plans in a subagent (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, or other OpenSpec artifact contents into the prompt.
+      - Handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs.
+      - Keep the output compatible with Superpowers by writing the plan to docs/superpowers/plans/{change}.md. The main agent should bring back only the plan path, a concise summary, and any blockers, then ask the user to confirm.
     needs: [design_documented, design_confirmed]
     next: build
 

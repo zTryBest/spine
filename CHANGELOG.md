@@ -1,3 +1,13 @@
+## What's Changed [0.6.27] - 2026-06-30
+
+### Changed
+
+- **writing-plans 文件交接**: `new.design` 与 `feature.design` 的 workflow 规则改为要求 subAgent 只接收 OpenSpec 产物路径，不再把 proposal、tasks、specs 内容内联进 prompt；计划产物写到 Superpowers 兼容路径 `docs/superpowers/plans/{change}.md`，主 Agent 只带回计划路径、简要摘要和阻塞点，降低 planning 阶段上下文膨胀和 API 超时风险。
+
+### Tests
+
+- **文件交接规则覆盖**: 扩展 workflow kernel 测试，验证 `new` / `feature` 的 design 阶段都会暴露 file handoff 与 Superpowers plans 输出路径规则。
+
 ## What's Changed [0.6.26] - 2026-06-30
 
 ### Fixed

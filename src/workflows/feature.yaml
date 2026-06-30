@@ -1,5 +1,5 @@
 id: feature
-version: 9
+version: 10
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -25,7 +25,9 @@ states:
     rules:
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
-      - Run writing-plans in a subagent (the Task tool), passing the prior-phase artifacts (the change's proposal.md, tasks.md, specs, and design notes) as inputs so the plan is grounded in them and the main context stays lean; bring back only the plan, then ask the user to confirm.
+      - Run writing-plans in a subagent (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, or other OpenSpec artifact contents into the prompt.
+      - Handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs.
+      - Keep the output compatible with Superpowers by writing the plan to docs/superpowers/plans/{change}.md. The main agent should bring back only the plan path, a concise summary, and any blockers, then ask the user to confirm.
       - Ground the design in the existing code via the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) — trace call paths and blast radius for the areas you will touch. Fall back to normal search if codegraph is unavailable.
     needs: [design_documented, design_confirmed]
     next: build
