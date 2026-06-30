@@ -1,5 +1,5 @@
 id: feature
-version: 6
+version: 7
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -31,6 +31,8 @@ states:
   - id: build
     goal: Implement the confirmed design.
     capabilities: [writing-plans, executing-plans]
+    rules:
+      - Run planning (writing-plans) in a subagent (the Task tool), giving it the prior-phase artifacts (the change's proposal.md and design.md) so the plan is grounded in them and the main context stays lean; then implement (executing-plans) from the returned plan.
     needs: [implemented]
     next: review
 

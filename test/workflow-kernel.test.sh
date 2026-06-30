@@ -209,8 +209,8 @@ eq "design still missing design_confirmed" \
 DECIDE4="$(run decide design_confirmed --json)"
 eq "decide design_confirmed advances to build" \
   "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
-eq "a state without rules returns empty rules" \
-  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.length === 0" && echo yes || echo no)" "yes"
+eq "build surfaces subagent planning rule" \
+  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/subagent/i.test(r))" && echo yes || echo no)" "yes"
 eq "build has plan capability" \
   "$(printf '%s' "$DECIDE4" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
@@ -225,6 +225,8 @@ eq "decide implemented advances to review" \
   "$(printf '%s' "$DECIDE5" | json_get 'j.current')" "review"
 eq "review has review capability" \
   "$(printf '%s' "$DECIDE5" | json_test "j.capabilities.some(c=>c.id==='requesting-code-review')" && echo yes || echo no)" "yes"
+eq "a state without rules returns empty rules" \
+  "$(printf '%s' "$DECIDE5" | json_test "Array.isArray(j.rules) && j.rules.length === 0" && echo yes || echo no)" "yes"
 eq "review needs review_result=pass" \
   "$(printf '%s' "$DECIDE5" | json_get "j.missing.includes('review_result=pass') ? 'yes' : 'no'")" "yes"
 
@@ -492,6 +494,8 @@ eq "board marks the active change" \
   "$(printf '%s' "$BOARD" | json_get 'j.active')" "feat-x"
 eq "board changes carry history and decisions" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>Array.isArray(c.history) && c.history.length>=1 && c.history[0].type==='started' && typeof c.decisions==='object' && c.startedAt)" && echo yes || echo no)" "yes"
+eq "board exposes notifications array" \
+  "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.notifications)" && echo yes || echo no)" "yes"
 eq "board exposes workflow stage details" \
   "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities)))" && echo yes || echo no)" "yes"
 eq "board exposes stage durations and markdown artifacts" \

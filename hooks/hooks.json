@@ -20,6 +20,16 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'norm(){ r=\"${1:-}\"; r=\"${r//\\\\//}\"; while [ \"${#r}\" -gt 1 ] && [ \"${r%/}\" != \"$r\" ]; do r=\"${r%/}\"; done; printf \"%s\\n\" \"$r\"; }; hook=\"\"; for c in \"${HIKSPINE_PLUGIN_ROOT:-}\" \"${CLAUDE_PLUGIN_ROOT:-}\" \"$(pwd)\" \"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; do c=\"$(norm \"$c\")\"; [ -n \"$c\" ] && [ -f \"$c/hooks/notify.sh\" ] && hook=\"$c/hooks/notify.sh\" && break; done; if [ -z \"$hook\" ]; then for b in \"${HOME:-}\" \"${USERPROFILE:-}\" \"${APPDATA:-}\" \"${LOCALAPPDATA:-}\" \"/mnt/c/Users\" \"/mnt/d\" \"/mnt/e\"; do [ -n \"$b\" ] || continue; hook=\"$(find \"$b\" -maxdepth 10 -path \"*/hooks/notify.sh\" -print -quit 2>/dev/null || true)\"; [ -n \"$hook\" ] && break; done; fi; if [ -n \"$hook\" ]; then exec bash \"$hook\"; fi; echo \"[HIKSPINE-HOOK] notify skipped: cannot locate hikspine hook\" >&2; exit 0'"
+          }
+        ]
+      }
     ]
   }
 }

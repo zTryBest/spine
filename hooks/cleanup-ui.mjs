@@ -24,8 +24,20 @@ function parsePayload(text) {
   }
 }
 
+function gitToplevel(dir) {
+  try {
+    return childProcess.execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 3000,
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
 function candidatesFromPayload(payload) {
-  return [
+  const base = [
     process.env.HIKSPINE_PROJECT_ROOT,
     process.env.PROJECT_ROOT,
     payload.cwd,
@@ -35,6 +47,12 @@ function candidatesFromPayload(payload) {
     payload.workspace?.current_dir,
     process.cwd(),
   ].filter(Boolean);
+  // The UI is started with --project-root = the git toplevel, so its pid file
+  // lives at <repo-root>/.hikspine. If Claude is exited from a subdirectory,
+  // cwd is the subdir — also resolve each candidate's git toplevel so we still
+  // find the pid file at the repo root.
+  const tops = base.map(gitToplevel).filter(Boolean);
+  return [...base, ...tops];
 }
 
 function uniqueRoots(roots) {

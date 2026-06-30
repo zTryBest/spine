@@ -1,3 +1,14 @@
+## What's Changed [0.6.16] - 2026-06-30
+
+### Fixed
+
+- **退出 Claude 没杀掉 UI 进程**: `SessionEnd` 清理 hook(`hooks/cleanup-ui.mjs`)原来只从 `payload.cwd` / `process.cwd()` 找 `.hikspine/hikspine-ui.pid`,但 UI 是以 **git 顶层目录**(`--project-root`)启动、pid 写在仓库根。**从子目录退出 Claude 时 cwd 是子目录,就找不到 pid 文件而静默跳过。** 现在对每个候选目录额外解析其 `git rev-parse --show-toplevel`,所以无论在哪个子目录退出都能找到仓库根的 pid 并终止 UI。
+
+### Added
+
+- **运行时确认推送到看板(`Notification` hook)**: 看板的"待确认"徽章本是 `nextAction=confirm`(`requires_user` 派生的**静态**状态),不是实时事件。新增 `Notification` hook(`hooks/notify.mjs` + `notify.sh` + `hooks.json`):当 Claude 真正等待用户(`permission_prompt` / `idle_prompt` / `elicitation_dialog`)时,把通知写入项目 `.hikspine/notifications.json`(留最近 20 条,按 git 顶层解析项目根)。`boardState` 带出 `notifications`,看板顶部显示醒目横幅(🔔 + 类型 + 消息 + 相对时间 + 计数,中英双语),并在新通知到达时触发浏览器桌面通知(已授权时)。看板每 2 秒轮询,基本实时。
+- **阶段用 subAgent 处理(planning)**: 通过状态 `rules` 引导 Agent 把 writing-plans 放到 subAgent(Task 工具)里跑,并把前序产物喂给它,保持主上下文精简。落点:`new` 的 `design`(喂 OpenSpec 产物)、`feature` 的 `build`(喂 proposal.md + design.md)。纯 workflow `rules` 声明,不改引擎、不改上游 skill。`new`/`feature` 的 workflow `version` 各 +1。
+
 ## What's Changed [0.6.15] - 2026-06-30
 
 ### Changed

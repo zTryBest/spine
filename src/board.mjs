@@ -8,6 +8,17 @@ import path from 'node:path';
 import { getActive, listStates, listWorkflows, loadState, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
 import { discoverSkills } from './skills.mjs';
+
+// Live notifications recorded by the Notification hook (Claude waiting on the
+// user). Read-only; best-effort.
+function readNotifications(root) {
+  try {
+    const list = JSON.parse(fs.readFileSync(path.join(root, '.hikspine', 'notifications.json'), 'utf8'));
+    return Array.isArray(list) ? list.slice(-20) : [];
+  } catch {
+    return [];
+  }
+}
 import { rel, toPosix } from './utils.mjs';
 
 function minutesBetween(start, end) {
@@ -240,5 +251,6 @@ export function boardState(root) {
     changes: listChangeSummaries(root, active),
     workflows: workflows.map((workflow) => workflowDetails(root, workflow)),
     skills: discoverSkills(root),
+    notifications: readNotifications(root),
   };
 }
