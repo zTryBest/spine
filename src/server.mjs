@@ -115,9 +115,23 @@ export function createBoardServer(root) {
 
 export function startBoard(root, { port = 4319, host = '127.0.0.1' } = {}) {
   const server = createBoardServer(root);
+  // The engine writes its OWN pid (process.pid = the real OS pid) so the
+  // SessionEnd cleanup hook can terminate it. Do NOT rely on a shell's `$!`:
+  // in Git Bash on Windows that is the MSYS pid, not the node.exe Windows pid,
+  // so `process.kill` never matches it and the UI is never stopped.
+  const pidFile = path.join(root, '.hikspine', 'hikspine-ui.pid');
+  const removePid = () => { try { fs.rmSync(pidFile, { force: true }); } catch {} };
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {
+      try {
+        fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+        fs.writeFileSync(pidFile, String(process.pid));
+      } catch {}
+      process.on('exit', removePid);
+      for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+        process.on(sig, () => { removePid(); process.exit(0); });
+      }
       const addr = server.address();
       const url = `http://${host}:${addr.port}`;
       process.stdout.write(`Hikspine board: ${url}\n(serving ${root} — Ctrl+C to stop)\n`);

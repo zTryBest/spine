@@ -1,3 +1,10 @@
+## What's Changed [0.6.23] - 2026-06-30
+
+### Fixed
+
+- **退出 Claude 杀不掉 UI（pid 写错了）**: 真正根因——`hikspine-ui` skill 用 `printf '%s' "$!"` 写 pid，但在 Windows Git Bash 里后台 `node ... &` 的 `$!` 是 **MSYS pid，不是 node.exe 的真实 Windows pid**。SessionEnd cleanup 用 `process.kill` 校验这个假 pid 时判定"已死/陈旧"，删掉 pid 文件却放过了真正的 UI 进程。修复：`hikspine ui` 命令（`startBoard`）**启动时自己把 `process.pid`（真实 OS pid）写进 `.hikspine/hikspine-ui.pid`**，并在自身退出/收到 SIGINT/SIGTERM 时删除；`hikspine-ui` skill 不再写 `$!`，改为读引擎写好的 pid 文件。端到端实测：cleanup 现在能正确终止 UI（`stopped UI pid(s): <real-pid>`，端口释放）。
+  - 注意：本修复保证 **`exit` / 正常退出**（触发 `SessionEnd`）能杀掉 UI。`Ctrl-C` 是否触发 `SessionEnd` 取决于 Claude Code 是否在 SIGINT 时执行 SessionEnd hook；若不触发，则需用 `exit` 退出，或后续给 UI 加空闲超时兜底。
+
 ## What's Changed [0.6.22] - 2026-06-30
 
 ### Fixed

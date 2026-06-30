@@ -56,11 +56,13 @@ mkdir -p "$PROJECT_ROOT/.hikspine"
 LOG_FILE="$PROJECT_ROOT/.hikspine/hikspine-ui.log"
 PID_FILE="$PROJECT_ROOT/.hikspine/hikspine-ui.pid"
 
+# Do NOT write "$!" to the pid file. In Git Bash on Windows "$!" is the MSYS
+# pid, not node.exe's Windows pid, so the SessionEnd cleanup hook can never
+# kill it. The engine writes its own real pid to "$PID_FILE" on startup.
 node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --project-root "$PROJECT_ROOT" --port "$PORT" > "$LOG_FILE" 2>&1 &
-printf '%s\n' "$!" > "$PID_FILE"
 sleep 1
 cat "$LOG_FILE"
-printf 'Hikspine UI pid: %s\n' "$(cat "$PID_FILE")"
+printf 'Hikspine UI pid: %s\n' "$(cat "$PID_FILE" 2>/dev/null || echo '?')"
 printf 'Hikspine UI log: %s\n' "$LOG_FILE"
 ```
 
