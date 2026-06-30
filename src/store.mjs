@@ -177,7 +177,10 @@ export function stateFileFor(root, change, workflowId = '') {
   if (c.hasOpenSpec) return c.openSpec;
   if (c.hasStandalone) return c.standalone;
   if (c.hasArchived) return c.archived;
-  return workflowId === 'fix' ? c.standalone : c.openSpec;
+  // Every workflow is OpenSpec-backed by default — one storage location for all
+  // changes, so the folder layout and the board's spec data source are uniform.
+  // Legacy standalone changes are still read above for backward compatibility.
+  return c.openSpec;
 }
 
 export function activeFile(root) {
@@ -256,7 +259,9 @@ export function createState(root, change, workflowId, storageArg) {
   if (c.hasOpenSpec || c.hasStandalone || c.hasArchived) {
     die(`Change '${change}' already exists. Use a different change name or resume it without changing workflow.`);
   }
-  const storage = storageArg || (workflow.id === 'fix' ? 'standalone' : 'openspec');
+  // OpenSpec is the universal default. A workflow no longer chooses storage by
+  // id; standalone is only reachable via an explicit --storage override.
+  const storage = storageArg || 'openspec';
   if (storage === 'openspec') ensureDir(path.join(root, 'openspec', 'changes', change, 'specs'));
   else ensureDir(path.join(root, '.hikspine', 'changes'));
   const state = initializeState(root, change, workflow, storage);

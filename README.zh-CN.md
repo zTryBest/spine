@@ -130,17 +130,13 @@ version: 1
 defaultWorkflow: <workflow-id>
 ```
 
-`new` 和 `feature` 默认基于 OpenSpec，状态文件放在：
+每个工作流（内置或自定义）默认都基于 OpenSpec，所有 change 统一存放，看板的 spec 数据源也一致。状态文件放在：
 
 ```text
 openspec/changes/<change>/.hikspine.yaml
 ```
 
-`fix` 默认更轻量，状态文件放在：
-
-```text
-.hikspine/changes/<change>.yaml
-```
+`fix` 只保留一份**精简**的 OpenSpec proposal（一段 what/why），不做完整设计，所以小改动既快又留痕、还能上看板。工作流不需要写 `storage` 字段就是这个行为；standalone 存储（`.hikspine/changes/<change>.yaml`）只作为显式 `--storage standalone` 覆盖项，并用于读取历史遗留 change。
 
 ## Workflow v2
 

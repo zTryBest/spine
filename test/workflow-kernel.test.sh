@@ -288,23 +288,24 @@ eq "completed workflow nextAction is done" \
 
 rm -rf "$T"
 
-# ─── fix workflow: lightweight standalone ──────────────────────────
+# ─── fix workflow: OpenSpec-backed (lean spec) ─────────────────────
 
-echo "# fix workflow: decision-driven (standalone storage)"
+echo "# fix workflow: decision-driven (OpenSpec-backed, lean spec)"
 T="$(sandbox)"
 
 SF_NEXT="$(run next fix-login-timeout --workflow fix --json)"
 eq "fix starts in inspect" \
   "$(printf '%s' "$SF_NEXT" | json_get 'j.current')" "inspect"
-eq "fix state is standalone" \
-  "$(test -f "$T/.hikspine/changes/fix-login-timeout.yaml" && echo yes || echo no)" "yes"
-eq "fix has inspect capability" \
-  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging')" && echo yes || echo no)" "yes"
-eq "fix needs issue_understood" \
-  "$(printf '%s' "$SF_NEXT" | json_get "j.missing.includes('issue_understood') ? 'yes' : 'no'")" "yes"
+eq "fix state is OpenSpec-backed" \
+  "$(test -f "$T/openspec/changes/fix-login-timeout/.hikspine.yaml" && echo yes || echo no)" "yes"
+eq "fix inspect has debugging + lean openspec capabilities" \
+  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging') && j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
+eq "fix inspect needs issue_understood and proposal_ready" \
+  "$(printf '%s' "$SF_NEXT" | json_test "j.missing.includes('issue_understood') && j.missing.includes('proposal_ready')" && echo yes || echo no)" "yes"
 
-SF_FIX="$(run decide issue_understood --json)"
-eq "issue_understood advances to fix" \
+run decide issue_understood --json > /dev/null
+SF_FIX="$(run decide proposal_ready --json)"
+eq "inspect decisions advance to fix" \
   "$(printf '%s' "$SF_FIX" | json_get 'j.current')" "fix"
 eq "fix has implement capability" \
   "$(printf '%s' "$SF_FIX" | json_test "j.capabilities.some(c=>c.id==='executing-plans')" && echo yes || echo no)" "yes"

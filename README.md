@@ -153,17 +153,19 @@ version: 1
 defaultWorkflow: <workflow-id>
 ```
 
-`new` and `feature` are OpenSpec-backed by default and store state at:
+Every workflow — builtin or custom — is OpenSpec-backed by default, so all
+changes live in one place and the board's spec data source is uniform. State is
+stored at:
 
 ```text
 openspec/changes/<change>/.hikspine.yaml
 ```
 
-`fix` is lightweight by default and stores state at:
-
-```text
-.hikspine/changes/<change>.yaml
-```
+`fix` keeps a *lean* OpenSpec proposal (a short what/why), not a full design, so
+small changes stay fast while still being recorded and shown on the board. A
+workflow needs no `storage` field to get this; standalone storage
+(`.hikspine/changes/<change>.yaml`) remains only as an explicit `--storage
+standalone` override and for reading legacy changes.
 
 ## Workflow v2
 

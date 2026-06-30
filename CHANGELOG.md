@@ -1,3 +1,14 @@
+## What's Changed [0.6.25] - 2026-06-30
+
+### Changed
+
+- **统一存储：所有工作流默认 OpenSpec-backed（fix 用精简 spec）**: 删掉 `store.mjs` 里按 `workflow.id === 'fix'` 写死的存储判断（`createState` 与 `stateFileFor`），改为**默认 openspec**。这样：所有 change 统一在 `openspec/changes/<change>/`，目录不再分叉；看板的 spec 数据源一致；**自定义工作流零配置即获 OpenSpec 存储（不用改代码、不用写 `storage` 字段）**。standalone 仅作为显式 `--storage standalone` 覆盖项保留，并继续读取历史遗留 change。
+- **fix 工作流补一份精简 spec**: `fix.inspect` 增加 `openspec-propose` capability、`proposal_ready` 决策与"保持 proposal 精简（只写 what/why，跳过 design/详细 tasks/specs）"的规则，并 `forbid: write-source`。小改动既快又留痕、还能上看板。`fix` workflow `version` → 8。
+
+### Tests
+
+- **fix 存储与 spec 覆盖**: 更新 fix 工作流测试，验证 fix 状态落在 `openspec/changes/<change>/.hikspine.yaml`、`inspect` 同时暴露 `systematic-debugging` 与 `openspec-propose` 且需要 `issue_understood` + `proposal_ready`。共 113 passed。
+
 ## What's Changed [0.6.24] - 2026-06-30
 
 ### Fixed

@@ -1,16 +1,18 @@
 id: fix
-version: 7
+version: 8
 name: Fix
-intent: Fix a bug or make a small, lightweight change. Use when the change is well understood and low risk (including urgent production fixes) and does not need a design phase or OpenSpec artifacts.
+intent: Fix a bug or make a small, lightweight change. Use when the change is well understood and low risk (including urgent production fixes) and does not need a full design phase. Still keeps a lean OpenSpec proposal as the record and the board's data source.
 start: inspect
 
 states:
   - id: inspect
-    goal: Understand the issue and the smallest safe change.
-    capabilities: [systematic-debugging]
+    goal: Understand the issue and capture a lean OpenSpec proposal.
+    forbid: [write-source]
+    capabilities: [systematic-debugging, openspec-propose]
     rules:
       - To understand the bug and its blast radius in the existing code, prefer the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) over blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
-    needs: [issue_understood]
+      - Keep the OpenSpec proposal lean — a short proposal.md describing what is broken and the intended fix. Skip design.md and detailed tasks/specs for a small change; the spec is a fast record and the board's data source, not a heavy artifact.
+    needs: [issue_understood, proposal_ready]
     next: fix
 
   - id: fix
