@@ -1,3 +1,14 @@
+## What's Changed [0.6.13] - 2026-06-30
+
+### Fixed
+
+- **看板产物发现范围**: 看板不再只扫描 `openspec/changes/<change>`，现在会合并 `state.artifacts`、OpenSpec change 目录、`.hikspine/artifacts/<change>`、`.hikspine/changes/<change>` 目录以及常见 docs change 目录中的 Markdown 产物，`fix` 等非 OpenSpec 工作流也能在任务卡里显示阶段产物并预览。
+- **阶段产物空状态**: 任务卡在没有发现 Markdown 产物时会显示明确的空状态，避免看起来像“产物预览功能没渲染”。
+
+### Tests
+
+- **非 OpenSpec 产物覆盖**: 扩展 board 聚合测试，验证 `.hikspine/artifacts/<change>` 下的 Markdown 会出现在看板数据中，并按阶段归类。
+
 ## What's Changed [0.6.12] - 2026-06-30
 
 ### Added

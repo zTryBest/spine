@@ -113,6 +113,7 @@
   .artifact-files { display:flex; flex-wrap:wrap; gap:7px; min-width:0; }
   .artifact-btn { color:#dbe7ff; background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:4px 8px; font:inherit; font-size:11px; cursor:pointer; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .artifact-btn:hover { border-color:rgba(110,168,254,.65); }
+  .artifact-empty { color:var(--dim); font-size:11px; font-style:italic; }
   .workflow-detail { background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
   .workflow-detail-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
   .workflow-detail-head b { font-size:15px; }
@@ -467,7 +468,7 @@ function timeline(c) {
 }
 function artifactList(c) {
   const artifacts = Array.isArray(c.artifacts) ? c.artifacts : [];
-  if (!artifacts.length) return '';
+  if (!artifacts.length) return '<div class="artifacts"><div class="artifact-head">'+(lang==='zh'?'阶段产物':'Stage artifacts')+'</div><div class="artifact-empty">'+(lang==='zh'?'未发现 Markdown 产物':'No Markdown artifacts found')+'</div></div>';
   const baseStages = Array.isArray(c.stages) ? c.stages : [];
   const extraStages = artifacts.map(a => a.stage || 'openspec').filter(stage => !baseStages.includes(stage));
   const stages = [...baseStages, ...extraStages];

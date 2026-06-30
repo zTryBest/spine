@@ -44,10 +44,11 @@ function stageDurations(workflow, state) {
   return totals;
 }
 
-function artifactStage(relPath) {
+function artifactStage(relPath, stages = []) {
   const p = toPosix(relPath).toLowerCase();
   const name = path.posix.basename(p);
-  if (name === 'proposal.md' || name === 'tasks.md' || p.includes('/specs/')) return 'openspec';
+  const hasStage = (id) => stages.includes(id);
+  if (name === 'proposal.md' || name === 'tasks.md' || p.includes('/specs/')) return hasStage('openspec') ? 'openspec' : (hasStage('open') ? 'open' : 'openspec');
   if (name === 'design.md') return 'design';
   if (p.includes('/plans/') || name.includes('plan')) return 'build';
   if (name.includes('review')) return 'review';
@@ -82,21 +83,80 @@ function listMarkdownFiles(dir, out = []) {
   return out;
 }
 
-function changeArtifacts(root, change) {
-  const base = path.join(root, 'openspec', 'changes', change);
-  return listMarkdownFiles(base)
-    .map((file) => {
-      const stat = fs.statSync(file);
-      const relative = rel(root, file);
-      return {
-        path: relative,
-        title: artifactLabel(path.relative(base, file)),
-        stage: artifactStage(path.relative(base, file)),
-        size: stat.size,
-        updatedAt: stat.mtime.toISOString(),
-      };
-    })
-    .sort((a, b) => a.stage.localeCompare(b.stage) || a.path.localeCompare(b.path));
+function resolveArtifactPath(root, state, value) {
+  const rendered = String(value || '').replaceAll('{change}', state.change || '');
+  if (!rendered) return '';
+  return path.isAbsolute(rendered) ? rendered : path.join(root, rendered);
+}
+
+function artifactValues(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap((item) => artifactValues(item));
+  if (typeof value === 'object') return artifactValues(value.path || value.file || value.outputPath || value.resolvedOutputPath || value.existingOutputPaths);
+  return [value];
+}
+
+function pushArtifact(out, seen, root, base, file, stages, source) {
+  if (!file || !/\.md$/i.test(file)) return;
+  let stat;
+  try {
+    stat = fs.statSync(file);
+  } catch {
+    return;
+  }
+  if (!stat.isFile()) return;
+  const rootAbs = path.resolve(root);
+  const abs = path.resolve(file);
+  if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) return;
+  const key = process.platform === 'win32' ? abs.toLowerCase() : abs;
+  if (seen.has(key)) return;
+  seen.add(key);
+  const local = base ? path.relative(base, abs) : rel(root, abs);
+  out.push({
+    path: rel(root, abs),
+    title: artifactLabel(local),
+    stage: artifactStage(local, stages),
+    size: stat.size,
+    updatedAt: stat.mtime.toISOString(),
+    source,
+  });
+}
+
+function candidateArtifactDirs(root, state) {
+  const change = state.change;
+  return [
+    ['openspec', path.join(root, 'openspec', 'changes', change)],
+    ['hikspine', path.join(root, '.hikspine', 'artifacts', change)],
+    ['hikspine', path.join(root, '.hikspine', 'changes', change)],
+    ['docs', path.join(root, 'docs', 'changes', change)],
+    ['docs', path.join(root, 'docs', 'hikspine', change)],
+  ];
+}
+
+function changeArtifacts(root, state, stages) {
+  const out = [];
+  const seen = new Set();
+
+  if (state.artifacts && typeof state.artifacts === 'object' && !Array.isArray(state.artifacts)) {
+    for (const [name, value] of Object.entries(state.artifacts)) {
+      for (const artifactValue of artifactValues(value)) {
+        const file = resolveArtifactPath(root, state, artifactValue);
+        pushArtifact(out, seen, root, path.dirname(file), file, stages, `state:${name}`);
+      }
+    }
+  }
+
+  for (const [source, dir] of candidateArtifactDirs(root, state)) {
+    for (const file of listMarkdownFiles(dir)) pushArtifact(out, seen, root, dir, file, stages, source);
+  }
+
+  return out.sort((a, b) => {
+    const sa = stages.indexOf(a.stage);
+    const sb = stages.indexOf(b.stage);
+    const ia = sa === -1 ? Number.MAX_SAFE_INTEGER : sa;
+    const ib = sb === -1 ? Number.MAX_SAFE_INTEGER : sb;
+    return ia - ib || a.stage.localeCompare(b.stage) || a.path.localeCompare(b.path);
+  });
 }
 
 function workflowDetails(root, summary) {
@@ -141,7 +201,7 @@ export function changeSummary(root, change, active) {
       stages,
       stageIndex: stages.indexOf(sum.current),
       stageDurations: stageDurations(workflow, state),
-      artifacts: changeArtifacts(root, change),
+      artifacts: changeArtifacts(root, state, stages),
       decisions: state.decisions || {},
       history,
       startedAt: history.length ? history[0].at : null,

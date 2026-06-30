@@ -471,6 +471,8 @@ eq "skills discovers project scope skills" \
 # Two concurrent changes on different workflows coexist
 run next bug-1 --workflow fix --json > /dev/null
 run next feat-x --workflow feature --json > /dev/null
+mkdir -p "$T/.hikspine/artifacts/bug-1"
+printf '%s\n' '# Verify' '' 'Focused verification artifact.' > "$T/.hikspine/artifacts/bug-1/verify.md"
 mkdir -p "$T/openspec/changes/feat-x/specs/auth"
 printf '%s\n' '# Proposal' '' 'Feature proposal artifact.' > "$T/openspec/changes/feat-x/proposal.md"
 printf '%s\n' '# Auth spec' '' 'Spec artifact.' > "$T/openspec/changes/feat-x/specs/auth/spec.md"
@@ -493,7 +495,9 @@ eq "board changes carry history and decisions" \
 eq "board exposes workflow stage details" \
   "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities)))" && echo yes || echo no)" "yes"
 eq "board exposes stage durations and markdown artifacts" \
-  "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>typeof c.stageDurations==='object' && Array.isArray(c.artifacts)) && j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('proposal.md') && a.stage==='openspec')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>typeof c.stageDurations==='object' && Array.isArray(c.artifacts)) && j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('proposal.md') && a.stage==='open')" && echo yes || echo no)" "yes"
+eq "board discovers standalone Hikspine markdown artifacts" \
+  "$(printf '%s' "$BOARD" | json_test "j.changes.find(c=>c.change==='bug-1').artifacts.some(a=>a.path.endsWith('.hikspine/artifacts/bug-1/verify.md') && a.stage==='verify')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
