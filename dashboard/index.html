@@ -44,6 +44,7 @@
 
   .notice-module { margin:20px 0 0; border:1px solid rgba(231,189,83,.34); border-radius:8px; overflow:hidden;
     background:linear-gradient(180deg,rgba(35,31,20,.96),rgba(17,20,25,.98)); box-shadow:0 18px 42px -30px rgba(231,189,83,.72); animation:rise .35s ease both; }
+  body.no-enter-animation .notice-module, body.no-enter-animation .card { animation:none; }
   .notice-module[hidden] { display:none; }
   .notice-head { display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid rgba(231,189,83,.16); }
   .notice-mark { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex:0 0 auto;
@@ -268,6 +269,8 @@ const api = (p,o) => fetch(p,o).then(r=>r.json());
 
 let lang = localStorage.getItem('hikspine-lang') || 'zh';
 let last = null;
+let lastRenderKey = '';
+let hasRendered = false;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
@@ -894,6 +897,8 @@ async function markNotifications(payload) {
 
 function renderAll() {
   if (!last) return;
+  const replayEnterAnimation = !hasRendered;
+  document.body.classList.toggle('no-enter-animation', !replayEnterAnimation);
   document.documentElement.lang = (lang==='zh') ? 'zh-CN' : 'en';
   $('title').textContent = t('title');
   $('subtitle').textContent = t('subtitle');
@@ -909,10 +914,12 @@ function renderAll() {
   renderStats(last.changes || []);
   renderChanges(last.changes || []);
   renderWorkflows(last.workflows || []);
+  hasRendered = true;
+  document.body.classList.add('no-enter-animation');
 }
 
 function setLang(l) {
-  lang = l; localStorage.setItem('hikspine-lang', l); renderAll();
+  lang = l; localStorage.setItem('hikspine-lang', l); lastRenderKey = ''; renderAll();
 }
 $('lzh').onclick = () => setLang('zh');
 $('len').onclick = () => setLang('en');
@@ -923,6 +930,9 @@ async function refresh() {
   let s;
   try { s = await api('/api/state'); } catch (e) { s = DEMO; }
   if (!s.demo && (!s.changes)) s.demo = true;
+  const renderKey = JSON.stringify(s) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
+  if (renderKey === lastRenderKey) return;
+  lastRenderKey = renderKey;
   last = s;
   renderAll();
 }
