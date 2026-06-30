@@ -53,7 +53,20 @@ If the user did not name a workflow and the project has no `defaultWorkflow`, pi
 node "$HIKSPINE_ENGINE" workflows --json
 ```
 
-Each workflow declares an `intent` describing when it applies. Match the request and the current project state against those intents — e.g. a bug or small lightweight change (including an urgent production fix) fits `fix`, a new requirement in an existing codebase fits `feature`, an empty repo (0 to 1) fits `new`. Weigh real signals: blast radius, whether a design is needed, whether code already exists (`git` status, file layout). If two workflows fit comparably, ask the user with `AskQuestion` instead of guessing. Then start the change with the chosen `--workflow`.
+Each workflow declares an `intent`. Before choosing, **actually check whether the project already has source code — never assume it is empty.** Probe the real project root first:
+
+```bash
+git -C <project-root> ls-files | head        # tracked files (empty output ≈ fresh repo)
+ls -A <project-root>                          # or list the tree
+```
+
+Then match the request and the real project state to the intents:
+
+- **`new`** — only for a fresh/empty repo with essentially no source code (0 → 1, includes scaffolding). **If the project already contains source code, never choose `new`.**
+- **`feature`** — a new requirement or non-trivial change in an existing codebase.
+- **`fix`** — a bug or small, lightweight change (including an urgent production fix).
+
+Weigh real signals: whether code already exists (the decisive one for `new` vs the others), blast radius, whether a design is needed. If two workflows fit comparably, ask the user with `AskQuestion` instead of guessing. Then start the change with the chosen `--workflow`.
 
 Several changes can be in flight at once, each on its own workflow. List them with:
 

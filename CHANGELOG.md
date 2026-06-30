@@ -1,3 +1,9 @@
+## What's Changed [0.6.11] - 2026-06-30
+
+### Fixed
+
+- **workflow 自动选择误判空项目**: 修复 Agent 明明项目里有代码、却判成空项目而错选 `new` 的问题。`new`/`feature`/`fix` 的选择原来只在技能里软性提了一句"看是否已有代码"，不够硬。三处（两份 spine skill 的"选择 workflow"段 + 分发规则 `rules/hikspine-workflow.md`）改为：选之前**必须先用命令真实检查**（`git ls-files` / `ls -A`），并加硬规则——`new` 只用于几乎没有源码的全新/空仓库，**项目里已有源码就绝不选 `new`**，改选 `feature` 或 `fix`。"是否已有代码"被明确为 `new` 与其它两者的决定性区别。
+
 ## What's Changed [0.6.10] - 2026-06-30
 
 ### Fixed

@@ -4,6 +4,7 @@ These project rules are distributed from the Hikspine plugin into `.claude/rules
 
 - Treat `/hs` as a natural-language trigger for the `hikspine` skill, not as a slash-command file.
 - Drive Hikspine with two verbs only: `next` (show the current state's missing decisions and composable skills) and `decide <key> <value>` (record a decision).
+- When selecting a workflow, first check whether the project already has source code (e.g. `git ls-files`); do not assume it is empty. Choose `new` only for an essentially empty/fresh repo — if source code already exists, choose `feature` or `fix`, never `new`.
 - The only thing that advances the workflow is `decide`. `next` reads decisions, not files; calling `next` alone never moves forward.
 - After finishing a state's work, record every decision in its `needs` with `decide`. Do not stop and ask the user "should I move to the next phase?" after producing artifacts unless the state is `requiresUser: true`.
 - Compose skills from the state's `capabilities`; do not replace a skill that clearly applies with a handwritten approximation.

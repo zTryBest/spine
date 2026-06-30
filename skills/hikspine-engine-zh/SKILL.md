@@ -51,7 +51,20 @@ node "$HIKSPINE_ENGINE" next <change> --json                            # 已存
 node "$HIKSPINE_ENGINE" workflows --json
 ```
 
-每个 workflow 声明了 `intent`，说明它适用什么场景。把需求 + 当前项目现状对照各 `intent` 匹配——bug 或小的轻量变动（含线上紧急修复）配 `fix`、已有代码库加新需求配 `feature`、空仓库从 0 到 1 配 `new`。要看真实信号：影响范围、是否需要设计、是否已有代码（`git` 状态、目录结构）。两个 workflow 旗鼓相当时用 `AskQuestion` 让用户拍板，不要乱猜。然后用选中的 `--workflow` 启动 change。
+每个 workflow 声明了 `intent`。选之前**必须先真实检查项目里有没有代码——不要凭感觉判定为空项目**。先探一下项目根目录：
+
+```bash
+git -C <项目根目录> ls-files | head        # 已跟踪文件（输出为空 ≈ 全新仓库）
+ls -A <项目根目录>                          # 或直接看目录
+```
+
+再把需求 + 真实项目现状对照 `intent`：
+
+- **`new`** —— 仅用于几乎没有源码的全新/空仓库（从 0 到 1，含脚手架）。**项目里已经有源码时，绝不选 `new`。**
+- **`feature`** —— 已有代码库里的新需求或较大变更。
+- **`fix`** —— bug 或小的轻量变动（含线上紧急修复）。
+
+权衡真实信号：是否已有代码（这是 `new` 与其它两者的决定性区别）、影响范围、是否需要设计。两个 workflow 旗鼓相当时用 `AskQuestion` 让用户拍板，不要乱猜。然后用选中的 `--workflow` 启动 change。
 
 多个 change 可以同时在跑，各自一条 workflow：
 
