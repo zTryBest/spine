@@ -356,10 +356,11 @@ node "$HIKSPINE_ENGINE" changes [--json]
 
 ## 10. Guard 与 Hook
 
-Hook 只负责 guard，不参与主编排（`hooks/guard.mjs` + `lib/checks.mjs` 的 `checkGuard`）。
+Hook 不参与主编排，只做边界保护与生命周期清理：`hooks/guard.mjs` 调用 `lib/checks.mjs` 的 `checkGuard`，`hooks/cleanup-ui.mjs` 在 session 结束时清理当前项目的 Hikspine UI 后台进程。
 
 ```text
 PreToolUse：读当前状态的 forbid，拦截不允许的写操作
+SessionEnd：读取 .hikspine/hikspine-ui.pid，清理当前项目的新鲜 Hikspine UI 进程
 ```
 
 判定逻辑：

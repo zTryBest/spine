@@ -1,12 +1,19 @@
+## What's Changed [0.6.10] - 2026-06-30
+
+### Fixed
+
+- **Windows 项目根路径规范化**: `hikspine-ui` skill 启动看板前会优先用 `cygpath -aw` 把 Git Bash/MSYS 路径转成 Windows 原生绝对路径，避免 `/e/AI/examples` 或反斜杠路径在 Node 中被当成相对路径，导致看板服务到 `E:\AI\examples\eAIexamples` 这类错误目录。
+- **project-root 兜底解析**: 引擎补充识别 `e/AI/examples` 与 `E:AIexamples` 这类轻微损坏的 Windows 路径输入，减少 shell 路径转换异常时被 `path.resolve()` 拼到当前工作目录后的概率。
+
 ## What's Changed [0.6.9] - 2026-06-30
 
 ### Added
 
-- **SessionEnd 自动清理 UI**: 新增 Claude Code `SessionEnd` hook，在 session 结束时读取当前项目 `.hikspine/hikspine-ui.pid`，确认对应进程确实是 Hikspine UI 后再终止，避免用户退出会话后看板后台进程继续残留。
+- **SessionEnd 自动清理 UI**: 新增 Claude Code `SessionEnd` hook，在 session 结束时读取当前项目 `.hikspine/hikspine-ui.pid` 并终止对应 UI 进程，避免用户退出会话后看板后台进程继续残留。
 
 ### Changed
 
-- **UI 进程清理更安全**: 清理逻辑会校验进程命令行包含 `hikspine.mjs ui`，如果 pid 文件陈旧或 pid 已被复用，不会误杀无关进程，并会清理陈旧 pid 文件。
+- **UI 进程清理更安全**: 清理逻辑在能读取命令行时会校验其包含 `hikspine.mjs ui`；命令行不可读取时只清理新鲜 pid 文件，避免陈旧 pid 文件误杀无关进程。
 
 ## What's Changed [0.6.8] - 2026-06-30
 

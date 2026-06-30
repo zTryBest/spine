@@ -10,6 +10,16 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -lc 'norm(){ r=\"${1:-}\"; r=\"${r//\\\\//}\"; while [ \"${#r}\" -gt 1 ] && [ \"${r%/}\" != \"$r\" ]; do r=\"${r%/}\"; done; printf \"%s\\n\" \"$r\"; }; cleanup=\"\"; for c in \"${HIKSPINE_PLUGIN_ROOT:-}\" \"${CLAUDE_PLUGIN_ROOT:-}\" \"$(pwd)\" \"$(git rev-parse --show-toplevel 2>/dev/null || true)\"; do c=\"$(norm \"$c\")\"; [ -n \"$c\" ] && [ -f \"$c/hooks/cleanup-ui.sh\" ] && cleanup=\"$c/hooks/cleanup-ui.sh\" && break; done; if [ -z \"$cleanup\" ]; then for b in \"${HOME:-}\" \"${USERPROFILE:-}\" \"${APPDATA:-}\" \"${LOCALAPPDATA:-}\" \"/mnt/c/Users\" \"/mnt/d\" \"/mnt/e\"; do [ -n \"$b\" ] || continue; cleanup=\"$(find \"$b\" -maxdepth 10 -path \"*/hooks/cleanup-ui.sh\" -print -quit 2>/dev/null || true)\"; [ -n \"$cleanup\" ] && break; done; fi; if [ -n \"$cleanup\" ]; then exec bash \"$cleanup\"; fi; echo \"[HIKSPINE-HOOK] cleanup skipped: cannot locate hikspine hook\" >&2; exit 0'"
+          }
+        ]
+      }
     ]
   }
 }

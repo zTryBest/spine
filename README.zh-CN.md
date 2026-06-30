@@ -31,8 +31,8 @@ src/workflows/
 rules/
   插件作者维护的项目规则，会被复制到 `.claude/rules`。
 
-hooks/guard.mjs
-  Claude Code PreToolUse hook 桥接，直接调用 guard 逻辑。
+hooks/guard.mjs、hooks/cleanup-ui.mjs
+  Claude Code hook 桥接。PreToolUse 调用 guard 逻辑；SessionEnd 会关闭当前项目启动的 Hikspine UI 进程。
 ```
 
 仓库里不再提供 Claude command 文件。`/hs` 只是触发 `hikspine` skill 的文本约定。

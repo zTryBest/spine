@@ -31,6 +31,10 @@ function normalizeProjectRootInput(value) {
   if (wsl) return `${wsl[1].toUpperCase()}:/${wsl[2]}`;
   const gitBash = raw.match(/^\/([a-z])\/(.*)$/i);
   if (gitBash) return `${gitBash[1].toUpperCase()}:/${gitBash[2]}`;
+  const gitBashNoLeadingSlash = raw.match(/^([a-z])\/(.*)$/i);
+  if (gitBashNoLeadingSlash) return `${gitBashNoLeadingSlash[1].toUpperCase()}:/${gitBashNoLeadingSlash[2]}`;
+  const driveRelative = raw.match(/^([a-z]):([^/].*)$/i);
+  if (driveRelative) return `${driveRelative[1].toUpperCase()}:/${driveRelative[2]}`;
   return raw;
 }
 

@@ -149,6 +149,12 @@ eq "board can read another project with --project-root" \
   "$(printf '%s' "$BOARD_FROM_REPO" | json_get "j.changes.some(c=>c.change==='entrance-monitor') ? 'yes' : 'no'")" "yes"
 ENV_ACTIVE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'process.env.HIKSPINE_PROJECT_ROOT = process.argv[1]; const { resolveProjectRoot } = await import("./src/utils.mjs"); const { boardState } = await import("./src/board.mjs"); console.log(boardState(resolveProjectRoot({})).active);' "$PROJECT_ROOT_ARG")"
 eq "board can read another project from HIKSPINE_PROJECT_ROOT" "$ENV_ACTIVE" "entrance-monitor"
+if "$NODE_BIN" -e "process.exit(process.platform === 'win32' ? 0 : 1)" >/dev/null 2>&1; then
+  REPO_NATIVE="$(node_path "$REPO")"
+  REPO_SLASHLESS="$(printf '%s' "$REPO_NATIVE" | sed -E 's#^([A-Za-z]):#\L\1#; s#\\#/#g')"
+  ROOT_NORMALIZED="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const expected = process.argv[1].toLowerCase().replace(/\\/g, "/"); const input = process.argv[2]; const { resolveProjectRoot } = await import("./src/utils.mjs"); console.log(resolveProjectRoot({"project-root": input}).toLowerCase().replace(/\\/g, "/") === expected ? "yes" : "no");' "$REPO_NATIVE" "$REPO_SLASHLESS")"
+  eq "project-root normalizes Git Bash drive paths without leading slash" "$ROOT_NORMALIZED" "yes"
+fi
 
 # --- advance to design via decisions ---
 DECIDE1="$(run decide requirements_clarified --json)"

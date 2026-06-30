@@ -35,8 +35,9 @@ src/workflows/
 rules/
   Plugin-authored project rules that are copied into `.claude/rules`.
 
-hooks/guard.mjs
-  Claude Code PreToolUse bridge. Calls the guard logic directly.
+hooks/guard.mjs, hooks/cleanup-ui.mjs
+  Claude Code hook bridges. PreToolUse calls the guard logic; SessionEnd stops
+  a Hikspine UI process started for the current project.
 ```
 
 There are no Claude command files. Treat `/hs` as a natural-language convention that triggers the `hikspine` skill.

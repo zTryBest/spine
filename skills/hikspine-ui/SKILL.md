@@ -41,7 +41,16 @@ fi
 [ -n "$_hs_env_file" ] || { echo "ERROR: cannot locate hikspine-env.sh; set HIKSPINE_PLUGIN_ROOT to the hikspine plugin root." >&2; exit 1; }
 . "$_hs_env_file" || exit 1
 
-PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)}"
+_hs_project_root() {
+  local r="${PROJECT_ROOT:-}"
+  if [ -z "$r" ]; then r="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"; fi
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -aw "$r" 2>/dev/null && return 0
+  fi
+  printf '%s\n' "$r"
+}
+
+PROJECT_ROOT="$(_hs_project_root)"
 PORT="${PORT:-4319}"
 mkdir -p "$PROJECT_ROOT/.hikspine"
 LOG_FILE="$PROJECT_ROOT/.hikspine/hikspine-ui.log"
