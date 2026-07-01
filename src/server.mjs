@@ -196,6 +196,16 @@ export function createBoardServer(root) {
         sendJson(res, 200, result);
         return;
       }
+      // Manual failsafe for when the SessionEnd cleanup hook does not fire (or
+      // fails) and the UI process is left running: let the board stop itself.
+      if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+        sendJson(res, 200, { stopping: true, pid: process.pid });
+        res.on('finish', () => {
+          try { unregisterUiPid(root); } catch {}
+          setTimeout(() => process.exit(0), 50);
+        });
+        return;
+      }
       sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
       sendJson(res, 500, { error: err.message });

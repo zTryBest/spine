@@ -139,6 +139,11 @@ export function computeNext(root, workflow, state) {
     workflow: state.workflow,
     ...summarize(workflow, state),
     capabilities: list(s.capabilities).map((raw) => resolveCapability(index, raw)),
+    // Decisions recorded so far (key -> value). A capability's `when` condition
+    // may reference an earlier decision (e.g. load test-driven-development only
+    // when a tdd_mode=true decision was recorded in an earlier state), so the
+    // agent needs to see them without re-reading the state file.
+    decisions: { ...(state.decisions || {}) },
     rollback: state.rollback || null,
     transitions,
     // Skill-agnostic reminder: composed skills decide HOW to do the work;

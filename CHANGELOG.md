@@ -1,3 +1,19 @@
+## What's Changed [0.6.35] - 2026-07-01
+
+### Added
+
+- **看板展示项目构建信息/组件(project-build.json)**: 看板新增“构建信息 / 组件”区块,读取 `.hikspine/project-build.json`,以表格展示每个组件的**组件标识、SVN 地址**及模块/构建类型/产物,顶部展示 project 级信息。`board.mjs` 新增 `readProjectBuild`(容错解析数组 / `{components}` / 单组件三种形态),`boardState` 输出 `projectBuild`;scaffold 阶段的记录规则改为明确 JSON 结构(project + components[])方便看板稳定渲染;dashboard demo 数据也带了示例。
+- **看板退出按钮(SessionEnd 兜底)**: 当 SessionEnd 清理 hook 没触发或失败、UI 进程残留时,看板右上角新增“退出看板”按钮,POST 新端点 `/api/shutdown` 让 board 进程自行 `unregisterUiPid` 后退出(仅实时看板显示,demo 不显示)。
+- **TDD 模式(设计阶段询问,build 条件启用)**: `new`/`feature` 的 design 阶段新增规则,征询确认时一并询问是否启用 TDD,记为 `tdd_mode` 决策(`design.needs` 增加 `tdd_mode`);build 阶段新增条件 capability `test-driven-development`(`when: tdd_mode 为 true`)和规则——tdd_mode 为 true 时,无论用 executing-plans 还是 subagent-driven-development 都必须先写失败测试。为此引擎 `next` 输出新增 `decisions` 字段(已记录决策 key→value),让 build 能读到 design 记的 `tdd_mode`。
+
+### Changed
+
+- **subAgent 并发上限 3(公司并发限制)**: `new`/`feature` 的 design(writing-plans 分片)和 build(subagent-driven-development)新增规则——最多同时 3 个 subAgent,超出按每批 3 个分批跑、每批跑完再开下一批,避免公司并发限制导致 subAgent 超时。`new`→16、`feature`→13;`docs/workflows-zh/*` 同步。
+
+### Tests
+
+- **TDD / 并发 / 决策暴露覆盖**: 测试更新 `new`/`feature` 走查路径经过 `tdd_mode` 决策才进 build,新增断言验证 design 询问 tdd_mode、build 暴露 `test-driven-development(when)`、`next` 输出 `decisions.tdd_mode`、design/build 规则含“at most 3”并发上限。共 137 passed。
+
 ## What's Changed [0.6.34] - 2026-07-01
 
 ### Changed

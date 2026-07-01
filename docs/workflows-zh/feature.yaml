@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/feature.yaml。
 
 id: feature
-version: 12
+version: 13
 name: 功能开发
 intent: 在已有项目中开发新功能或较大变更。适用于需要澄清需求、形成设计，并在实现前创建 OpenSpec 产物的工作。
 start: open
@@ -33,10 +33,12 @@ states:
       - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
       - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
       - 如果 specs/**/*.md 超过一个文件，或 tasks.md 超过 6 个任务组，则按 spec 分片计划：每个 spec 派发一个 writing-plans subAgent，传入 proposal.md、tasks.md、可选 design.md，以及一个明确的 specs/{spec-id}/spec.md 路径。每个子计划写入 docs/superpowers/plans/{change}-{spec-id}.md。
+      - 最多同时派发 3 个 writing-plans subAgent（公司并发限制）。分片超过 3 个时，按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
       - 分片子计划都生成后，创建一个精简 manifest 到 docs/superpowers/plans/{change}.md，链接所有子计划，说明执行顺序、共享契约和集成验证。不要在 manifest 里重复子计划的详细实现步骤。
       - 主 Agent 只带回 manifest 或计划路径、分片时的子计划路径、简要摘要和阻塞点，然后请求用户确认。
       - 设计需要基于现有代码：使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`）追踪将要触达区域的调用路径和影响范围；如果 codegraph 不可用，再回退到普通搜索。
-    needs: [design_documented, design_confirmed]
+      - 征询确认时，一并询问用户是否为 build 启用 TDD 模式（test-driven-development）。把回答记为 tdd_mode 决策——运行 `decide tdd_mode true` 或 `decide tdd_mode false`——build 阶段会读取它。
+    needs: [design_documented, tdd_mode, design_confirmed]
     next: build
 
   - id: build
@@ -44,8 +46,11 @@ states:
     capabilities:
       - { id: executing-plans, group: driver }
       - { id: subagent-driven-development, group: driver }
+      - { id: test-driven-development, when: design 阶段的 tdd_mode 决策为 true 时 }
     rules:
-      - 编辑源码前必须选择且只选择一个实现 skill。小型、本地、基本顺序执行的改动使用 executing-plans；如果实现能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+      - 编辑源码前必须选择且只选择一个实现驱动。小型、本地、基本顺序执行的改动使用 executing-plans；如果实现能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+      - 当 design 阶段记录的 tdd_mode 决策为 true（见 next 输出的 decisions 字段），实现必须遵循 test-driven-development——加载该 skill，先写失败测试再写代码，无论用哪个驱动。tdd_mode 为 false 时正常实现，不加载它。
+      - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent（公司并发限制）；模块更多时按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
     needs: [implemented]
     next: review
 

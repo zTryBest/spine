@@ -1,5 +1,5 @@
 id: feature
-version: 12
+version: 13
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -33,10 +33,12 @@ states:
       - Run writing-plans in subagents (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, design.md, or OpenSpec summaries into the prompt.
       - Single-plan handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, optional openspec/changes/{change}/design.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs and write docs/superpowers/plans/{change}.md.
       - If specs/**/*.md has more than one file, or tasks.md has more than 6 task groups, shard the plan by dispatching one writing-plans subagent per spec, passing proposal.md, tasks.md, optional design.md, and exactly one specs/{spec-id}/spec.md path. Each child plan writes docs/superpowers/plans/{change}-{spec-id}.md.
+      - Dispatch at most 3 writing-plans subagents concurrently (company concurrency limit). If there are more shards than that, run them in batches of 3 and wait for each batch to finish before starting the next, so subagents do not time out.
       - After sharded child plans exist, create a concise manifest at docs/superpowers/plans/{change}.md that links child plans, states execution order, shared contracts, and integration verification. Do not duplicate child implementation steps in the manifest.
       - The main agent should bring back only the manifest or plan path, child plan paths when sharded, a concise summary, and any blockers, then ask the user to confirm.
       - Ground the design in the existing code via the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) — trace call paths and blast radius for the areas you will touch. Fall back to normal search if codegraph is unavailable.
-    needs: [design_documented, design_confirmed]
+      - While getting confirmation, also ask the user whether to enable TDD mode (test-driven-development) for the build. Record the answer as the tdd_mode decision — run `decide tdd_mode true` or `decide tdd_mode false` — the build stage reads it.
+    needs: [design_documented, tdd_mode, design_confirmed]
     next: build
 
   - id: build
@@ -44,8 +46,11 @@ states:
     capabilities:
       - { id: executing-plans, group: driver }
       - { id: subagent-driven-development, group: driver }
+      - { id: test-driven-development, when: the tdd_mode decision from design is true }
     rules:
-      - Choose exactly one implementation skill before editing source. Use executing-plans for small, local, mostly sequential changes. Use subagent-driven-development when the implementation can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - Choose exactly one implementation driver before editing source. Use executing-plans for small, local, mostly sequential changes. Use subagent-driven-development when the implementation can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development — load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
+      - When using subagent-driven-development, run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before starting the next, so subagents do not time out.
     needs: [implemented]
     next: review
 

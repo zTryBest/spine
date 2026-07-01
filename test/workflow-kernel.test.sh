@@ -215,10 +215,19 @@ eq "decide design_documented stays in design" \
   "$(printf '%s' "$DECIDE3" | json_get 'j.current')" "design"
 eq "design still missing design_confirmed" \
   "$(printf '%s' "$DECIDE3" | json_get "j.missing.includes('design_confirmed') ? 'yes' : 'no'")" "yes"
+eq "design asks for tdd_mode before build" \
+  "$(printf '%s' "$DECIDE3" | json_get "j.missing.includes('tdd_mode') ? 'yes' : 'no'")" "yes"
 
+run decide tdd_mode true --json > /dev/null
 DECIDE4="$(run decide design_confirmed --json)"
 eq "decide design_confirmed advances to build" \
   "$(printf '%s' "$DECIDE4" | json_get 'j.current')" "build"
+eq "next exposes recorded decisions (tdd_mode)" \
+  "$(printf '%s' "$DECIDE4" | json_get "j.decisions && j.decisions.tdd_mode===true ? 'yes' : 'no'")" "yes"
+eq "build offers test-driven-development when tdd enabled (when tag)" \
+  "$(printf '%s' "$DECIDE4" | json_test "typeof (j.capabilities.find(c=>c.id==='test-driven-development')||{}).when==='string'" && echo yes || echo no)" "yes"
+eq "build caps subagents at 3 (company concurrency limit)" \
+  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/at most 3/.test(r) && /subagent/i.test(r))" && echo yes || echo no)" "yes"
 eq "build surfaces implementation skill selection rule" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/subagent/i.test(r))" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
@@ -370,7 +379,7 @@ eq "scaffold pulls backend/frontend conditionally (when tags)" \
 eq "scaffold initializes codegraph before design" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
 eq "scaffold records build manifest (component id + svn)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /component identifier/.test(r) && /SVN address/.test(r))" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /components/.test(r) && /svn/.test(r))" && echo yes || echo no)" "yes"
 eq "scaffold needs scaffolded" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_get "j.missing.includes('scaffolded') ? 'yes' : 'no'")" "yes"
 
@@ -385,11 +394,18 @@ eq "new design uses Superpowers-compatible file handoff" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/file handoff only/.test(r)) && j.rules.some(r=>/docs\\/superpowers\\/plans\\/\\{change\\}\\.md/.test(r))" && echo yes || echo no)" "yes"
 eq "new design shards multi-spec writing plans" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/do not Read proposal\\.md/.test(r)) && j.rules.some(r=>/shard the plan/.test(r)) && j.rules.some(r=>/\\{change\\}-\\{spec-id\\}\\.md/.test(r)) && j.rules.some(r=>/concise manifest/.test(r))" && echo yes || echo no)" "yes"
+eq "new design caps planning subagents at 3" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/at most 3/.test(r))" && echo yes || echo no)" "yes"
+eq "new design asks for tdd_mode" \
+  "$(printf '%s' "$NP_DESIGN" | json_get "j.missing.includes('tdd_mode') ? 'yes' : 'no'")" "yes"
 
 run decide design_documented --json > /dev/null
+run decide tdd_mode false --json > /dev/null
 NP_BUILD="$(run decide design_confirmed --json)"
 eq "design confirmation advances directly to build" \
   "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
+eq "build test-driven-development is conditional on tdd_mode (when tag)" \
+  "$(printf '%s' "$NP_BUILD" | json_test "typeof (j.capabilities.find(c=>c.id==='test-driven-development')||{}).when==='string'" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
   "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='executing-plans') && j.capabilities.some(c=>c.id==='subagent-driven-development') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
 eq "build drivers share a one-of group" \

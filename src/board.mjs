@@ -239,6 +239,41 @@ export function listChangeSummaries(root, active = getActive(root)) {
   return listStates(root).map((entry) => changeSummary(root, entry, active));
 }
 
+// Build/packaging manifest the scaffold stage records at
+// .hikspine/project-build.json: the component identifiers, SVN addresses, and
+// project info the later SVN-build (hido) stage consumes. Read leniently so the
+// board survives whatever exact shape the agent wrote (array, {components}, or a
+// single component object).
+function readProjectBuild(root) {
+  const file = path.join(root, '.hikspine', 'project-build.json');
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  let components = [];
+  let project = {};
+  if (Array.isArray(raw)) {
+    components = raw;
+  } else if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.components)) {
+      components = raw.components;
+      if (raw.project && typeof raw.project === 'object' && !Array.isArray(raw.project)) {
+        project = raw.project;
+      } else {
+        project = { ...raw };
+        delete project.components;
+      }
+    } else if (raw.component || raw.componentId || raw.svn || raw.svnUrl) {
+      components = [raw];
+    } else {
+      project = { ...raw };
+    }
+  }
+  return { path: rel(root, file), project, components: components.filter((c) => c && typeof c === 'object') };
+}
+
 export function boardState(root) {
   const active = getActive(root);
   const workflows = listWorkflows(root);
@@ -249,5 +284,6 @@ export function boardState(root) {
     workflows: workflows.map((workflow) => workflowDetails(root, workflow)),
     skills: discoverSkills(root),
     notifications: readNotifications(root),
+    projectBuild: readProjectBuild(root),
   };
 }

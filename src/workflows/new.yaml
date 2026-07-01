@@ -1,5 +1,5 @@
 id: new
-version: 15
+version: 16
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -32,7 +32,7 @@ states:
       - Decide from the confirmed proposal whether this project needs a backend, a frontend, or both, then pull only the scaffolds that apply — a project may need one or both.
       - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton; when a frontend is needed, use scaffold-starfish-initializr. Do not hand-write the skeleton.
       - After each skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
-      - Record the build metadata for each pulled scaffold to `.hikspine/project-build.json` — for every component write its component identifier and SVN address, plus any other project info the company build needs (module name, build type, output artifact). Keep this file the single source of truth; the later SVN build/packaging stage reads it, so append or update an entry each time you pull a scaffold instead of leaving it stale.
+      - Record the build metadata to `.hikspine/project-build.json` shaped as project plus a components array, where each component entry has component (组件标识), svn (svn 地址), and optional module, buildType, and artifact fields. Append or update one entry in components for each pulled scaffold, and keep this file the single source of truth — the board displays it and the later SVN build/packaging (hido) stage reads it.
     needs: [scaffolded]
     next: design
 
@@ -49,9 +49,11 @@ states:
       - Run writing-plans in subagents (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, design.md, or OpenSpec summaries into the prompt.
       - Single-plan handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, optional openspec/changes/{change}/design.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs and write docs/superpowers/plans/{change}.md.
       - If specs/**/*.md has more than one file, or tasks.md has more than 6 task groups, shard the plan by dispatching one writing-plans subagent per spec, passing proposal.md, tasks.md, optional design.md, and exactly one specs/{spec-id}/spec.md path. Each child plan writes docs/superpowers/plans/{change}-{spec-id}.md.
+      - Dispatch at most 3 writing-plans subagents concurrently (company concurrency limit). If there are more shards than that, run them in batches of 3 and wait for each batch to finish before starting the next, so subagents do not time out.
       - After sharded child plans exist, create a concise manifest at docs/superpowers/plans/{change}.md that links child plans, states execution order, shared contracts, and integration verification. Do not duplicate child implementation steps in the manifest.
       - The main agent should bring back only the manifest or plan path, child plan paths when sharded, a concise summary, and any blockers, then ask the user to confirm.
-    needs: [design_documented, design_confirmed]
+      - While getting confirmation, also ask the user whether to enable TDD mode (test-driven-development) for the build. Record the answer as the tdd_mode decision — run `decide tdd_mode true` or `decide tdd_mode false` — the build stage reads it.
+    needs: [design_documented, tdd_mode, design_confirmed]
     next: build
 
   - id: build
@@ -59,9 +61,12 @@ states:
     capabilities:
       - { id: executing-plans, group: driver }
       - { id: subagent-driven-development, group: driver }
+      - { id: test-driven-development, when: the tdd_mode decision from design is true }
       - { id: hui-pro, when: building any frontend UI component }
     rules:
       - Execution driver — pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development — load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
+      - When using subagent-driven-development, run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before starting the next, so subagents do not time out.
       - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement.
       - The skeleton was already scaffolded and indexed in the scaffold stage. Before modifying code, use the codegraph MCP tool `codegraph_explore` to locate the right files and understand call paths (run `codegraph init` only if the graph is missing). Fall back to normal search if codegraph is unavailable.
     needs: [implemented]

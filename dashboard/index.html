@@ -181,6 +181,17 @@
   .cap, .need { border:1px solid var(--line2); border-radius:999px; padding:3px 8px; font-size:11px; background:var(--panel2); color:#cbd5e8; }
   .cap { border-color:rgba(98,210,162,.32); background:rgba(98,210,162,.08); color:#d9f4e7; }
   .cap-tag { margin-left:6px; padding:1px 6px; border-radius:999px; font-size:10px; background:rgba(98,210,162,.18); color:#8ee6bd; }
+  .quit-btn { border:1px solid rgba(255,120,120,.4); background:rgba(255,90,90,.12); color:#ffb4b4; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  .quit-btn:hover { background:rgba(255,90,90,.22); }
+  .build-panel { margin-bottom:22px; }
+  .build-project { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .build-project .kv { font-size:11px; color:#9fb0cc; background:var(--panel2); border:1px solid var(--line2); border-radius:6px; padding:3px 8px; }
+  .build-project .kv b { color:#cbd5e8; font-weight:600; }
+  .build-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .build-table th, .build-table td { text-align:left; padding:7px 10px; border-bottom:1px solid rgba(255,255,255,.06); }
+  .build-table th { color:#8595b0; font-weight:600; font-size:11px; }
+  .build-table td.mono { font-family:ui-monospace,Menlo,Consolas,monospace; color:#d9e3f5; }
+  .build-table td .svn { color:#8bb7ff; word-break:break-all; }
   .need { color:var(--muted); background:transparent; }
   .stage-flags { color:var(--dim); font-size:11px; margin-top:7px; }
   .modal { position:fixed; inset:0; background:rgba(2,4,9,.76); backdrop-filter:blur(8px); display:grid; place-items:center; padding:24px; z-index:20; }
@@ -248,6 +259,7 @@
     <div class="hbar">
       <div class="lang"><button data-lang="zh" id="lzh">中文</button><button data-lang="en" id="len">EN</button></div>
       <div class="live"><span class="dot" id="dot"></span> <span id="livetext"></span></div>
+      <button class="quit-btn" id="quitBtn" type="button" hidden></button>
     </div>
   </header>
 
@@ -255,6 +267,9 @@
 
   <h2 id="secTasks"></h2>
   <div class="cards" id="changes"></div>
+
+  <h2 id="secBuild"></h2>
+  <div class="build-panel" id="projectBuild"></div>
 
   <h2 id="secWf"></h2>
   <div class="legend" id="legend"></div>
@@ -295,6 +310,7 @@ let last = null;
 let lastRenderKey = '';
 let hasRendered = false;
 let uiLabels = { stages:{} };
+let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
@@ -317,6 +333,9 @@ const I18N = {
     notice:'通知', noticeSub:(p,h)=>p+' 条待处理 · '+h+' 条已处理',
     nMarkDone:'处理', nMarkAll:'全部处理', nHandled:'已处理', nClose:'关闭', nEmpty:'暂无待处理通知',
     nPermission:'权限确认', nIdle:'等待你的输入', nElicit:'需要你输入',
+    secBuild:'构建信息 / 组件', buildEmpty:'还没有组件构建信息 — scaffold 阶段拉取脚手架后写入 .hikspine/project-build.json。',
+    bcComponent:'组件标识', bcSvn:'SVN 地址', bcModule:'模块', bcType:'构建类型', bcArtifact:'产物',
+    quit:'退出看板', quitConfirm:'确定要退出看板进程吗？退出后本页将失去实时数据。', quitDone:'看板进程已退出，可关闭此页。', quitFail:'退出请求失败，可能进程已停止。',
   },
   en: {
     title:'Hikspine Pipeline Board',
@@ -336,6 +355,9 @@ const I18N = {
     notice:'Notifications', noticeSub:(p,h)=>p+' pending · '+h+' handled',
     nMarkDone:'Handle', nMarkAll:'Mark all', nHandled:'Handled', nClose:'Close', nEmpty:'No pending notifications',
     nPermission:'Permission needed', nIdle:'Waiting for your input', nElicit:'Input requested',
+    secBuild:'Build info / Components', buildEmpty:'No component build info yet — the scaffold stage writes it to .hikspine/project-build.json when it pulls scaffolds.',
+    bcComponent:'Component', bcSvn:'SVN address', bcModule:'Module', bcType:'Build type', bcArtifact:'Artifact',
+    quit:'Quit board', quitConfirm:'Stop the board process? This tab will stop receiving live data.', quitDone:'Board process stopped — you can close this tab.', quitFail:'Shutdown request failed; the process may already be stopped.',
   },
 };
 const t = (k) => I18N[lang][k];
@@ -409,6 +431,9 @@ const skillDesc = (s) => (lang==='zh' && SKILL_ZH[s.name]) ? SKILL_ZH[s.name] : 
 const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
 const DEMO = {
   demo:true, root:'(demo) D:\\\\company\\\\pipeline', active:'access-control-v2',
+  projectBuild:{ project:{ name:'access-control', platform:'aries' }, components:[
+    { component:'access-backend', svn:'svn://svn.company.com/aries/access-backend/trunk', module:'monitor-config', buildType:'spring-boot', artifact:'access-backend.jar' },
+    { component:'access-web', svn:'svn://svn.company.com/starfish/access-web/trunk', module:'dashboard-display', buildType:'vite', artifact:'access-web.zip' } ] },
   notifications:[
     { id:'demo-1', at:ago(2), type:'idle_prompt', message:'access-control-v2 is waiting for your design confirmation' },
     { id:'demo-2', at:ago(18), type:'permission_prompt', message:'Allow editing openspec/changes/access-control-v2/design.md?', handledAt:ago(12), handled:true },
@@ -774,6 +799,41 @@ function renderChanges(changes) {
     card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); } catch(e){} refresh(); };
   });
 }
+
+// Project build manifest (.hikspine/project-build.json): component identifiers +
+// SVN addresses + project info recorded by the scaffold stage for the SVN build.
+function renderProjectBuild(pb) {
+  const host = $('projectBuild');
+  const components = (pb && Array.isArray(pb.components)) ? pb.components : [];
+  const project = (pb && pb.project && typeof pb.project === 'object') ? pb.project : {};
+  const projectKeys = Object.keys(project);
+  if (!components.length && !projectKeys.length) {
+    host.innerHTML = '<div class="need">'+esc(t('buildEmpty'))+'</div>';
+    return;
+  }
+  const projHtml = projectKeys.length
+    ? '<div class="build-project">'+projectKeys.map(k => '<span class="kv"><b>'+esc(k)+'</b>: '+esc(String(project[k]))+'</span>').join('')+'</div>'
+    : '';
+  const cell = (v) => v==null||v==='' ? '<span class="need">—</span>' : esc(String(v));
+  const rows = components.map(c => {
+    const id = c.component || c.componentId || c.id || c.name;
+    const svn = c.svn || c.svnUrl || c.url;
+    return '<tr>'+
+      '<td class="mono">'+cell(id)+'</td>'+
+      '<td class="mono"><span class="svn">'+cell(svn)+'</span></td>'+
+      '<td>'+cell(c.module)+'</td>'+
+      '<td>'+cell(c.buildType || c.type)+'</td>'+
+      '<td>'+cell(c.artifact)+'</td>'+
+    '</tr>';
+  }).join('');
+  const table = components.length
+    ? '<table class="build-table"><thead><tr>'+
+        '<th>'+t('bcComponent')+'</th><th>'+t('bcSvn')+'</th><th>'+t('bcModule')+'</th><th>'+t('bcType')+'</th><th>'+t('bcArtifact')+'</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>'
+    : '';
+  host.innerHTML = projHtml + table;
+}
+
 function renderWorkflows(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
   if (!workflows.length) {
@@ -973,6 +1033,7 @@ function renderAll() {
   $('title').textContent = t('title');
   $('subtitle').textContent = t('subtitle');
   $('secTasks').textContent = t('secTasks');
+  $('secBuild').textContent = t('secBuild');
   $('secWf').textContent = t('secWf');
   $('secWorkflowDetail').textContent = lang==='zh' ? '工作流阶段与技能' : 'Workflow stages & skills';
   $('root').textContent = last.root ? '  ·  '+last.root : '';
@@ -980,9 +1041,13 @@ function renderAll() {
   $('livetext').textContent = last.demo ? t('demo') : t('live');
   $('lzh').classList.toggle('on', lang==='zh');
   $('len').classList.toggle('on', lang==='en');
+  const quitBtn = $('quitBtn');
+  quitBtn.textContent = t('quit');
+  quitBtn.hidden = !!last.demo;   // only a live board can be stopped
   renderNotifications(last.notifications || []);
   renderStats(last.changes || []);
   renderChanges(last.changes || []);
+  renderProjectBuild(last.projectBuild);
   renderWorkflows(last.workflows || []);
   hasRendered = true;
   document.body.classList.add('no-enter-animation');
@@ -993,6 +1058,18 @@ function setLang(l) {
 }
 $('lzh').onclick = () => setLang('zh');
 $('len').onclick = () => setLang('en');
+$('quitBtn').onclick = async () => {
+  if (!confirm(t('quitConfirm'))) return;
+  try {
+    await api('/api/shutdown', { method:'POST' });
+    if (pollTimer) clearInterval(pollTimer);
+    $('dot').className = 'dot';
+    $('livetext').textContent = t('quitDone');
+    $('quitBtn').hidden = true;
+  } catch (e) {
+    alert(t('quitFail'));
+  }
+};
 $('artifactClose').onclick = closeArtifact;
 $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
 
@@ -1017,7 +1094,7 @@ if ('Notification' in window && Notification.permission === 'default') {
   try { Notification.requestPermission(); } catch (e) {}
 }
 refresh();
-setInterval(refresh, 2000);
+pollTimer = setInterval(refresh, 2000);
 </script>
 </body>
 </html>
