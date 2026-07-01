@@ -246,6 +246,8 @@ eq "build warns subagent helper scripts are not .mjs node scripts" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/scripts\\/task-brief/.test(r) && /scripts\\/review-package/.test(r) && /\\.mjs/.test(r) && /node/.test(r))" && echo yes || echo no)" "yes"
 eq "build handles worktree isolation failure (fall back without it)" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/worktree/i.test(r) && /without/i.test(r))" && echo yes || echo no)" "yes"
+eq "build keeps per-task skills out of the main session under SDD" \
+  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/main session/i.test(r) && /subagent-driven-development/.test(r) && /orchestrat/i.test(r))" && echo yes || echo no)" "yes"
 eq "build surfaces implementation skill selection rule" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/subagent/i.test(r))" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
@@ -450,6 +452,8 @@ eq "new build warns subagent helper scripts are not .mjs node scripts" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/scripts\\/task-brief/.test(r) && /scripts\\/review-package/.test(r) && /\\.mjs/.test(r) && /node/.test(r))" && echo yes || echo no)" "yes"
 eq "new build does not depend on git worktree isolation" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/worktree/i.test(r) && /without/i.test(r))" && echo yes || echo no)" "yes"
+eq "new build keeps tdd/hui-pro out of the main session under SDD" \
+  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/main session/i.test(r) && /subagent-driven-development/.test(r) && /orchestrat/i.test(r))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

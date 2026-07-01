@@ -1,5 +1,5 @@
 id: feature
-version: 16
+version: 17
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -51,8 +51,10 @@ states:
       - { id: test-driven-development, when: the tdd_mode decision from design is true }
     rules:
       - Choose exactly one implementation driver before editing source. Use executing-plans for small, local, mostly sequential changes. Use subagent-driven-development when the implementation can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
-      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development — load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
+      - Load skills where the code is written, not in the orchestrator. The main session loads ONLY the driver you picked. The per-task skill test-driven-development is loaded by whoever writes the code - the main session under executing-plans, or each implementer subagent under subagent-driven-development. Do NOT load test-driven-development in the main session when driving with subagent-driven-development; the main session only orchestrates.
+      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST be written test-first (a failing test before the code). Whoever writes the code loads test-driven-development: the main session under executing-plans, or the implementer subagent under subagent-driven-development. When tdd_mode is false, implement normally without it.
       - When using subagent-driven-development, run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before starting the next, so subagents do not time out.
+      - A subagent only sees what its brief contains - build rules do NOT reach it automatically. When driving with subagent-driven-development and tdd_mode is true, require in each implementer subagent's brief that it load and follow test-driven-development (a failing test before the code).
       - Do not let git worktree isolation block the build. Agent worktrees require the Claude Code session to have been launched inside a git repository; if a worktree-isolated dispatch errors (e.g. "Cannot create agent worktree: not in a git repository"), immediately retry that dispatch WITHOUT worktree isolation, giving each subagent a disjoint set of files/modules so they cannot conflict. If disjoint ownership is not possible, run the implementers sequentially instead of stopping.
       - When using subagent-driven-development bundled helper scripts, invoke the exact script files documented by that skill, such as `scripts/task-brief` and `scripts/review-package`; do not append `.mjs` or run them with `node` unless the actual script file has that extension.
     needs: [implemented]
