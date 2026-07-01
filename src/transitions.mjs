@@ -7,7 +7,7 @@
 // stable backbone; the skills a state may use are free to change.
 
 import { firstStateId, saveState, stateById } from './store.mjs';
-import { skillIndex, skillInfo } from './skills.mjs';
+import { skillIndex, resolveCapability, capabilityTag } from './skills.mjs';
 import { nowIso } from './utils.mjs';
 
 const list = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
@@ -138,7 +138,7 @@ export function computeNext(root, workflow, state) {
     change: state.change,
     workflow: state.workflow,
     ...summarize(workflow, state),
-    capabilities: list(s.capabilities).map((name) => skillInfo(index, name)),
+    capabilities: list(s.capabilities).map((raw) => resolveCapability(index, raw)),
     rollback: state.rollback || null,
     transitions,
     // Skill-agnostic reminder: composed skills decide HOW to do the work;
@@ -150,7 +150,7 @@ export function computeNext(root, workflow, state) {
     // names no specific skill; the workflow's capability list drives which to
     // load. This kills the "compose freely = may skip" reading.
     capabilityPolicy:
-      "Capabilities are this state's skills, not optional suggestions. Before doing the work, load each listed skill whose purpose matches the task with the Skill tool and follow its instructions — do not hand-roll inline what a listed skill covers. When several are interchangeable (e.g. alternative drivers), pick exactly one; otherwise use every one that applies.",
+      "Capabilities are this state's skills, not optional suggestions. Load a skill with the Skill tool and follow its instructions rather than hand-rolling its work inline. Each capability carries a requirement tag telling you when to load it: `required` = must load; `one-of:<group>` = load exactly one skill from that group; `when <condition>` = load only if the condition holds; untagged = load whenever its purpose matches the work.",
   };
 }
 
@@ -190,8 +190,11 @@ export function formatNextAction(action) {
   }
   if (action.capabilities?.length) {
     lines.push('');
-    lines.push('Skills for this state — load each one whose purpose matches the work with the Skill tool before acting:');
-    for (const c of action.capabilities) lines.push(`- ${c.id} -> ${c.ref || c.id}: ${c.description || ''}`);
+    lines.push('Skills for this state — load them with the Skill tool per each one\'s requirement tag (see policy below):');
+    for (const c of action.capabilities) {
+      const tag = capabilityTag(c);
+      lines.push(`- ${c.id} -> ${c.ref || c.id}${tag ? ` [${tag}]` : ''}: ${c.description || ''}`);
+    }
     if (action.capabilityPolicy) lines.push(action.capabilityPolicy);
   }
 

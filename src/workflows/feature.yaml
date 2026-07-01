@@ -1,5 +1,5 @@
 id: feature
-version: 11
+version: 12
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -11,7 +11,9 @@ states:
   - id: open
     goal: Clarify the change and create OpenSpec artifacts.
     forbid: [write-source]
-    capabilities: [openspec-explore, openspec-propose]
+    capabilities:
+      - { id: openspec-explore, required: true }
+      - { id: openspec-propose, required: true }
     rules:
       - When exploring the existing codebase to clarify the change, prefer the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) to find symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
     needs: [requirements_clarified, proposal_ready]
@@ -21,7 +23,9 @@ states:
     goal: Explore the technical path, document it, and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming, writing-plans]
+    capabilities:
+      - { id: brainstorming, required: true }
+      - { id: writing-plans, required: true }
     rules:
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
@@ -37,7 +41,9 @@ states:
 
   - id: build
     goal: Implement the confirmed design.
-    capabilities: [executing-plans, subagent-driven-development]
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
     rules:
       - Choose exactly one implementation skill before editing source. Use executing-plans for small, local, mostly sequential changes. Use subagent-driven-development when the implementation can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
     needs: [implemented]
@@ -45,7 +51,8 @@ states:
 
   - id: review
     goal: Review the implementation before verification.
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -54,7 +61,9 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -65,6 +74,7 @@ states:
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     terminal: true

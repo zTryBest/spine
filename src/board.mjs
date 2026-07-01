@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
-import { discoverSkills } from './skills.mjs';
+import { discoverSkills, normalizeCapability } from './skills.mjs';
 import { readNotifications } from './notifications.mjs';
 import { rel, toPosix } from './utils.mjs';
 
@@ -185,7 +185,7 @@ function workflowDetails(root, summary) {
       stages: workflow.states.map((state) => ({
         id: state.id,
         goal: state.goal || '',
-        capabilities: state.capabilities || [],
+        capabilities: (state.capabilities || []).map(normalizeCapability),
         needs: state.needs || [],
         requiresUser: !!state.requires_user,
         terminal: !!state.terminal,

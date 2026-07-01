@@ -14,6 +14,8 @@ import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
 const DASHBOARD_LABELS = path.join(PLUGIN_ROOT, 'dashboard', 'ui-labels.json');
+const UI_PID_NAME = 'hikspine-ui.pid';
+const UI_PID_REGISTRY_NAME = 'hikspine-ui-pids.json';
 
 function artifactType(filePath) {
   const p = String(filePath || '').replace(/\\/g, '/').toLowerCase();
@@ -68,6 +70,63 @@ function readUiLabels(root) {
   const defaults = readJsonFile(DASHBOARD_LABELS);
   const project = readJsonFile(path.join(root, '.hikspine', 'ui-labels.json'));
   return mergeUiLabels(defaults, project);
+}
+
+function uiStateDir(root) {
+  return path.join(root, '.hikspine');
+}
+
+function uiPidFile(root) {
+  return path.join(uiStateDir(root), UI_PID_NAME);
+}
+
+function uiPidRegistryFile(root) {
+  return path.join(uiStateDir(root), UI_PID_REGISTRY_NAME);
+}
+
+function readUiPidRegistry(root) {
+  try {
+    const value = JSON.parse(fs.readFileSync(uiPidRegistryFile(root), 'utf8'));
+    return Array.isArray(value) ? value.filter((item) => Number.isInteger(item?.pid) && item.pid > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUiPidRegistry(root, records) {
+  const file = uiPidRegistryFile(root);
+  const list = (Array.isArray(records) ? records : [])
+    .filter((item) => Number.isInteger(item?.pid) && item.pid > 0);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (list.length) fs.writeFileSync(file, JSON.stringify(list, null, 2));
+  else fs.rmSync(file, { force: true });
+}
+
+function registerUiPid(root, { host, port }) {
+  fs.mkdirSync(uiStateDir(root), { recursive: true });
+  fs.writeFileSync(uiPidFile(root), String(process.pid));
+  const current = {
+    pid: process.pid,
+    host,
+    port,
+    root,
+    startedAt: new Date().toISOString(),
+  };
+  const records = readUiPidRegistry(root).filter((item) => item.pid !== process.pid);
+  records.push(current);
+  writeUiPidRegistry(root, records);
+}
+
+function unregisterUiPid(root) {
+  try {
+    const records = readUiPidRegistry(root).filter((item) => item.pid !== process.pid);
+    writeUiPidRegistry(root, records);
+  } catch {}
+  try {
+    const file = uiPidFile(root);
+    const raw = fs.readFileSync(file, 'utf8').trim();
+    if (Number(raw) === process.pid) fs.rmSync(file, { force: true });
+  } catch {}
 }
 
 export function createBoardServer(root) {
@@ -150,15 +209,13 @@ export function startBoard(root, { port = 4319, host = '127.0.0.1' } = {}) {
   // SessionEnd cleanup hook can terminate it. Do NOT rely on a shell's `$!`:
   // in Git Bash on Windows that is the MSYS pid, not the node.exe Windows pid,
   // so `process.kill` never matches it and the UI is never stopped.
-  const pidFile = path.join(root, '.hikspine', 'hikspine-ui.pid');
-  const removePid = () => { try { fs.rmSync(pidFile, { force: true }); } catch {} };
+  // A registry is kept as well as the legacy single-pid file so SessionEnd can
+  // clean up multiple UI instances and old instances cannot delete a newer pid.
+  const removePid = () => unregisterUiPid(root);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {
-      try {
-        fs.mkdirSync(path.dirname(pidFile), { recursive: true });
-        fs.writeFileSync(pidFile, String(process.pid));
-      } catch {}
+      try { registerUiPid(root, { host, port }); } catch {}
       process.on('exit', removePid);
       for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
         process.on(sig, () => { removePid(); process.exit(0); });

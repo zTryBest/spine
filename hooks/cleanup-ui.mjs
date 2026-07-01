@@ -8,6 +8,42 @@ import path from 'node:path';
 import process from 'node:process';
 import { findProjectRoot } from '../src/utils.mjs';
 
+const UI_PID_NAME = 'hikspine-ui.pid';
+const UI_PID_REGISTRY_NAME = 'hikspine-ui-pids.json';
+const HOOK_LOG_NAME = 'hook-events.log';
+const TEMP_HOOK_LOG_NAME = 'hikspine-hook-events.log';
+
+function tempHookLogFile() {
+  return path.join(os.tmpdir(), TEMP_HOOK_LOG_NAME);
+}
+
+function writeJsonLine(file, entry) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${JSON.stringify(entry)}${os.EOL}`, 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function logEvent(roots, event) {
+  const entry = {
+    at: new Date().toISOString(),
+    hook: 'SessionEnd',
+    ...event,
+  };
+  let wrote = false;
+  for (const root of roots || []) {
+    try {
+      wrote = writeJsonLine(path.join(root, '.hikspine', HOOK_LOG_NAME), entry) || wrote;
+    } catch {
+      // Fall back below.
+    }
+  }
+  if (!wrote) writeJsonLine(tempHookLogFile(), entry);
+}
+
 function readStdin() {
   try {
     return fs.readFileSync(0, 'utf8');
@@ -73,6 +109,28 @@ function readPid(pidFile) {
   }
 }
 
+function readPidRegistry(root) {
+  try {
+    const file = path.join(root, '.hikspine', UI_PID_REGISTRY_NAME);
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(value) ? value.filter((item) => Number.isInteger(item?.pid) && item.pid > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePidRegistry(root, records) {
+  const file = path.join(root, '.hikspine', UI_PID_REGISTRY_NAME);
+  const list = (Array.isArray(records) ? records : [])
+    .filter((item) => Number.isInteger(item?.pid) && item.pid > 0);
+  try {
+    if (list.length) fs.writeFileSync(file, JSON.stringify(list, null, 2));
+    else fs.rmSync(file, { force: true });
+  } catch {
+    // Best-effort cleanup should never fail the hook.
+  }
+}
+
 function alive(pid) {
   try {
     process.kill(pid, 0);
@@ -131,10 +189,20 @@ function commandLine(pid) {
   return process.platform === 'win32' ? powershellCommandLine(pid) : unixCommandLine(pid);
 }
 
+function normalizePathText(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
 function isHikspineUiCommand(cmd) {
   if (!cmd) return false;
   const normalized = cmd.replace(/\\/g, '/').toLowerCase();
   return normalized.includes('hikspine.mjs') && /\bui\b/.test(normalized);
+}
+
+function commandTargetsRoot(cmd, root) {
+  const normalized = normalizePathText(cmd);
+  const target = normalizePathText(root);
+  return !!target && normalized.includes(target);
 }
 
 function freshPidFile(pidFile) {
@@ -182,34 +250,161 @@ async function terminate(pid) {
   return !alive(pid);
 }
 
-async function cleanupRoot(root) {
-  const pidFile = path.join(root, '.hikspine', 'hikspine-ui.pid');
-  if (!fs.existsSync(pidFile)) return { root, status: 'missing' };
-  const pid = readPid(pidFile);
+function registryFresh(record) {
+  try {
+    const at = new Date(record.startedAt).getTime();
+    const ageMs = Date.now() - at;
+    return Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function windowsUiProcessesForRoot(root) {
+  const script = [
+    '$ErrorActionPreference = "SilentlyContinue"',
+    '$items = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine -match "hikspine\\.mjs" -and $_.CommandLine -match "\\sui(\\s|$)" }',
+    '$items | ForEach-Object { [PSCustomObject]@{ pid = $_.ProcessId; commandLine = $_.CommandLine } } | ConvertTo-Json -Compress',
+  ].join('; ');
+  try {
+    const out = childProcess.execFileSync('powershell.exe', ['-NoProfile', '-Command', script], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 5000,
+    }).trim();
+    if (!out) return [];
+    const value = JSON.parse(out);
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .filter((item) => Number.isInteger(item?.pid) && isHikspineUiCommand(item.commandLine) && commandTargetsRoot(item.commandLine, root))
+      .map((item) => ({ pid: item.pid, source: 'scan', fresh: true }));
+  } catch {
+    return [];
+  }
+}
+
+function unixUiProcessesForRoot(root) {
+  try {
+    const out = childProcess.execFileSync('ps', ['-eo', 'pid=,command='], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 5000,
+    });
+    return out.split(/\r?\n/)
+      .map((line) => {
+        const match = line.trim().match(/^(\d+)\s+(.+)$/);
+        return match ? { pid: Number(match[1]), commandLine: match[2] } : null;
+      })
+      .filter((item) => item && isHikspineUiCommand(item.commandLine) && commandTargetsRoot(item.commandLine, root))
+      .map((item) => ({ pid: item.pid, source: 'scan', fresh: true }));
+  } catch {
+    return [];
+  }
+}
+
+function uiProcessesForRoot(root) {
+  return process.platform === 'win32' ? windowsUiProcessesForRoot(root) : unixUiProcessesForRoot(root);
+}
+
+function pidCandidates(root) {
+  const out = [];
+  const seen = new Set();
+  const add = (item) => {
+    if (!item?.pid || seen.has(item.pid)) return;
+    seen.add(item.pid);
+    out.push(item);
+  };
+
+  const pidFile = path.join(root, '.hikspine', UI_PID_NAME);
+  const legacyPid = readPid(pidFile);
+  if (legacyPid) add({ pid: legacyPid, source: 'legacy', fresh: freshPidFile(pidFile) });
+
+  for (const record of readPidRegistry(root)) {
+    add({ pid: record.pid, source: 'registry', fresh: registryFresh(record), record });
+  }
+
+  for (const item of uiProcessesForRoot(root)) add(item);
+  return out;
+}
+
+async function cleanupCandidate(root, candidate) {
+  const { pid } = candidate;
   if (!pid || !alive(pid)) {
-    fs.rmSync(pidFile, { force: true });
+    logEvent([root], { event: 'candidate', root, pid, source: candidate.source, status: 'stale' });
     return { root, status: 'stale', pid };
   }
 
   const cmd = commandLine(pid);
   if (cmd && !isHikspineUiCommand(cmd)) {
-    fs.rmSync(pidFile, { force: true });
+    logEvent([root], { event: 'candidate', root, pid, source: candidate.source, status: 'pid_reused', hasCommandLine: true });
     return { root, status: 'pid_reused', pid };
   }
-  if (!cmd && !freshPidFile(pidFile)) {
-    fs.rmSync(pidFile, { force: true });
+  if (candidate.source === 'scan' && cmd && !commandTargetsRoot(cmd, root)) {
+    logEvent([root], { event: 'candidate', root, pid, source: candidate.source, status: 'other_project', hasCommandLine: true });
+    return { root, status: 'other_project', pid };
+  }
+  if (!cmd && !candidate.fresh) {
+    logEvent([root], { event: 'candidate', root, pid, source: candidate.source, status: 'unverified_stale', hasCommandLine: false });
     return { root, status: 'unverified_stale', pid };
   }
 
+  logEvent([root], {
+    event: 'candidate',
+    root,
+    pid,
+    source: candidate.source,
+    status: 'terminating',
+    hasCommandLine: !!cmd,
+    commandMatchesRoot: cmd ? commandTargetsRoot(cmd, root) : null,
+  });
   const stopped = await terminate(pid);
-  if (stopped) fs.rmSync(pidFile, { force: true });
+  logEvent([root], { event: 'terminate', root, pid, source: candidate.source, status: stopped ? 'stopped' : 'still_running' });
   return { root, status: stopped ? 'stopped' : 'still_running', pid };
+}
+
+async function cleanupRoot(root) {
+  const candidates = pidCandidates(root);
+  logEvent([root], {
+    event: 'root_scan',
+    root,
+    candidateCount: candidates.length,
+    candidates: candidates.map((item) => ({ pid: item.pid, source: item.source, fresh: !!item.fresh })),
+  });
+  if (!candidates.length) return { root, status: 'missing' };
+
+  const results = [];
+  for (const candidate of candidates) results.push(await cleanupCandidate(root, candidate));
+
+  const stillRunning = new Set(results.filter((r) => r.status === 'still_running').map((r) => r.pid));
+  const records = readPidRegistry(root).filter((record) => stillRunning.has(record.pid));
+  writePidRegistry(root, records);
+
+  const pidFile = path.join(root, '.hikspine', UI_PID_NAME);
+  const legacyPid = readPid(pidFile);
+  if (legacyPid && !stillRunning.has(legacyPid)) {
+    try { fs.rmSync(pidFile, { force: true }); } catch {}
+  }
+
+  const stopped = results.filter((r) => r.status === 'stopped');
+  if (stopped.length) return { root, status: 'stopped', pid: stopped.map((r) => r.pid).join(',') };
+  return results[0] || { root, status: 'missing' };
 }
 
 const payload = parsePayload(readStdin());
 const roots = uniqueRoots(candidatesFromPayload(payload));
+logEvent(roots, {
+  event: 'start',
+  cwd: payload.cwd || process.cwd(),
+  roots,
+  payloadKeys: Object.keys(payload),
+});
 const results = [];
 for (const root of roots) results.push(await cleanupRoot(root));
+logEvent(roots, {
+  event: 'done',
+  roots,
+  results: results.map((item) => ({ root: item.root, status: item.status, pid: item.pid || null })),
+});
 
 const stopped = results.filter((r) => r.status === 'stopped');
 if (stopped.length) {

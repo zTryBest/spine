@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 12
+version: 15
 name: 新建项目
 intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。
 start: brainstorm
@@ -11,7 +11,8 @@ states:
   - id: brainstorm
     goal: 在创建产物前，探索产品方向、未知点、约束和可行方案。
     forbid: [write-source]
-    capabilities: [brainstorming]
+    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+      - { id: brainstorming, required: true }
     rules:
       - 在 OpenSpec 之前使用 brainstorming，让 proposal 能记录已经探索过的方案、取舍和未解决问题。
     needs: [brainstorming_done]
@@ -20,17 +21,33 @@ states:
   - id: openspec
     goal: 根据头脑风暴方向创建 OpenSpec 产物。
     forbid: [write-source]
-    capabilities: [openspec-propose]
+    capabilities:
+      - { id: openspec-propose, required: true }
     needs: [proposal_ready]
+    next: scaffold
+
+  - id: scaffold
+    goal: 根据已确认的 proposal 判断项目形态，拉取需要的后端/前端脚手架，并用 codegraph 建立索引，方便后续设计和实现读代码、改代码。
+    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+      - { id: scaffold-aries-cli, when: 项目需要后端服务时 }
+      - { id: scaffold-starfish-initializr, when: 项目需要前端应用时 }
+    rules:
+      - 根据已确认的 proposal 判断本项目需要后端、前端还是两者都要，然后只拉取适用的脚手架——一个项目可能只需其一，也可能两者都要。
+      - 需要后端时用 scaffold-aries-cli 生成后端骨架；需要前端时用 scaffold-starfish-initializr。不要手写骨架。
+      - 骨架生成后，对其运行 `codegraph init` 建立索引，让后续 design 和 build 阶段能用 codegraph MCP 工具 `codegraph_explore` 追踪符号、调用路径和影响范围，而不是盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
+      - 把每个拉取的脚手架的构建元数据记到 `.hikspine/project-build.json`：每个组件写上它的组件标识和 SVN 地址，以及公司构建需要的其它项目信息（模块名、构建类型、产物名）。这个文件是唯一事实来源，后续 SVN 构建/打包阶段要读它，所以每拉一个脚手架就追加或更新对应条目，别让它过时。
+    needs: [scaffolded]
     next: design
 
   - id: design
     goal: 把 OpenSpec 产物转成具体实现设计，并获得用户确认。
     forbid: [write-source]
     requires_user: true
-    capabilities: [writing-plans]
+    capabilities:
+      - { id: writing-plans, required: true }
     rules:
       - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
+      - 设计要基于已拉取的脚手架代码：使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`）追踪骨架结构、入口点，以及新代码将嵌入的位置；如果 codegraph 不可用，再回退到普通搜索。
       - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
       - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
       - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
@@ -41,19 +58,22 @@ states:
     next: build
 
   - id: build
-    goal: 根据已确认设计搭建骨架并实现初始项目。
-    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
+    goal: 在已拉取的脚手架骨架之上，按已确认设计实现初始项目。
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
+      - { id: hui-pro, when: 构建任何前端 UI 组件时 }
     rules:
-      - 这个 build 阶段叠加三类 skill。只要能力列表中的 skill 适用，就通过 Skill 工具加载；禁止跳过适用的 skill。选择一个执行驱动并不意味着可以跳过下面的脚手架和 UI skill。
       - 执行驱动：必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
-      - 没有代码时，脚手架是强制的。写任何源码前，必须运行 scaffold-aries-cli 或 scaffold-starfish-initializr 来生成项目骨架。
       - 任何 UI 组件都必须使用前端 UI skill。只要编写前端 UI，就必须加载并使用 hui-pro skill 构建组件；不要手写组件，也不要使用其它 UI 库。这是执行驱动之外的额外要求，不是替代关系。
+      - 骨架已经在 scaffold 阶段拉取并建好索引。改代码前，使用 codegraph MCP 工具 `codegraph_explore` 定位文件、理解调用路径（只有图谱缺失时才运行 `codegraph init`）；如果 codegraph 不可用，再回退到普通搜索。
     needs: [implemented]
     next: review
 
   - id: review
     goal: 评审实现和公司规范。
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -62,7 +82,9 @@ states:
 
   - id: verify
     goal: 验证行为和 OpenSpec 覆盖。
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -73,7 +95,8 @@ states:
     goal: 用户确认后归档已完成的变更。
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     next: hido
 
@@ -81,5 +104,8 @@ states:
     goal: 进行 SVN 构建，需要询问用户确认是否构建。
     forbid: [write-source]
     requires_user: true
-    capabilities: [custom-component-creator]
+    capabilities:
+      - { id: custom-component-creator, required: true }
+    rules:
+      - 读取 `.hikspine/project-build.json`（scaffold 阶段写入）拿到每个组件的组件标识和 SVN 地址，用这些已记录的值驱动 SVN 构建/打包，不要再让用户重新提供。文件缺失或缺某个组件时，构建前先询问用户。
     terminal: true

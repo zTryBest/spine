@@ -1,5 +1,5 @@
 id: new
-version: 12
+version: 15
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -8,7 +8,8 @@ states:
   - id: brainstorm
     goal: Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.
     forbid: [write-source]
-    capabilities: [brainstorming]
+    capabilities:
+      - { id: brainstorming, required: true }
     rules:
       - Use brainstorming before OpenSpec so the proposal captures explored options, tradeoffs, and unresolved questions.
     needs: [brainstorming_done]
@@ -17,17 +18,33 @@ states:
   - id: openspec
     goal: Create OpenSpec artifacts from the brainstormed direction.
     forbid: [write-source]
-    capabilities: [openspec-propose]
+    capabilities:
+      - { id: openspec-propose, required: true }
     needs: [proposal_ready]
+    next: scaffold
+
+  - id: scaffold
+    goal: Decide the project shape from the confirmed proposal, pull the needed backend/frontend scaffold(s), and index the pulled code with codegraph so design and build can read and modify it.
+    capabilities:
+      - { id: scaffold-aries-cli, when: the project needs a backend service }
+      - { id: scaffold-starfish-initializr, when: the project needs a frontend app }
+    rules:
+      - Decide from the confirmed proposal whether this project needs a backend, a frontend, or both, then pull only the scaffolds that apply — a project may need one or both.
+      - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton; when a frontend is needed, use scaffold-starfish-initializr. Do not hand-write the skeleton.
+      - After each skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
+      - Record the build metadata for each pulled scaffold to `.hikspine/project-build.json` — for every component write its component identifier and SVN address, plus any other project info the company build needs (module name, build type, output artifact). Keep this file the single source of truth; the later SVN build/packaging stage reads it, so append or update an entry each time you pull a scaffold instead of leaving it stale.
+    needs: [scaffolded]
     next: design
 
   - id: design
     goal: Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [writing-plans]
+    capabilities:
+      - { id: writing-plans, required: true }
     rules:
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
+      - Ground the design in the scaffolded code via the codegraph MCP tool `codegraph_explore` (run `codegraph init` if the graph is missing) — trace the skeleton's structure, entry points, and where the new code will slot in. Fall back to normal search if codegraph is unavailable.
       - In the main context, do not Read proposal.md, tasks.md, design.md, or specs before dispatching planning subagents. Only list or test artifact paths, then pass paths.
       - Run writing-plans in subagents (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, design.md, or OpenSpec summaries into the prompt.
       - Single-plan handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, optional openspec/changes/{change}/design.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs and write docs/superpowers/plans/{change}.md.
@@ -38,19 +55,22 @@ states:
     next: build
 
   - id: build
-    goal: Scaffold and implement the initial project from the confirmed design.
-    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
+    goal: Implement the initial project on top of the scaffolded skeleton, following the confirmed design.
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
+      - { id: hui-pro, when: building any frontend UI component }
     rules:
-      - This build stage layers three kinds of skill. Load each from capabilities via the Skill tool whenever it applies; never skip an applicable one. Choosing an execution driver does NOT excuse you from the scaffolding and UI skills below.
       - Execution driver — pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
-      - Scaffolding is MANDATORY when there is no code yet. Before writing any source, you MUST run scaffold-aries-cli or scaffold-starfish-initializr to generate the project skeleton.
       - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement.
+      - The skeleton was already scaffolded and indexed in the scaffold stage. Before modifying code, use the codegraph MCP tool `codegraph_explore` to locate the right files and understand call paths (run `codegraph init` only if the graph is missing). Fall back to normal search if codegraph is unavailable.
     needs: [implemented]
     next: review
 
   - id: review
     goal: Review implementation and company standards.
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -59,7 +79,9 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -70,7 +92,8 @@ states:
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     next: hido
     
@@ -78,5 +101,8 @@ states:
     goal: 进行svn构建,需要询问用户确认是否构建
     forbid: [write-source]
     requires_user: true
-    capabilities: [custom-component-creator]
+    capabilities:
+      - { id: custom-component-creator, required: true }
+    rules:
+      - Read `.hikspine/project-build.json` (written in the scaffold stage) to get each component's component identifier and SVN address; drive the SVN build/packaging from those recorded values instead of asking the user to re-supply them. If the file is missing or a component is absent, ask the user before building.
     terminal: true

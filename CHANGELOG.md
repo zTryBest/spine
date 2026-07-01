@@ -1,3 +1,43 @@
+## What's Changed [0.6.34] - 2026-07-01
+
+### Changed
+
+- **new workflow 新增 scaffold 阶段（在设计之前拉代码 + codegraph 初始化）**: `new` 是从零建项目,原来脚手架是在 `build` 阶段才拉的,导致 `design` 阶段无代码可读、只能凭空设计。现在在 `openspec`(需求澄清)之后、`design` 之前插入一个 `scaffold` 阶段:根据已确认的 proposal 判断本次需要后端、前端还是两者都要,只拉取适用的脚手架(`scaffold-aries-cli` 后端 / `scaffold-starfish-initializr` 前端,均为 `when` 条件加载,可只拉其一或都拉),然后对骨架运行 `codegraph init` 建索引。这样后续 `design` 和 `build` 都能像 `feature` workflow 一样用 codegraph MCP 工具 `codegraph_explore` 读代码、找调用路径,而不是盲目 grep/Read。决策键新增 `scaffolded`;流转变为 `brainstorm → openspec → scaffold → design → build → …`。
+- **new.design / new.build 加 codegraph 规则、build 去掉脚手架职责**: `design` 新增"基于已拉取的脚手架代码用 `codegraph_explore` 落地设计"规则;`build` 移除 `scaffold-*` capability 和"脚手架 MANDATORY"规则(已前移到 scaffold 阶段),改为保留执行驱动(二选一)+ `hui-pro`(写 UI 时),并新增"改代码前先用 `codegraph_explore` 定位"规则。`docs/workflows-zh/new.yaml` 与看板 demo 数据同步。
+- **scaffold 记录构建清单、hido 读取清单(公司构建流程)**: 代码是按组件标识 + SVN 地址从 SVN 拉的,所以 `scaffold` 阶段新增规则:每拉一个脚手架就把该组件的**组件标识、SVN 地址**及其它项目信息(模块名、构建类型、产物名)追加/更新到 `.hikspine/project-build.json`,作为唯一事实来源;`hido`(SVN 构建/打包)阶段新增规则:直接读这个清单拿组件标识和 SVN 地址来驱动构建打包,不再让用户重新提供(文件缺失才询问)。`new` workflow `version` → 15。
+
+### Tests
+
+- **scaffold 阶段覆盖**: workflow kernel 测试更新 `new` 流程路径为 `brainstorm → openspec → scaffold → design → build`,新增断言验证 `openspec` 后进入 `scaffold`、scaffold 的后端/前端 capability 带 `when` 标签、scaffold 规则含 `codegraph init`、`scaffolded` 决策推进到 `design`、`design`/`build` 规则含 `codegraph_explore`、build 不再包含 `scaffold-*`。共 129 passed。
+
+## What's Changed [0.6.33] - 2026-07-01
+
+### Added
+
+- **SessionEnd hook 诊断日志**: `cleanup-ui.sh` 现在会把 bridge 启动、定位成功或失败写入临时目录 `hikspine-hook-events.log`；`cleanup-ui.mjs` 会把 SessionEnd 开始、项目根解析、候选 UI pid、终止结果和完成状态写入项目 `.hikspine/hook-events.log`。下次 UI 未关闭时可区分是 Claude Code 没触发 hook、bridge 没定位到插件，还是 cleanup 找到 pid 后未能终止。
+
+## What's Changed [0.6.32] - 2026-07-01
+
+### Fixed
+
+- **SessionEnd 清理 UI 更稳定**: UI 启动时除了兼容旧的 `hikspine-ui.pid`，还会维护 `.hikspine/hikspine-ui-pids.json` 注册表，支持同一项目多个 UI 进程；UI 退出时只删除自己的记录，不再无条件删除可能属于新进程的 pid 文件。`SessionEnd` 清理 hook 现在会清理注册表中的所有 Hikspine UI 进程，并在 pid 文件丢失时扫描命令行里绑定当前 `--project-root` 的 UI 进程作为兜底，减少“有时能关、有时没关”的竞态残留。
+
+## What's Changed [0.6.31] - 2026-07-01
+
+### Added
+
+- **capability 需求标签（required / group / when）**: `capabilities` 从扁平的字符串数组升级为可带需求标签的条目，让 workflow 作者显式声明"每个 skill 何时该加载",Agent 不再靠猜。三种标签：`required: true`（阶段核心、必加载）、`group: <名>`（同组可互换、只加载一个,如 build 的 `executing-plans`/`subagent-driven-development` 驱动二选一)、`when: <条件>`（条件加载,如 `hui-pro` 仅写 UI 时、`scaffold-*` 仅无代码时）；不带标签的裸字符串仍表示"用途对得上就加载"。引擎新增 `normalizeCapability`/`resolveCapability`/`capabilityTag`（`src/skills.mjs`），`next` 输出的 capabilities 带上标签、文本渲染成 `[required]`/`[one-of:driver]`/`[when …]`，`capabilityPolicy` 说明每个标签含义。引擎保持 skill-agnostic——只透传作者的标签,从不解释某个 skill 具体干什么。裸字符串写法完全向后兼容,自定义 workflow 无需改动。
+- **看板显示需求标签**: 状态看板的阶段技能 chip 现在跟着显示 `required`/`one-of:<组>`/`when …` 小标签（新增 `.cap-tag` 样式）,`/api/*` 经 `normalizeCapability` 输出对象形态,dashboard 同时兼容对象和旧字符串(demo 数据)两种形态。
+
+### Changed
+
+- **三个内置 workflow + 中文阅读版加上需求标签**: `new`/`feature`/`fix` 的所有阶段 capabilities 改用标签形式——核心单技能标 `required`,build 的驱动/脚手架标 `group`、脚手架/`hui-pro` 标 `when`。这把之前只能靠 build 阶段堆一大段 MANDATORY 规则表达的"选驱动不代表能跳过脚手架和 UI"直接结构化。`new`→13、`feature`→12、`fix`→9；`docs/workflows-zh/*` 同步。
+- **skill 文档解释标签**: `hikspine`/`hikspine-engine-zh` 的 capabilities 速查表和"必须加载对应 Skill / Required Skill Loading"段落改为讲解四种标签语义,Agent 按标签加载而非自行判断"需不需要"。
+
+### Tests
+
+- **需求标签覆盖**: workflow kernel 测试新增断言,验证 `fix.inspect` capabilities 带 `required` 标签、`next` 的 `capabilityPolicy` 描述了 one-of/when 语义、`new.build` 的驱动与脚手架各自成 `group` 且脚手架/`hui-pro` 带 `when` 标签。
+
 ## What's Changed [0.6.30] - 2026-07-01
 
 ### Changed
