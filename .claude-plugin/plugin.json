@@ -1,7 +1,7 @@
 {
-  "name": "hikspine-cap",
+  "name": "hikspine",
   "version": "0.6.34",
-  "description": "[TEST BUILD · branch feat/capability-requirements] Hikspine with capability requirement tags (required/group/when). Install alongside or instead of the main hikspine plugin to test this branch.",
+  "description": "Skill-first workflow kernel for Claude Code. Hikspine guides phased AI coding work through a plugin-level runtime, builtin workflows, and skill orchestration without slash-command files.",
   "author": {
     "name": "Your Team"
   },
