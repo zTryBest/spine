@@ -1,16 +1,16 @@
 {
-  "name": "hikspine",
+  "name": "hikspine-cap",
   "owner": {
     "name": "Your Team"
   },
   "metadata": {
-    "description": "Internal Claude Code workflow plugin marketplace."
+    "description": "[TEST BUILD] Hikspine marketplace for the feat/capability-requirements branch."
   },
   "plugins": [
     {
-      "name": "hikspine",
+      "name": "hikspine-cap",
       "source": "./",
-      "description": "Skill-first workflow kernel for phased AI coding in Claude Code."
+      "description": "[TEST BUILD · branch feat/capability-requirements] Hikspine with capability requirement tags (required/group/when)."
     }
   ]
 }
