@@ -230,6 +230,8 @@ eq "build offers test-driven-development when tdd enabled (when tag)" \
   "$(printf '%s' "$DECIDE4" | json_test "typeof (j.capabilities.find(c=>c.id==='test-driven-development')||{}).when==='string'" && echo yes || echo no)" "yes"
 eq "build caps subagents at 3 (company concurrency limit)" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/at most 3/.test(r) && /subagent/i.test(r))" && echo yes || echo no)" "yes"
+eq "build warns subagent helper scripts are not .mjs node scripts" \
+  "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/scripts\\/task-brief/.test(r) && /scripts\\/review-package/.test(r) && /\\.mjs/.test(r) && /node/.test(r))" && echo yes || echo no)" "yes"
 eq "build surfaces implementation skill selection rule" \
   "$(printf '%s' "$DECIDE4" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/subagent/i.test(r))" && echo yes || echo no)" "yes"
 eq "build has implement capability" \
@@ -418,6 +420,8 @@ eq "build no longer scaffolds (moved to scaffold stage)" \
   "$(printf '%s' "$NP_BUILD" | json_test "!j.capabilities.some(c=>/^scaffold-/.test(c.id))" && echo yes || echo no)" "yes"
 eq "build reads code via codegraph" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
+eq "new build warns subagent helper scripts are not .mjs node scripts" \
+  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/scripts\\/task-brief/.test(r) && /scripts\\/review-package/.test(r) && /\\.mjs/.test(r) && /node/.test(r))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

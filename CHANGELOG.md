@@ -6,9 +6,13 @@
 
 ### Changed
 
+- **subagent-driven-development 脚本调用兼容提醒**: `new` / `feature` 的 build 阶段规则新增提醒，使用上游 `subagent-driven-development` 的辅助脚本时必须按真实文件名调用 `scripts/task-brief` / `scripts/review-package`，不要自行追加 `.mjs` 后缀或用 `node` 执行，避免 Agent 把 Bash 脚本误当成 Node runtime 脚本。
+
 - **Claude Code runtime 启动说明修正**: README 与看板 skill 改为明确通过 `node "$HIKSPINE_ENGINE" ...` 启动看板；新增独立 `hikspine-global-ui` skill 启动 `ui --all`，`hikspine-ui` 只保留当前项目看板，避免误导团队成员以为必须存在全局 `hikspine` 命令或在同一个 skill 中切换模式。
 
 ### Tests
+
+- **SDD 脚本调用规则覆盖**: workflow kernel 测试新增断言，验证 `new.build` 与 `feature.build` 的规则都会暴露 `scripts/task-brief`、`scripts/review-package` 以及不要误加 `.mjs` / 不要误用 `node` 的提醒。
 
 - **多项目 registry 与全局 UI skill 覆盖**: workflow kernel 测试隔离 `HIKSPINE_HOME`，新增断言验证全局看板能列出已登记项目、跨项目任务和产物携带项目元数据，并能发现 `hikspine-global-ui` skill。
 
