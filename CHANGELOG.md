@@ -1,3 +1,9 @@
+## What's Changed [0.6.29] - 2026-07-01
+
+### Changed
+
+- **new workflow**: build阶段说明更新
+
 ## What's Changed [0.6.28] - 2026-07-01
 
 ### Changed
