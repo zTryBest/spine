@@ -94,6 +94,22 @@
   .stat .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.7px; margin-top:7px; }
   .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:8px 0 4px; }
   .stat.attn::after{background:var(--confirm)} .stat.attn .n{color:var(--confirm)}
+  .timing { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:10px 0 6px; }
+  .timing-col { background:linear-gradient(180deg,rgba(21,25,34,.9),rgba(14,17,23,.94)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .timing-col h3 { font-size:11px; color:var(--muted); margin:0 0 10px; text-transform:uppercase; letter-spacing:.6px; font-weight:700; }
+  .timing-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .timing-table th { text-align:right; color:var(--dim); font-weight:600; padding:3px 6px; font-size:10.5px; text-transform:uppercase; }
+  .timing-table th:first-child, .timing-table td:first-child { text-align:left; }
+  .timing-table td { padding:5px 6px; border-top:1px solid var(--line); text-align:right; }
+  .timing-table tr.slow td { color:var(--confirm); font-weight:750; }
+  .stage-bars { display:flex; flex-direction:column; gap:7px; }
+  .stage-bar { display:grid; grid-template-columns:92px 1fr 54px; align-items:center; gap:8px; font-size:12px; }
+  .sb-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#cbd5e8; }
+  .sb-track { height:8px; background:var(--panel2); border-radius:999px; overflow:hidden; }
+  .sb-fill { display:block; height:100%; background:var(--work); border-radius:999px; }
+  .sb-val { text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .stage-bar.slow .sb-fill { background:var(--confirm); }
+  .stage-bar.slow .sb-label, .stage-bar.slow .sb-val { color:var(--confirm); font-weight:750; }
   .projects { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-bottom:8px; }
   .projects-hint { grid-column:1/-1; font-size:12px; color:var(--muted); margin:0 0 2px; }
   .project-card { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(13,16,21,.96)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; box-shadow:var(--shadow); cursor:pointer; transition:border-color .12s, transform .12s; }
@@ -289,6 +305,7 @@
 
   <h2 id="secMetrics" hidden></h2>
   <div class="metrics" id="metricsPanel" hidden></div>
+  <div class="timing" id="timingPanel" hidden></div>
 
   <h2 id="secProjects" hidden></h2>
   <div class="projects" id="projects" hidden></div>
@@ -352,6 +369,8 @@ const I18N = {
     secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
     secMetrics:'总览指标',
     mProjects:'项目总数', mActive:'活跃项目', mWork:'进行中任务', mConfirm:'待确认', mNotif:'待处理通知', mDone:'已完成/归档',
+    tWorkflowTime:'工作流耗时（最慢在前）', tStageTime:'阶段耗时（最慢在前）', tTasks:'任务', tAvg:'平均', tTotal:'总计',
+    tNoTiming:'暂无耗时数据 — 任务产生阶段流转后才有时间统计。',
     emptyActive:'当前没有进行中的任务 — 所有项目要么已完成，要么在等待确认。',
     empty:'还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。',
     bWork:'进行中', bConfirm:'待确认', bDone:'完成', bArchived:'已归档', bError:'异常',
@@ -378,6 +397,8 @@ const I18N = {
     secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
     secMetrics:'Overview metrics',
     mProjects:'Projects', mActive:'Active projects', mWork:'In-progress tasks', mConfirm:'Awaiting confirm', mNotif:'Pending notifications', mDone:'Done / archived',
+    tWorkflowTime:'Workflow duration (slowest first)', tStageTime:'Stage duration (slowest first)', tTasks:'Tasks', tAvg:'Avg', tTotal:'Total',
+    tNoTiming:'No timing data yet — appears once tasks accumulate stage-transition time.',
     emptyActive:'No in-progress tasks right now — every project is either done or awaiting confirmation.',
     empty:'No tasks yet — the agent creates and drives them in Claude Code.',
     bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bArchived:'Archived', bError:'Error',
@@ -789,6 +810,58 @@ function renderStats(changes) {
     '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">'+t('stConfirm')+'</div></div>'+
     '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">'+t('stDone')+'</div></div>';
 }
+function fmtMins(m) {
+  m = Math.round(Number(m) || 0);
+  if (m <= 0) return '—';
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return mm ? h + 'h ' + mm + 'm' : h + 'h';
+  const d = Math.floor(h / 24), hh = h % 24;
+  return hh ? d + 'd ' + hh + 'h' : d + 'd';
+}
+
+// Timing insight for the overview: which workflow is slow, and which stage is
+// slow. Built purely from each change's stageDurations (minutes per stage,
+// already computed server-side) — no engine dependency, recomputed on refresh.
+function renderTiming(state) {
+  const host = $('timingPanel');
+  const changes = (Array.isArray(state.changes) ? state.changes : []).filter(c => !c.error);
+  const wf = {};   // workflow id -> { count, total }
+  const stg = {};  // stage id -> { total, visits }
+  for (const c of changes) {
+    const sd = c.stageDurations || {};
+    let total = 0;
+    for (const [s, mins] of Object.entries(sd)) {
+      const v = Number(mins) || 0;
+      if (v <= 0) continue;
+      total += v;
+      const g = stg[s] || (stg[s] = { total: 0, visits: 0 });
+      g.total += v; g.visits += 1;
+    }
+    const w = wf[c.workflow] || (wf[c.workflow] = { count: 0, total: 0 });
+    w.count += 1; w.total += total;
+  }
+  const wfRows = Object.entries(wf).map(([id, v]) => ({ id, count: v.count, total: v.total, avg: v.count ? v.total / v.count : 0 }))
+    .sort((a, b) => b.avg - a.avg);
+  const stgRows = Object.entries(stg).map(([id, v]) => ({ id, total: v.total, avg: v.visits ? v.total / v.visits : 0 }))
+    .sort((a, b) => b.avg - a.avg);
+  if (!wfRows.some(r => r.total > 0) && !stgRows.length) {
+    host.innerHTML = '<div class="need" style="grid-column:1/-1">' + esc(t('tNoTiming')) + '</div>';
+    return;
+  }
+  const wfHtml = '<div class="timing-col"><h3>' + esc(t('tWorkflowTime')) + '</h3>' +
+    '<table class="timing-table"><thead><tr><th></th><th>' + t('tTasks') + '</th><th>' + t('tAvg') + '</th><th>' + t('tTotal') + '</th></tr></thead><tbody>' +
+    wfRows.map((r, i) => '<tr' + (i === 0 && r.total > 0 ? ' class="slow"' : '') + '><td>' + esc(wfTag(r.id) || r.id) + '</td><td>' + r.count + '</td><td>' + fmtMins(r.avg) + '</td><td>' + fmtMins(r.total) + '</td></tr>').join('') +
+    '</tbody></table></div>';
+  const maxAvg = Math.max(...stgRows.map(r => r.avg), 1);
+  const stgHtml = '<div class="timing-col"><h3>' + esc(t('tStageTime')) + '</h3><div class="stage-bars">' +
+    stgRows.map((r, i) => '<div class="stage-bar' + (i === 0 ? ' slow' : '') + '"><span class="sb-label" title="' + esc(label(r.id)) + '">' + esc(label(r.id)) + '</span>' +
+      '<span class="sb-track"><span class="sb-fill" style="width:' + Math.round(r.avg / maxAvg * 100) + '%"></span></span>' +
+      '<span class="sb-val">' + fmtMins(r.avg) + '</span></div>').join('') +
+    '</div></div>';
+  host.innerHTML = wfHtml + stgHtml;
+}
+
 // Global-overview KPIs, computed purely from the /api/state all-projects
 // payload (projects + changes + notifications). No engine/server dependency —
 // refreshing the page recomputes these live.
@@ -1144,6 +1217,7 @@ function renderAll() {
   $('stats').hidden = allMode;
   $('secMetrics').hidden = !allMode;
   $('metricsPanel').hidden = !allMode;
+  $('timingPanel').hidden = !allMode;
   $('secBuild').hidden = allMode;
   $('projectBuild').hidden = allMode;
   $('secWf').hidden = allMode;
@@ -1160,6 +1234,7 @@ function renderAll() {
   renderNotifications(last.notifications || []);
   if (allMode) {
     renderMetrics(last);
+    renderTiming(last);
     // Overview task list focuses on in-progress work — completed / archived
     // changes are counted in the metrics, not listed as "in-progress".
     const active = (last.changes || []).filter(c => c.error || (!c.complete && !c.archived));
