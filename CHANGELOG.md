@@ -1,3 +1,15 @@
+## What's Changed [0.6.33] - 2026-07-01
+
+### Added
+
+- **SessionEnd hook 诊断日志**: `cleanup-ui.sh` 现在会把 bridge 启动、定位成功或失败写入临时目录 `hikspine-hook-events.log`；`cleanup-ui.mjs` 会把 SessionEnd 开始、项目根解析、候选 UI pid、终止结果和完成状态写入项目 `.hikspine/hook-events.log`。下次 UI 未关闭时可区分是 Claude Code 没触发 hook、bridge 没定位到插件，还是 cleanup 找到 pid 后未能终止。
+
+## What's Changed [0.6.32] - 2026-07-01
+
+### Fixed
+
+- **SessionEnd 清理 UI 更稳定**: UI 启动时除了兼容旧的 `hikspine-ui.pid`，还会维护 `.hikspine/hikspine-ui-pids.json` 注册表，支持同一项目多个 UI 进程；UI 退出时只删除自己的记录，不再无条件删除可能属于新进程的 pid 文件。`SessionEnd` 清理 hook 现在会清理注册表中的所有 Hikspine UI 进程，并在 pid 文件丢失时扫描命令行里绑定当前 `--project-root` 的 UI 进程作为兜底，减少“有时能关、有时没关”的竞态残留。
+
 ## What's Changed [0.6.31] - 2026-07-01
 
 ### Added

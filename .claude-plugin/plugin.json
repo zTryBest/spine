@@ -1,6 +1,6 @@
 {
   "name": "hikspine-cap",
-  "version": "0.6.31",
+  "version": "0.6.33",
   "description": "[TEST BUILD · branch feat/capability-requirements] Hikspine with capability requirement tags (required/group/when). Install alongside or instead of the main hikspine plugin to test this branch.",
   "author": {
     "name": "Your Team"
