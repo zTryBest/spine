@@ -32,6 +32,14 @@ case "$NODE_BIN" in
 esac
 export HIKSPINE_HOME="$REPO/.tmp/hikspine-home"
 mkdir -p "$HIKSPINE_HOME"
+# Create sandboxes under the repo, not the OS temp dir. The OS temp dir lives
+# under the user's home, and any stray openspec/.hikspine there (e.g. debris
+# from an earlier wrong project-root resolution) would make findProjectRoot
+# anchor sandboxes to the home instead of the sandbox itself.
+if [ -z "$SANDBOX_ROOT" ]; then
+  SANDBOX_ROOT="$REPO/.tmp/sandboxes"
+  mkdir -p "$SANDBOX_ROOT"
+fi
 
 pass=0
 fail=0
@@ -630,6 +638,18 @@ eq "all-project board carries project metadata on changes" \
   "$(printf '%s' "$ALL_BOARD" | json_test "j.changes.some(c=>c.change==='bug-1' && c.projectId && c.projectRoot && c.artifacts.every(a=>a.projectId===c.projectId))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
+
+# ─── findProjectRoot ignores the registry home ──────────────────────────────
+# The global registry home (~/.hikspine or $HIKSPINE_HOME) must never be picked
+# as a project root, otherwise a first `next` in any dir under the home scatters
+# state into the home instead of the working dir.
+echo "# findProjectRoot ignores the registry home"
+FH="$(sandbox)"
+mkdir -p "$FH/.hikspine" "$FH/proj"
+: > "$FH/.hikspine/active"
+( cd "$FH/proj" && HIKSPINE_HOME="$FH/.hikspine" "$NODE_BIN" "$ENGINE_RUN" next fhome-change --workflow fix --json ) > /dev/null 2>&1
+eq "state lands in the project subdir, not the registry home" \
+  "$(if [ -d "$FH/proj/openspec/changes/fhome-change" ] && [ ! -d "$FH/openspec" ]; then echo yes; else echo no; fi)" "yes"
 
 # ─── edge cases ────────────────────────────────────────────────────────────
 

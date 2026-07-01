@@ -19,6 +19,11 @@
 
 - **build 阶段 hui-pro/TDD 要求传递到 subAgent**: 并行(subagent-driven-development)时,`hui-pro` 和 TDD 只在主上下文提了一句,没进 subAgent 的 brief,导致做前端的 subAgent 不知道要用 `hui-pro`。新增规则:subAgent 只看得到自己 brief 里的内容,用 subagent-driven-development 时必须把适用的按任务要求写进**每个** subAgent 的 brief——碰前端 UI 的要求它用 `hui-pro`,`tdd_mode` 为 true 的要求它遵循 test-driven-development;并强调 `hui-pro` 是产出 UI 的唯一正规途径(无前端脚手架)。`docs/workflows-zh/new.yaml` 同步。
 
+### Fixed
+
+- **总项目看板改为项目下钻联动**: `--all` 全局看板此前把构建信息、工作流、工作流阶段与技能整块隐藏、任务平铺,显得很乱、没有联动感。改为主-从下钻:项目卡片可点击,点开后前端拉取该项目的单项目看板(`GET /api/state?projectId=<id>`),完整显示它的任务、构建信息、工作流阶段与技能,并提供"← 所有项目"返回按钮;下钻视图里的产物预览与切换活动任务也会带上 `projectId` 指向正确项目根。服务端 `/api/state` 在 `--all` 模式下新增按 `projectId` 返回单项目 board 的分支。
+- **首个 `next` 把状态散落到用户主目录(注册表 home 被当成项目根)**: 多项目注册表在 `~/.hikspine`(或 `$HIKSPINE_HOME`)落地后,`findProjectRoot` 会把这个全局 home 当成"项目根"(命中其中的 `.hikspine`/`openspec/changes`/`.hikspine/active` 标记),于是在用户主目录下的任意子目录首次跑 `next`,`openspec/`、`.hikspine/` 会被建到主目录而不是工作目录(还会自我叠加:越跑散落越多)。修复:`findProjectRoot` 显式跳过注册表 home 目录,不再把它及其中散落的标记当项目根;显式传 `--project-root` 不受影响。
+
 ### Tests
 
 - **new workflow 顺序与轻量上下文覆盖**: workflow kernel 测试更新为验证 `new` 从 scaffold 起步、scaffold 后进入 brainstorm、OpenSpec 直接进入 design，并断言新骨架上下文规则不再要求 codegraph。
@@ -30,6 +35,8 @@
 - **多项目 registry 与全局 UI skill 覆盖**: workflow kernel 测试隔离 `HIKSPINE_HOME`，新增断言验证全局看板能列出已登记项目、跨项目任务和产物携带项目元数据，并能发现 `hikspine-global-ui` skill。
 
 - **scaffold 后端组 + subAgent brief 传递覆盖**: 新增断言验证 `new.scaffold` 的两个后端脚手架都在 `group: backend` 且带 `when` 标签,以及 `new.build` 规则要求把 `hui-pro`/test-driven-development 写进每个 subAgent 的 brief。
+
+- **注册表 home 隔离 + 沙箱位置**: 新增断言验证在 `HIKSPINE_HOME` 对应的 home 目录下跑首个 `next` 时状态落到项目子目录而非 home;并把测试沙箱统一建在仓库 `.tmp/sandboxes` 下,避免落在用户主目录(可能残留散落的 `openspec/.hikspine`)导致 `findProjectRoot` 误锚、rule sync 失败。
 
 ## What's Changed [0.6.35] - 2026-07-01
 

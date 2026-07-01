@@ -148,7 +148,29 @@ export function createBoardServer(root, { all = false } = {}) {
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
-        sendJson(res, 200, all ? allProjectsBoardState() : boardState(root));
+        if (all) {
+          // Drill-in: /api/state?projectId=<id> returns that one project's full
+          // board (workflows, skills, build) so the global board can show the
+          // detail panels for the selected project. No projectId => the
+          // aggregate overview across all registered projects.
+          const projectId = url.searchParams.get('projectId') || url.searchParams.get('project');
+          if (projectId) {
+            const project = findRegisteredProject(projectId);
+            if (!project || project.missing) {
+              sendJson(res, 404, { error: 'Registered project not found.' });
+              return;
+            }
+            const detail = boardState(project.root);
+            detail.fromAll = true;
+            detail.projectId = project.id;
+            detail.projectName = project.name;
+            sendJson(res, 200, detail);
+            return;
+          }
+          sendJson(res, 200, allProjectsBoardState());
+          return;
+        }
+        sendJson(res, 200, boardState(root));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {

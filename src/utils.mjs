@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -51,23 +52,44 @@ export function resolveProjectRoot(opts = {}) {
   return root;
 }
 
+// The global Hikspine home (`$HIKSPINE_HOME` or `~/.hikspine`) holds the
+// multi-project registry — it is NOT a project. Kept in sync with
+// project-registry.hikspineHome(); inlined here to avoid a circular import.
+function hikspineHomeDir() {
+  return path.resolve(process.env.HIKSPINE_HOME || path.join(os.homedir(), '.hikspine'));
+}
+
+function samePath(a, b) {
+  const na = path.resolve(a);
+  const nb = path.resolve(b);
+  return process.platform === 'win32' ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+}
+
 // Walk up from startDir to the Hikspine project root that owns the state, so
 // hooks (notifications, ui pid) anchor to the SAME .hikspine the engine writes
 // — not the git toplevel of whatever subdirectory the agent happens to be in.
 // Prefers a "real" project (has openspec/changes, .hikspine/active, or
 // .hikspine/changes) over a bare .hikspine (which may be a stray from a wrong
-// cwd), and falls back to startDir when nothing is found.
+// cwd), and falls back to startDir when nothing is found. The global registry
+// home (~/.hikspine) is explicitly NOT a project marker, otherwise every dir
+// under the user's home would resolve its project root to the home directory.
 export function findProjectRoot(startDir) {
   let dir;
   try { dir = path.resolve(startDir || '.'); } catch { return path.resolve('.'); }
   const start = dir;
+  const home = hikspineHomeDir();
   let weakHit = '';
   for (;;) {
-    const strong = fs.existsSync(path.join(dir, 'openspec', 'changes'))
+    // The home directory that hosts the registry (~/.hikspine) is never a
+    // project root, even if scattered openspec/.hikspine state landed there.
+    const isHome = samePath(path.join(dir, '.hikspine'), home);
+    const strong = !isHome && (
+      fs.existsSync(path.join(dir, 'openspec', 'changes'))
       || fs.existsSync(path.join(dir, '.hikspine', 'active'))
-      || fs.existsSync(path.join(dir, '.hikspine', 'changes'));
+      || fs.existsSync(path.join(dir, '.hikspine', 'changes'))
+    );
     if (strong) return dir;
-    if (!weakHit && fs.existsSync(path.join(dir, '.hikspine'))) weakHit = dir;
+    if (!weakHit && !isHome && fs.existsSync(path.join(dir, '.hikspine'))) weakHit = dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;

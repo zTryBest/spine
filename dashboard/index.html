@@ -93,8 +93,11 @@
   .stat.work .n{color:var(--work)} .stat.confirm .n{color:var(--confirm)} .stat.done .n{color:#b9a6ff}
   .stat .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.7px; margin-top:7px; }
   .projects { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-bottom:8px; }
-  .project-card { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(13,16,21,.96)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; box-shadow:var(--shadow); }
-  .project-card.error { border-color:rgba(255,118,111,.42); }
+  .projects-hint { grid-column:1/-1; font-size:12px; color:var(--muted); margin:0 0 2px; }
+  .project-card { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(13,16,21,.96)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; box-shadow:var(--shadow); cursor:pointer; transition:border-color .12s, transform .12s; }
+  .project-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .project-card.error { border-color:rgba(255,118,111,.42); cursor:default; }
+  .project-card .drill { margin-top:8px; font-size:11px; color:var(--accent); opacity:.85; }
   .project-name { font-weight:800; display:flex; align-items:center; gap:8px; min-width:0; }
   .project-name span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .project-version { color:var(--dim); font-size:10.5px; font-family:ui-monospace,monospace; border:1px solid var(--line2); border-radius:5px; padding:1px 5px; }
@@ -196,6 +199,8 @@
   .cap-tag { margin-left:6px; padding:1px 6px; border-radius:999px; font-size:10px; background:rgba(98,210,162,.18); color:#8ee6bd; }
   .quit-btn { border:1px solid rgba(255,120,120,.4); background:rgba(255,90,90,.12); color:#ffb4b4; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; }
   .quit-btn:hover { background:rgba(255,90,90,.22); }
+  .back-btn { border:1px solid var(--line2); background:var(--panel2); color:#cbd5e8; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  .back-btn:hover { border-color:var(--accent); color:#fff; }
   .build-panel { margin-bottom:22px; }
   .build-project { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   .build-project .kv { font-size:11px; color:#9fb0cc; background:var(--panel2); border:1px solid var(--line2); border-radius:6px; padding:3px 8px; }
@@ -270,6 +275,7 @@
       <div class="t2"><span id="subtitle"></span><span class="root" id="root"></span></div>
     </div>
     <div class="hbar">
+      <button class="back-btn" id="backBtn" type="button" hidden></button>
       <div class="lang"><button data-lang="zh" id="lzh">中文</button><button data-lang="en" id="len">EN</button></div>
       <div class="live"><span class="dot" id="dot"></span> <span id="livetext"></span></div>
       <button class="quit-btn" id="quitBtn" type="button" hidden></button>
@@ -328,6 +334,7 @@ let hasRendered = false;
 let uiLabels = { stages:{} };
 let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
+let selectedProjectId = null;   // global board: which project is drilled into (null = overview)
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
 const I18N = {
@@ -352,6 +359,7 @@ const I18N = {
     secBuild:'构建信息 / 组件', buildEmpty:'还没有组件构建信息 — scaffold 阶段拉取脚手架后写入 .hikspine/project-build.json。',
     bcComponent:'组件标识', bcSvn:'SVN 地址', bcModule:'模块', bcType:'构建类型', bcArtifact:'产物',
     quit:'退出看板', quitConfirm:'确定要退出看板进程吗？退出后本页将失去实时数据。', quitDone:'看板进程已退出，可关闭此页。', quitFail:'退出请求失败，可能进程已停止。',
+    backAll:'← 所有项目', pickProject:'点击某个项目查看它的任务、构建信息、工作流阶段与技能。',
   },
   en: {
     title:'Hikspine Pipeline Board',
@@ -374,6 +382,7 @@ const I18N = {
     secBuild:'Build info / Components', buildEmpty:'No component build info yet — the scaffold stage writes it to .hikspine/project-build.json when it pulls scaffolds.',
     bcComponent:'Component', bcSvn:'SVN address', bcModule:'Module', bcType:'Build type', bcArtifact:'Artifact',
     quit:'Quit board', quitConfirm:'Stop the board process? This tab will stop receiving live data.', quitDone:'Board process stopped — you can close this tab.', quitFail:'Shutdown request failed; the process may already be stopped.',
+    backAll:'← All projects', pickProject:'Click a project to see its tasks, build info, workflow stages and skills.',
   },
 };
 const t = (k) => I18N[lang][k];
@@ -808,18 +817,21 @@ function renderProjects(projects) {
     host.innerHTML = '<div class="empty">'+(lang==='zh'?'还没有登记项目。先在项目里运行 hikspine next 或 hikspine ui。':'No projects registered yet. Run hikspine next or hikspine ui inside a project first.')+'</div>';
     return;
   }
-  host.innerHTML = projects.map(p => {
+  host.innerHTML = '<div class="projects-hint">'+esc(t('pickProject'))+'</div>' + projects.map(p => {
     const c = p.counts || {};
-    return '<article class="project-card '+(p.error?'error':'')+'">'+
+    return '<article class="project-card '+(p.error?'error':'')+'" '+(p.error?'':'data-project-id="'+esc(p.id)+'"')+'>'+
       '<div class="project-name"><span>'+esc(p.name || p.root)+'</span>'+(p.pluginVersion?'<span class="project-version">v'+esc(p.pluginVersion)+'</span>':'')+'</div>'+
       '<div class="project-root" title="'+esc(p.root || '')+'">'+esc(p.root || '')+'</div>'+
       '<div class="project-metrics"><span>'+esc(lang==='zh'?'任务':'Tasks')+' '+(c.total||0)+'</span>'+
       '<span class="hot">'+esc(lang==='zh'?'待确认':'Confirm')+' '+(c.confirm||0)+'</span>'+
       '<span>'+esc(lang==='zh'?'进行中':'Work')+' '+(c.work||0)+'</span>'+
       '<span class="done">'+esc(lang==='zh'?'完成':'Done')+' '+(c.done||0)+'</span></div>'+
-      (p.error?'<div class="project-error">'+esc(p.error)+'</div>':'')+
+      (p.error?'<div class="project-error">'+esc(p.error)+'</div>':'<div class="drill">'+esc(lang==='zh'?'查看详情 →':'View details →')+'</div>')+
     '</article>';
   }).join('');
+  host.querySelectorAll('.project-card[data-project-id]').forEach(card => {
+    card.onclick = () => { selectedProjectId = card.dataset.projectId; lastRenderKey = ''; refresh(); };
+  });
 }
 function renderChanges(changes) {
   if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+t('empty')+'</div>'; return; }
@@ -836,10 +848,10 @@ function renderChanges(changes) {
       '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div>'+artifactList(c)+timeline(c)+'</div>';
   }).join('');
   $('changes').querySelectorAll('.artifact-btn').forEach(btn => {
-    btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact, btn.dataset.projectId || ''); };
+    btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact, btn.dataset.projectId || selectedProjectId || ''); };
   });
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
-    card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change,projectId:card.dataset.projectId||undefined})}); } catch(e){} refresh(); };
+    card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change,projectId:card.dataset.projectId||selectedProjectId||undefined})}); } catch(e){} refresh(); };
   });
 }
 
@@ -1082,6 +1094,10 @@ function renderAll() {
   $('root').textContent = last.root ? '  ·  '+last.root : '';
   const allMode = last.mode === 'all';
   if (allMode) $('root').textContent = '  ·  '+(lang==='zh'?'所有已登记项目':'all registered projects');
+  else if (last.fromAll) $('root').textContent = '  ·  '+(last.projectName || last.root || '');
+  const backBtn = $('backBtn');
+  backBtn.textContent = t('backAll');
+  backBtn.hidden = !last.fromAll;
   $('secBuild').hidden = allMode;
   $('projectBuild').hidden = allMode;
   $('secWf').hidden = allMode;
@@ -1122,6 +1138,7 @@ $('quitBtn').onclick = async () => {
     alert(t('quitFail'));
   }
 };
+$('backBtn').onclick = () => { selectedProjectId = null; lastRenderKey = ''; refresh(); };
 $('artifactClose').onclick = closeArtifact;
 $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
 
@@ -1133,7 +1150,13 @@ async function refresh() {
     uiLabels = { stages:{} };
   }
   let s;
-  try { s = await api('/api/state'); } catch (e) { s = DEMO; }
+  if (selectedProjectId) {
+    try { s = await api('/api/state?projectId='+encodeURIComponent(selectedProjectId)); }
+    catch (e) { s = null; }
+    if (!s || s.error) { selectedProjectId = null; try { s = await api('/api/state'); } catch (e2) { s = DEMO; } }
+  } else {
+    try { s = await api('/api/state'); } catch (e) { s = DEMO; }
+  }
   if (!s.demo && (!s.changes)) s.demo = true;
   const renderKey = JSON.stringify(s) + '|' + JSON.stringify(uiLabels) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
   if (renderKey === lastRenderKey) return;
