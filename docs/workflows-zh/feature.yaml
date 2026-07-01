@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/feature.yaml。
 
 id: feature
-version: 15
+version: 16
 # 文档语言规则：workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
 # build 兼容提醒：使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
 name: 功能开发
@@ -53,6 +53,7 @@ states:
       - 编辑源码前必须选择且只选择一个实现驱动。小型、本地、基本顺序执行的改动使用 executing-plans；如果实现能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
       - 当 design 阶段记录的 tdd_mode 决策为 true（见 next 输出的 decisions 字段），实现必须遵循 test-driven-development——加载该 skill，先写失败测试再写代码，无论用哪个驱动。tdd_mode 为 false 时正常实现，不加载它。
       - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent（公司并发限制）；模块更多时按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
+      - 别让 git worktree 隔离卡住 build。Agent worktree 要求 Claude Code 会话在 git 仓库里启动；若带 worktree 隔离的派发报错（如 "Cannot create agent worktree: not in a git repository"），立刻改成**不带**隔离重派，给每个 subAgent 划分互不重叠的文件/模块避免冲突；无法划分时就顺序执行，不要停。
     needs: [implemented]
     next: review
 

@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 20
+version: 21
 name: 新建项目
 intent: 从零到一构建项目。先拉取真实脚手架并记录组件/目录事实，再进行头脑风暴、OpenSpec、设计和实现，避免文档凭空生成错误目录。
 start: scaffold
@@ -77,6 +77,7 @@ states:
       - 执行驱动必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
       - 当 design 阶段记录的 tdd_mode 决策为 true 时，实现必须遵循 test-driven-development：加载该 skill，先写失败测试再写代码，无论用 executing-plans 还是 subagent-driven-development。tdd_mode 为 false 时正常实现。
       - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent；模块更多时按每批 3 个分批跑，每批跑完再开下一批。
+      - 不要依赖 git worktree 隔离来并行 subAgent。Agent worktree 要求 Claude Code 会话本身是在一个 git 仓库里启动的；刚拉的脚手架通常不是，而且在项目里 `git init` 也救不了（会话根目录不一致时会报 "Cannot create agent worktree: not in a git repository"）。并行 implementer 一律**不加** worktree 隔离，给每个 subAgent 划分互不重叠的文件/模块，避免冲突。若带隔离的派发报错，立刻改成不带隔离重派，不要停；无法划分互不重叠时就顺序执行。
       - 使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
       - 任何 UI 组件都必须使用 hui-pro；没有前端脚手架，hui-pro 是产出 UI 的唯一正规路径。
       - subAgent 只看得到自己的 brief。使用 subagent-driven-development 时，把适用的按任务要求写进每个 subAgent brief：涉及前端 UI 的要求使用 hui-pro，tdd_mode 为 true 的要求遵循 test-driven-development。
