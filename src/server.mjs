@@ -7,10 +7,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { boardState } from './board.mjs';
+import { allProjectsBoardState, boardState } from './board.mjs';
 import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
 import { setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
+import { findRegisteredProject, readRegisteredProjects } from './project-registry.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
 const DASHBOARD_LABELS = path.join(PLUGIN_ROOT, 'dashboard', 'ui-labels.json');
@@ -72,6 +73,14 @@ function readUiLabels(root) {
   return mergeUiLabels(defaults, project);
 }
 
+function rootForRequest(defaultRoot, url, body = {}) {
+  const projectId = body.projectId || url.searchParams?.get('projectId') || url.searchParams?.get('project');
+  if (!projectId) return defaultRoot;
+  const project = findRegisteredProject(projectId);
+  if (!project || project.missing) throw new Error('Registered project not found.');
+  return project.root;
+}
+
 function uiStateDir(root) {
   return path.join(root, '.hikspine');
 }
@@ -129,7 +138,7 @@ function unregisterUiPid(root) {
   } catch {}
 }
 
-export function createBoardServer(root) {
+export function createBoardServer(root, { all = false } = {}) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     try {
@@ -139,7 +148,7 @@ export function createBoardServer(root) {
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
-        sendJson(res, 200, boardState(root));
+        sendJson(res, 200, all ? allProjectsBoardState() : boardState(root));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
@@ -147,9 +156,10 @@ export function createBoardServer(root) {
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/artifact') {
+        const targetRoot = all ? rootForRequest(root, url) : root;
         const requested = url.searchParams.get('path') || '';
-        const abs = path.resolve(root, requested);
-        const rootAbs = path.resolve(root);
+        const abs = path.resolve(targetRoot, requested);
+        const rootAbs = path.resolve(targetRoot);
         if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) {
           sendJson(res, 400, { error: 'Artifact path must stay inside the project root.' });
           return;
@@ -178,11 +188,13 @@ export function createBoardServer(root) {
       }
       // Switch the active task (focus), without touching its state.
       if (req.method === 'POST' && url.pathname === '/api/active') {
-        const { change } = await readBody(req);
+        const body = await readBody(req);
+        const { change } = body;
         try {
+          const targetRoot = all ? rootForRequest(root, url, body) : root;
           validateChangeName(change);
-          setActive(root, change);
-          sendJson(res, 200, { active: change });
+          setActive(targetRoot, change);
+          sendJson(res, 200, { active: change, root: targetRoot });
         } catch (err) {
           sendJson(res, 400, { error: err.message });
         }
@@ -190,9 +202,28 @@ export function createBoardServer(root) {
       }
       if (req.method === 'POST' && url.pathname === '/api/notifications/handled') {
         const body = await readBody(req);
-        const result = body.all
-          ? markAllNotificationsHandled(root)
-          : markNotificationsHandled(root, body.ids || body.id);
+        let result;
+        if (all && body.all) {
+          result = { handled: 0 };
+          for (const project of readRegisteredProjects()) {
+            const r = markAllNotificationsHandled(project.root);
+            result.handled += Number(r.handled || 0);
+          }
+        } else if (all) {
+          const rawIds = Array.isArray(body.ids) ? body.ids : [body.id].filter(Boolean);
+          result = { handled: 0 };
+          for (const rawId of rawIds) {
+            const [projectId, ...rest] = String(rawId).split(':');
+            const project = findRegisteredProject(projectId);
+            if (!project || project.missing) continue;
+            const r = markNotificationsHandled(project.root, rest.join(':'));
+            result.handled += Number(r.handled || 0);
+          }
+        } else {
+          result = body.all
+            ? markAllNotificationsHandled(root)
+            : markNotificationsHandled(root, body.ids || body.id);
+        }
         sendJson(res, 200, result);
         return;
       }
@@ -213,8 +244,8 @@ export function createBoardServer(root) {
   });
 }
 
-export function startBoard(root, { port = 4319, host = '127.0.0.1' } = {}) {
-  const server = createBoardServer(root);
+export function startBoard(root, { port = 4319, host = '127.0.0.1', all = false } = {}) {
+  const server = createBoardServer(root, { all });
   // The engine writes its OWN pid (process.pid = the real OS pid) so the
   // SessionEnd cleanup hook can terminate it. Do NOT rely on a shell's `$!`:
   // in Git Bash on Windows that is the MSYS pid, not the node.exe Windows pid,
@@ -232,6 +263,9 @@ export function startBoard(root, { port = 4319, host = '127.0.0.1' } = {}) {
       }
       const addr = server.address();
       const url = `http://${host}:${addr.port}`;
+      if (all) {
+        process.stdout.write(`Hikspine board: ${url}\n(serving all registered projects from ${root} - Ctrl+C to stop)\n`);
+      } else
       process.stdout.write(`Hikspine board: ${url}\n(serving ${root} — Ctrl+C to stop)\n`);
       resolve({ server, url });
     });

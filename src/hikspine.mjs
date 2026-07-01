@@ -24,8 +24,9 @@ import {
   loadWorkflow,
 } from './store.mjs';
 import { discoverSkills } from './skills.mjs';
-import { boardState, listChangeSummaries } from './board.mjs';
+import { allProjectsBoardState, boardState, listChangeSummaries } from './board.mjs';
 import { startBoard } from './server.mjs';
+import { registerProject } from './project-registry.mjs';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -36,9 +37,15 @@ function emit(action, opts) {
   else process.stdout.write(formatNextAction(action));
 }
 
+function resolveRegisteredProjectRoot(opts) {
+  const root = resolveProjectRoot(opts);
+  try { registerProject(root); } catch {}
+  return root;
+}
+
 function cmdNext(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const { state, workflow, created } = loadOrCreatePair(root, opts._[0], opts);
   const action = computeNext(root, workflow, state);
@@ -52,7 +59,7 @@ function cmdDecide(args) {
   const key = opts._[0];
   if (!key) die('Usage: hikspine decide <key> [value] [--change <change>] [--json]');
   const value = opts._.length > 1 ? parseJsonish(opts._[1]) : true;
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const state = loadState(root, opts.change);
   const workflow = loadWorkflow(root, state.workflow);
@@ -68,7 +75,7 @@ function cmdDecide(args) {
 // auto-advances or mutates any change.
 function cmdChanges(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const active = getActive(root);
   const changes = listChangeSummaries(root, active);
   if (opts.json) { printJson({ active, changes }); return; }
@@ -87,7 +94,7 @@ function cmdChanges(args) {
 // so the agent can route a request to the right workflow.
 function cmdWorkflows(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const workflows = listWorkflows(root);
   if (opts.json) { printJson({ workflows }); return; }
   const lines = ['HIKSPINE workflows:'];
@@ -100,7 +107,7 @@ function cmdWorkflows(args) {
 // the set of valid capability names.
 function cmdSkills(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const skills = discoverSkills(root);
   if (opts.json) { printJson({ skills }); return; }
   const lines = ['HIKSPINE skills:'];
@@ -112,7 +119,15 @@ function cmdSkills(args) {
 // skills. Same data the web UI serves at /api/state.
 function cmdBoard(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  if (opts.all) {
+    try { resolveRegisteredProjectRoot(opts); } catch {}
+    const state = allProjectsBoardState();
+    if (opts.json) { printJson(state); return; }
+    const lines = [`HIKSPINE all-project board`, `projects: ${(state.projects || []).length}`, `changes: ${(state.changes || []).length}`];
+    process.stdout.write(`${lines.join('\n')}\n`);
+    return;
+  }
+  const root = resolveRegisteredProjectRoot(opts);
   const state = boardState(root);
   if (opts.json) { printJson(state); return; }
   const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
@@ -130,9 +145,9 @@ function cmdBoard(args) {
 // Launch the local web board. Long-running; the user runs this in a terminal.
 function cmdUi(args) {
   const opts = parseOptions(args);
-  const root = resolveProjectRoot(opts);
+  const root = resolveRegisteredProjectRoot(opts);
   const port = opts.port ? Number(opts.port) : 4319;
-  startBoard(root, { port }).catch((err) => die(`Cannot start board: ${err.message}`));
+  startBoard(root, { port, all: !!opts.all }).catch((err) => die(`Cannot start board: ${err.message}`));
 }
 
 function help() {
@@ -142,8 +157,8 @@ function help() {
   hikspine changes [--json]
   hikspine workflows [--json]
   hikspine skills [--json]
-  hikspine board [--json]
-  hikspine ui [--port <n>]
+  hikspine board [--all] [--json]
+  hikspine ui [--all] [--port <n>]
 
 Global options:
   --project-root <dir>  Read/write Hikspine state for this project instead of the current directory.
@@ -157,7 +172,7 @@ Agent protocol:
   workflows  List available workflows with their selection intent (for routing a request).
   skills     List every Claude Code skill discoverable here (valid capability names).
   board      Aggregate changes + workflows + skills (the web board's data).
-  ui         Start the local web board (default http://127.0.0.1:4319).
+  ui         Start the local web board (default http://127.0.0.1:4319). Pass --all for all registered projects.
 
 Examples:
   hikspine next entrance-monitor --workflow feature --json
@@ -167,6 +182,7 @@ Examples:
   hikspine changes --json
   hikspine workflows --json
   hikspine ui --project-root /path/to/project
+  hikspine ui --all
 
 Workflows resolve from .hikspine/workflows/<id>.yaml first, then builtin/workflows/<id>.yaml.
 If --workflow is omitted for a new change, Hikspine uses .hikspine/config.yaml defaultWorkflow,

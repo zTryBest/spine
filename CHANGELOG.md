@@ -1,3 +1,17 @@
+## What's Changed [0.6.36] - 2026-07-01
+
+### Added
+
+- **本地多项目看板第一阶段**: 新增用户级 `.hikspine/projects.json` 项目登记表，Hikspine 命令访问项目时会登记项目根、项目名、最近使用时间和插件版本；`hikspine board --all --json` 与 `hikspine ui --all` 现在可以聚合展示所有已登记项目的任务、通知、阶段产物和项目摘要，便于先在本机评估插件在多个项目中的使用成效。
+
+### Changed
+
+- **Claude Code runtime 启动说明修正**: README 与看板 skill 改为明确通过 `node "$HIKSPINE_ENGINE" ...` 启动看板；新增独立 `hikspine-global-ui` skill 启动 `ui --all`，`hikspine-ui` 只保留当前项目看板，避免误导团队成员以为必须存在全局 `hikspine` 命令或在同一个 skill 中切换模式。
+
+### Tests
+
+- **多项目 registry 与全局 UI skill 覆盖**: workflow kernel 测试隔离 `HIKSPINE_HOME`，新增断言验证全局看板能列出已登记项目、跨项目任务和产物携带项目元数据，并能发现 `hikspine-global-ui` skill。
+
 ## What's Changed [0.6.35] - 2026-07-01
 
 ### Added

@@ -92,6 +92,18 @@
   .stat .n { font-size:26px; font-weight:750; line-height:1; }
   .stat.work .n{color:var(--work)} .stat.confirm .n{color:var(--confirm)} .stat.done .n{color:#b9a6ff}
   .stat .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.7px; margin-top:7px; }
+  .projects { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-bottom:8px; }
+  .project-card { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(13,16,21,.96)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; box-shadow:var(--shadow); }
+  .project-card.error { border-color:rgba(255,118,111,.42); }
+  .project-name { font-weight:800; display:flex; align-items:center; gap:8px; min-width:0; }
+  .project-name span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .project-version { color:var(--dim); font-size:10.5px; font-family:ui-monospace,monospace; border:1px solid var(--line2); border-radius:5px; padding:1px 5px; }
+  .project-root { color:var(--dim); font-size:11px; font-family:ui-monospace,monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:5px; }
+  .project-metrics { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .project-metrics span { color:#cbd5e8; background:var(--panel2); border:1px solid var(--line2); border-radius:999px; padding:2px 7px; font-size:11px; }
+  .project-metrics .hot { color:#ffe08a; border-color:rgba(240,198,74,.36); background:rgba(240,198,74,.08); }
+  .project-metrics .done { color:#b9a6ff; border-color:rgba(182,144,240,.36); background:rgba(182,144,240,.08); }
+  .project-error { color:var(--err); font-size:11.5px; margin-top:8px; }
 
   h2 { font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:#b8c2cf; margin:30px 0 12px; font-weight:750; display:flex; align-items:center; gap:9px; }
   h2::before { content:""; width:8px; height:8px; border-radius:2px; background:var(--accent); box-shadow:0 0 0 3px rgba(98,210,162,.12); }
@@ -107,6 +119,7 @@
   .card .name { font-weight:700; font-size:16px; }
   .card .wf { color:#d6dde7; font-size:11.5px; font-family:ui-monospace,monospace;
     background:rgba(29,36,48,.9); border:1px solid var(--line2); border-radius:6px; padding:2px 8px; }
+  .card .project-tag { color:#d9f4e7; font-size:11.5px; border:1px solid rgba(98,210,162,.32); border-radius:6px; padding:2px 8px; background:rgba(98,210,162,.08); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .star { color:var(--accent); }
   .badge { margin-left:auto; font-size:10.5px; padding:4px 11px; border-radius:999px; font-weight:800; letter-spacing:.4px; }
   .badge.work{background:rgba(63,208,122,.15);color:var(--work)} .badge.confirm{background:rgba(240,198,74,.15);color:var(--confirm)}
@@ -264,6 +277,9 @@
   </header>
 
   <div class="stats" id="stats"></div>
+
+  <h2 id="secProjects" hidden></h2>
+  <div class="projects" id="projects" hidden></div>
 
   <h2 id="secTasks"></h2>
   <div class="cards" id="changes"></div>
@@ -590,8 +606,8 @@ function artifactTypeFromPath(path) {
   if (p.includes('/plans/') || name.includes('plan')) return 'plan';
   return 'markdown';
 }
-function artifactMeta(path) {
-  return (last?.changes || []).flatMap(c => c.artifacts || []).find(a => a.path === path);
+function artifactMeta(path, projectId) {
+  return (last?.changes || []).flatMap(c => c.artifacts || []).find(a => a.path === path && (!projectId || a.projectId === projectId));
 }
 function inlineMd(text) {
   return esc(text)
@@ -714,7 +730,7 @@ function artifactList(c) {
     const files = artifacts.filter(a => (a.stage || 'openspec') === stage);
     if (!files.length) return '';
     const buttons = files.slice(0, 8).map(a =>
-      '<button type="button" class="artifact-btn" data-artifact="'+esc(a.path)+'" data-type="'+esc(a.type || artifactTypeFromPath(a.path))+'" title="'+esc(a.path)+'">'+
+      '<button type="button" class="artifact-btn" data-artifact="'+esc(a.path)+'" data-project-id="'+esc(a.projectId || c.projectId || '')+'" data-type="'+esc(a.type || artifactTypeFromPath(a.path))+'" title="'+esc(a.path)+'">'+
       '<span class="artifact-btn-type">'+esc(artifactTypeLabel(a.type || artifactTypeFromPath(a.path)))+'</span>'+
       '<span class="artifact-btn-title">'+esc(a.title || a.path)+'</span></button>'
     ).join('');
@@ -752,14 +768,15 @@ function renderStats(changes) {
     '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">'+t('stConfirm')+'</div></div>'+
     '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">'+t('stDone')+'</div></div>';
 }
-async function openArtifact(path) {
+async function openArtifact(path, projectId) {
   let data;
   const demo = last && last.demo;
-  const meta = artifactMeta(path);
+  const meta = artifactMeta(path, projectId);
   if (demo) {
     data = meta ? { path, type: meta.type, content: meta.content || '# '+(meta.title || path)+'\n\nDemo artifact preview.' } : null;
   } else {
-    data = await api('/api/artifact?path='+encodeURIComponent(path));
+    const suffix = projectId ? '&projectId='+encodeURIComponent(projectId) : '';
+    data = await api('/api/artifact?path='+encodeURIComponent(path)+suffix);
   }
   const type = (data && data.type) || (meta && meta.type) || artifactTypeFromPath(path);
   $('artifactType').textContent = artifactTypeLabel(type);
@@ -778,25 +795,51 @@ async function openArtifact(path) {
 function closeArtifact() {
   $('artifactModal').hidden = true;
 }
+function renderProjects(projects) {
+  const host = $('projects');
+  const title = $('secProjects');
+  const allMode = last && last.mode === 'all';
+  title.hidden = !allMode;
+  host.hidden = !allMode;
+  if (!allMode) { host.innerHTML = ''; return; }
+  title.textContent = lang === 'zh' ? '项目' : 'Projects';
+  projects = Array.isArray(projects) ? projects : [];
+  if (!projects.length) {
+    host.innerHTML = '<div class="empty">'+(lang==='zh'?'还没有登记项目。先在项目里运行 hikspine next 或 hikspine ui。':'No projects registered yet. Run hikspine next or hikspine ui inside a project first.')+'</div>';
+    return;
+  }
+  host.innerHTML = projects.map(p => {
+    const c = p.counts || {};
+    return '<article class="project-card '+(p.error?'error':'')+'">'+
+      '<div class="project-name"><span>'+esc(p.name || p.root)+'</span>'+(p.pluginVersion?'<span class="project-version">v'+esc(p.pluginVersion)+'</span>':'')+'</div>'+
+      '<div class="project-root" title="'+esc(p.root || '')+'">'+esc(p.root || '')+'</div>'+
+      '<div class="project-metrics"><span>'+esc(lang==='zh'?'任务':'Tasks')+' '+(c.total||0)+'</span>'+
+      '<span class="hot">'+esc(lang==='zh'?'待确认':'Confirm')+' '+(c.confirm||0)+'</span>'+
+      '<span>'+esc(lang==='zh'?'进行中':'Work')+' '+(c.work||0)+'</span>'+
+      '<span class="done">'+esc(lang==='zh'?'完成':'Done')+' '+(c.done||0)+'</span></div>'+
+      (p.error?'<div class="project-error">'+esc(p.error)+'</div>':'')+
+    '</article>';
+  }).join('');
+}
 function renderChanges(changes) {
   if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+t('empty')+'</div>'; return; }
   $('changes').innerHTML = changes.map(c => {
     if (c.error) return '<div class="card"><div class="top"><span class="name">'+esc(c.change)+'</span>'+badge(c)+'</div><div class="foot">'+esc(c.error)+'</div></div>';
     const missing = (c.missing && c.missing.length) ? c.missing.join(', ') : '—';
     const goal = goalText(c);
-    return '<div class="card clickable'+(c.active?' active':'')+'" data-change="'+esc(c.change)+'">'+
+    return '<div class="card clickable'+(c.active?' active':'')+'" data-change="'+esc(c.change)+'" data-project-id="'+esc(c.projectId || '')+'">'+
       '<div class="top">'+(c.active?'<span class="star">★</span>':'')+'<span class="name">'+esc(c.change)+'</span>'+
-      '<span class="wf">'+esc(c.workflow)+'</span>'+badge(c)+'</div>'+
+      (c.projectName?'<span class="project-tag">'+esc(c.projectName)+'</span>':'')+'<span class="wf">'+esc(c.workflow)+'</span>'+badge(c)+'</div>'+
       pipe(c)+
       '<div class="foot"><span>'+t('cur')+' <b>'+esc(label(c.current))+'</b></span>'+
       (goal?'<span>'+esc(goal)+'</span>':'')+
       '<span>'+t('pending')+' <b>'+esc(missing)+'</b></span></div>'+artifactList(c)+timeline(c)+'</div>';
   }).join('');
   $('changes').querySelectorAll('.artifact-btn').forEach(btn => {
-    btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact); };
+    btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact, btn.dataset.projectId || ''); };
   });
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
-    card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change})}); } catch(e){} refresh(); };
+    card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change,projectId:card.dataset.projectId||undefined})}); } catch(e){} refresh(); };
   });
 }
 
@@ -1037,6 +1080,14 @@ function renderAll() {
   $('secWf').textContent = t('secWf');
   $('secWorkflowDetail').textContent = lang==='zh' ? '工作流阶段与技能' : 'Workflow stages & skills';
   $('root').textContent = last.root ? '  ·  '+last.root : '';
+  const allMode = last.mode === 'all';
+  if (allMode) $('root').textContent = '  ·  '+(lang==='zh'?'所有已登记项目':'all registered projects');
+  $('secBuild').hidden = allMode;
+  $('projectBuild').hidden = allMode;
+  $('secWf').hidden = allMode;
+  $('legend').hidden = allMode;
+  $('secWorkflowDetail').hidden = allMode;
+  $('workflowDetail').hidden = allMode;
   $('dot').className = 'dot' + (last.demo?' demo':'');
   $('livetext').textContent = last.demo ? t('demo') : t('live');
   $('lzh').classList.toggle('on', lang==='zh');
@@ -1046,6 +1097,7 @@ function renderAll() {
   quitBtn.hidden = !!last.demo;   // only a live board can be stopped
   renderNotifications(last.notifications || []);
   renderStats(last.changes || []);
+  renderProjects(last.projects || []);
   renderChanges(last.changes || []);
   renderProjectBuild(last.projectBuild);
   renderWorkflows(last.workflows || []);

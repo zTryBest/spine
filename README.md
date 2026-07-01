@@ -255,8 +255,10 @@ support routing and tooling:
 hikspine skills [--json]     # every Claude Code skill discoverable here (valid capability names)
 hikspine workflows [--json]  # available workflows (builtin + project) with their selection intent
 hikspine changes [--json]    # every in-flight change with its workflow, current state, and next step
-hikspine board [--json]      # aggregate board data for the current project
-hikspine ui [--port <n>]     # local web board, default http://127.0.0.1:4319
+node "$HIKSPINE_ENGINE" board [--json]      # aggregate board data for the current project
+node "$HIKSPINE_ENGINE" board --all --json  # aggregate all locally registered projects
+node "$HIKSPINE_ENGINE" ui [--port <n>]     # local web board, default http://127.0.0.1:4319
+node "$HIKSPINE_ENGINE" ui --all            # local board for all registered projects
 ```
 
 - `skills` scans the same sources Claude Code reads (project `.claude/skills`,
@@ -278,14 +280,16 @@ hikspine ui [--port <n>]     # local web board, default http://127.0.0.1:4319
 ```bash
 node "$HIKSPINE_ENGINE" ui --project-root /path/to/project
 HIKSPINE_PROJECT_ROOT=/path/to/project node "$HIKSPINE_ENGINE" ui
+node "$HIKSPINE_ENGINE" ui --all --project-root /path/to/current/project
 ```
 
 `--project-root` is a global option and also works with `next`, `decide`,
 `changes`, `workflows`, `skills`, and `board`.
 
-In Claude Code, users can also ask to "start the Hikspine UI" or "open the
-Hikspine board"; the `hikspine-ui` skill wraps the same command and starts the
-board against the current project.
+In Claude Code, users can also ask to start a board by skill:
+
+- `hikspine-ui` starts the current-project board.
+- `hikspine-global-ui` starts the all-project board for locally registered projects.
 
 ## Verification
 

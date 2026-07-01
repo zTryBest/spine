@@ -30,6 +30,8 @@ case "$NODE_BIN" in
     fi
     ;;
 esac
+export HIKSPINE_HOME="$REPO/.tmp/hikspine-home"
+mkdir -p "$HIKSPINE_HOME"
 
 pass=0
 fail=0
@@ -374,8 +376,8 @@ eq "openspec needs proposal_ready" \
 NP_SCAFFOLD="$(run decide proposal_ready --json)"
 eq "proposal advances to scaffold (before design)" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
-eq "scaffold pulls backend/frontend conditionally (when tags)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='scaffold-aries-cli'&&typeof c.when==='string') && j.capabilities.some(c=>c.id==='scaffold-starfish-initializr'&&typeof c.when==='string')" && echo yes || echo no)" "yes"
+eq "scaffold pulls backend conditionally (when tag)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='scaffold-aries-cli'&&typeof c.when==='string')" && echo yes || echo no)" "yes"
 eq "scaffold initializes codegraph before design" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
 eq "scaffold records build manifest (component id + svn)" \
@@ -524,6 +526,8 @@ eq "skills discovers real Claude Code skills by name" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='brainstorming' && s.description.length > 0)" && echo yes || echo no)" "yes"
 eq "skills discovers the Hikspine UI launcher skill" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='hikspine-ui' && s.scope==='local')" && echo yes || echo no)" "yes"
+eq "skills discovers the Hikspine global UI launcher skill" \
+  "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='hikspine-global-ui' && s.scope==='local')" && echo yes || echo no)" "yes"
 eq "skills discovers project scope skills" \
   "$(printf '%s' "$SK_LIST" | json_test "j.skills.some(s=>s.name==='project-only' && s.scope==='project')" && echo yes || echo no)" "yes"
 
@@ -599,6 +603,11 @@ eq "board discovers standalone Hikspine markdown artifacts" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.find(c=>c.change==='bug-1').artifacts.some(a=>a.path.endsWith('.hikspine/artifacts/bug-1/verify.md') && a.stage==='verify')" && echo yes || echo no)" "yes"
 eq "board keeps archived OpenSpec changes visible" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.some(c=>c.change==='archived-x' && c.archived && c.complete && /openspec\\/changes\\/archive\\/2026-06-30-archived-x/.test(c.archivePath) && c.artifacts.some(a=>a.path.endsWith('archive/2026-06-30-archived-x/proposal.md') && a.type==='proposal'))" && echo yes || echo no)" "yes"
+ALL_BOARD="$(cd "$REPO" && "$NODE_BIN" "$ENGINE_RUN" board --all --json)"
+eq "all-project board lists registered projects" \
+  "$(printf '%s' "$ALL_BOARD" | json_test "j.mode==='all' && Array.isArray(j.projects) && j.projects.some(p=>p.counts && p.counts.total>=3)" && echo yes || echo no)" "yes"
+eq "all-project board carries project metadata on changes" \
+  "$(printf '%s' "$ALL_BOARD" | json_test "j.changes.some(c=>c.change==='bug-1' && c.projectId && c.projectRoot && c.artifacts.every(a=>a.projectId===c.projectId))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

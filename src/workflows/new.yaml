@@ -27,10 +27,9 @@ states:
     goal: Decide the project shape from the confirmed proposal, pull the needed backend/frontend scaffold(s), and index the pulled code with codegraph so design and build can read and modify it.
     capabilities:
       - { id: scaffold-aries-cli, when: the project needs a backend service }
-      - { id: scaffold-starfish-initializr, when: the project needs a frontend app }
     rules:
       - Decide from the confirmed proposal whether this project needs a backend, a frontend, or both, then pull only the scaffolds that apply — a project may need one or both.
-      - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton; when a frontend is needed, use scaffold-starfish-initializr. Do not hand-write the skeleton.
+      - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton;  Do not hand-write the skeleton.
       - After each skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
       - Record the build metadata to `.hikspine/project-build.json` shaped as project plus a components array, where each component entry has component (组件标识), svn (svn 地址), and optional module, buildType, and artifact fields. Append or update one entry in components for each pulled scaffold, and keep this file the single source of truth — the board displays it and the later SVN build/packaging (hido) stage reads it.
     needs: [scaffolded]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hikspine Global UI"
+  short_description: "Launch the all-project Hikspine board."
+  default_prompt: "Start the Hikspine all-project board."

@@ -10,6 +10,7 @@ import { summarize } from './transitions.mjs';
 import { discoverSkills, normalizeCapability } from './skills.mjs';
 import { readNotifications } from './notifications.mjs';
 import { rel, toPosix } from './utils.mjs';
+import { projectRegistryFile, readRegisteredProjects } from './project-registry.mjs';
 
 function minutesBetween(start, end) {
   const a = new Date(start).getTime();
@@ -278,6 +279,7 @@ export function boardState(root) {
   const active = getActive(root);
   const workflows = listWorkflows(root);
   return {
+    mode: 'project',
     root,
     active,
     changes: listChangeSummaries(root, active),
@@ -285,5 +287,73 @@ export function boardState(root) {
     skills: discoverSkills(root),
     notifications: readNotifications(root),
     projectBuild: readProjectBuild(root),
+  };
+}
+
+function projectCounts(changes) {
+  const counts = { total: changes.length, work: 0, confirm: 0, done: 0, error: 0 };
+  for (const change of changes) {
+    if (change.error) counts.error += 1;
+    else if (change.complete) counts.done += 1;
+    else if (change.nextAction === 'confirm') counts.confirm += 1;
+    else counts.work += 1;
+  }
+  return counts;
+}
+
+export function allProjectsBoardState() {
+  const projects = readRegisteredProjects();
+  const outProjects = [];
+  const changes = [];
+  const notifications = [];
+
+  for (const project of projects) {
+    if (project.missing) {
+      outProjects.push({ ...project, counts: { total: 0, work: 0, confirm: 0, done: 0, error: 1 }, error: 'Project root is missing.' });
+      continue;
+    }
+    try {
+      const state = boardState(project.root);
+      const projectChanges = (state.changes || []).map((change) => ({
+        ...change,
+        projectId: project.id,
+        projectName: project.name,
+        projectRoot: project.root,
+        active: change.change === state.active,
+        artifacts: (change.artifacts || []).map((artifact) => ({ ...artifact, projectId: project.id })),
+      }));
+      changes.push(...projectChanges);
+      notifications.push(...(state.notifications || []).map((notification) => ({
+        ...notification,
+        id: `${project.id}:${notification.id}`,
+        localId: notification.id,
+        projectId: project.id,
+        projectName: project.name,
+        projectRoot: project.root,
+      })));
+      outProjects.push({
+        ...project,
+        active: state.active,
+        counts: projectCounts(projectChanges),
+        updatedAt: projectChanges.map((c) => c.updatedAt).filter(Boolean).sort().at(-1) || project.lastSeenAt,
+      });
+    } catch (err) {
+      outProjects.push({ ...project, counts: { total: 0, work: 0, confirm: 0, done: 0, error: 1 }, error: err.message });
+    }
+  }
+
+  changes.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  notifications.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
+  return {
+    mode: 'all',
+    root: '',
+    registryFile: projectRegistryFile(),
+    active: null,
+    projects: outProjects,
+    changes,
+    workflows: [],
+    skills: [],
+    notifications,
+    projectBuild: null,
   };
 }

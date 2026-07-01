@@ -248,8 +248,10 @@ workflow 的 `capabilities` 是真实的 Claude Code skill 名，由文件系统
 hikspine skills [--json]     # 这里能发现的所有 Claude Code skill（合法 capability 名）
 hikspine workflows [--json]  # 可用 workflow（内置 + 项目）及其选择 intent
 hikspine changes [--json]    # 所有在跑的 change 及其 workflow、当前状态和下一步
-hikspine board [--json]      # 当前项目的看板聚合数据
-hikspine ui [--port <n>]     # 本地 Web 看板，默认 http://127.0.0.1:4319
+node "$HIKSPINE_ENGINE" board [--json]      # 当前项目的看板聚合数据
+node "$HIKSPINE_ENGINE" board --all --json  # 本机已登记项目的聚合数据
+node "$HIKSPINE_ENGINE" ui [--port <n>]     # 本地 Web 看板，默认 http://127.0.0.1:4319
+node "$HIKSPINE_ENGINE" ui --all            # 本机所有已登记项目的聚合看板
 ```
 
 - `skills`：扫描 Claude Code 读取的同一批位置（项目 `.claude/skills`、个人 `~/.claude/skills`、`~/.claude/plugins/marketplaces/**/skills` 下的 plugin marketplace，以及本插件 `skills/`），按 skill `name` 去重，项目 skill 覆盖。既是挑选 capability 的数据源，也是合法 capability 名的来源。看板会按 Claude Code scope 分组展示：project、user、local、marketplace。
@@ -260,11 +262,15 @@ hikspine ui [--port <n>]     # 本地 Web 看板，默认 http://127.0.0.1:4319
 ```bash
 node "$HIKSPINE_ENGINE" ui --project-root /path/to/project
 HIKSPINE_PROJECT_ROOT=/path/to/project node "$HIKSPINE_ENGINE" ui
+node "$HIKSPINE_ENGINE" ui --all --project-root /path/to/current/project
 ```
 
 `--project-root` 是全局选项，也适用于 `next`、`decide`、`changes`、`workflows`、`skills` 和 `board`。
 
-在 Claude Code 里，用户也可以直接说“启动 Hikspine UI”或“打开 Hikspine 看板”；`hikspine-ui` skill 会封装同一条命令，并指向当前项目启动看板。
+在 Claude Code 里，建议按 skill 启动看板：
+
+- `hikspine-ui`：启动当前项目看板。
+- `hikspine-global-ui`：启动本机已登记项目的全局多项目看板。
 
 ## 验证
 
