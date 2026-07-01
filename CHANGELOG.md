@@ -6,6 +6,8 @@
 
 ### Changed
 
+- **文档产物语言跟随用户请求**: `new` / `feature` / `fix` 的文档产出阶段新增 workflow 规则，要求 OpenSpec、writing-plans 与其他 Markdown 产物默认使用用户原始请求的语言，除非用户明确指定另一种语言；代码标识、命令、路径、API 名称和上游 skill 名称保持原文，避免中文需求生成英文文档。
+
 - **subagent-driven-development 脚本调用兼容提醒**: `new` / `feature` 的 build 阶段规则新增提醒，使用上游 `subagent-driven-development` 的辅助脚本时必须按真实文件名调用 `scripts/task-brief` / `scripts/review-package`，不要自行追加 `.mjs` 后缀或用 `node` 执行，避免 Agent 把 Bash 脚本误当成 Node runtime 脚本。
 
 - **Claude Code runtime 启动说明修正**: README 与看板 skill 改为明确通过 `node "$HIKSPINE_ENGINE" ...` 启动看板；新增独立 `hikspine-global-ui` skill 启动 `ui --all`，`hikspine-ui` 只保留当前项目看板，避免误导团队成员以为必须存在全局 `hikspine` 命令或在同一个 skill 中切换模式。
@@ -15,6 +17,8 @@
 - **build 阶段 hui-pro/TDD 要求传递到 subAgent**: 并行(subagent-driven-development)时,`hui-pro` 和 TDD 只在主上下文提了一句,没进 subAgent 的 brief,导致做前端的 subAgent 不知道要用 `hui-pro`。新增规则:subAgent 只看得到自己 brief 里的内容,用 subagent-driven-development 时必须把适用的按任务要求写进**每个** subAgent 的 brief——碰前端 UI 的要求它用 `hui-pro`,`tdd_mode` 为 true 的要求它遵循 test-driven-development;并强调 `hui-pro` 是产出 UI 的唯一正规途径(无前端脚手架)。`docs/workflows-zh/new.yaml` 同步。
 
 ### Tests
+
+- **文档语言规则覆盖**: workflow kernel 测试新增断言，验证 `feature.open`、`feature.design`、`fix.inspect`、`new.openspec` 与 `new.design` 都会向 Agent 暴露“文档语言跟随用户原始请求”的规则。
 
 - **SDD 脚本调用规则覆盖**: workflow kernel 测试新增断言，验证 `new.build` 与 `feature.build` 的规则都会暴露 `scripts/task-brief`、`scripts/review-package` 以及不要误加 `.mjs` / 不要误用 `node` 的提醒。
 

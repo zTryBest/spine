@@ -2,7 +2,8 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 18
+version: 19
+# 文档语言规则：workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
 # build 兼容提醒：使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
 name: 新建项目
 intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。

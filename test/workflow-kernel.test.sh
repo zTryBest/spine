@@ -182,6 +182,10 @@ eq "design sharding keeps writing-plans small" \
   "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/do not Read proposal\\.md/.test(r)) && j.rules.some(r=>/shard the plan/.test(r)) && j.rules.some(r=>/\\{change\\}-\\{spec-id\\}\\.md/.test(r)) && j.rules.some(r=>/concise manifest/.test(r))" && echo yes || echo no)" "yes"
 eq "open surfaces codegraph exploration rule" \
   "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph/.test(r))" && echo yes || echo no)" "yes"
+eq "open keeps workflow documents in request language" \
+  "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
+eq "design keeps workflow documents in request language" \
+  "$(printf '%s' "$DECIDE2" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
 eq "design has brainstorming capability" \
   "$(printf '%s' "$DECIDE2" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
 eq "design has planning capability" \
@@ -325,6 +329,8 @@ eq "next carries a capabilityPolicy describing tags" \
   "$(printf '%s' "$SF_NEXT" | json_test "typeof j.capabilityPolicy==='string' && /one-of/.test(j.capabilityPolicy) && /when/.test(j.capabilityPolicy)" && echo yes || echo no)" "yes"
 eq "fix inspect needs issue_understood and proposal_ready" \
   "$(printf '%s' "$SF_NEXT" | json_test "j.missing.includes('issue_understood') && j.missing.includes('proposal_ready')" && echo yes || echo no)" "yes"
+eq "fix inspect keeps workflow documents in request language" \
+  "$(printf '%s' "$SF_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
 
 run decide issue_understood --json > /dev/null
 SF_FIX="$(run decide proposal_ready --json)"
@@ -374,6 +380,8 @@ eq "openspec has openspec-propose capability" \
   "$(printf '%s' "$NP_OPENSPEC" | json_test "j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
 eq "openspec needs proposal_ready" \
   "$(printf '%s' "$NP_OPENSPEC" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
+eq "new openspec keeps workflow documents in request language" \
+  "$(printf '%s' "$NP_OPENSPEC" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
 
 NP_SCAFFOLD="$(run decide proposal_ready --json)"
 eq "proposal advances to scaffold (before design)" \
@@ -400,6 +408,8 @@ eq "new design shards multi-spec writing plans" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/do not Read proposal\\.md/.test(r)) && j.rules.some(r=>/shard the plan/.test(r)) && j.rules.some(r=>/\\{change\\}-\\{spec-id\\}\\.md/.test(r)) && j.rules.some(r=>/concise manifest/.test(r))" && echo yes || echo no)" "yes"
 eq "new design caps planning subagents at 3" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/at most 3/.test(r))" && echo yes || echo no)" "yes"
+eq "new design keeps workflow documents in request language" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
 eq "new design asks for tdd_mode" \
   "$(printf '%s' "$NP_DESIGN" | json_get "j.missing.includes('tdd_mode') ? 'yes' : 'no'")" "yes"
 

@@ -1,5 +1,5 @@
 id: feature
-version: 14
+version: 15
 name: Feature Development
 intent: Build a new feature or non-trivial change in an existing project. Use when the work needs requirements clarification, a design, and OpenSpec artifacts before implementation.
 start: open
@@ -15,6 +15,7 @@ states:
       - { id: openspec-explore, required: true }
       - { id: openspec-propose, required: true }
     rules:
+      - Write workflow-authored documents and Markdown artifacts in the same language as the user's original request, unless the user explicitly asks for another language. Preserve code identifiers, command names, paths, API names, and upstream skill names verbatim.
       - When exploring the existing codebase to clarify the change, prefer the codegraph MCP tool `codegraph_explore` (run `codegraph init` once if the graph is missing) to find symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
     needs: [requirements_clarified, proposal_ready]
     next: design
@@ -27,6 +28,7 @@ states:
       - { id: brainstorming, required: true }
       - { id: writing-plans, required: true }
     rules:
+      - Write workflow-authored documents and Markdown artifacts in the same language as the user's original request, unless the user explicitly asks for another language. Preserve code identifiers, command names, paths, API names, and upstream skill names verbatim.
       - Use the brainstorming skill to explore options and tradeoffs before settling on a design direction; do not jump straight to a conclusion.
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
       - In the main context, do not Read proposal.md, tasks.md, design.md, or specs before dispatching planning subagents. Only list or test artifact paths, then pass paths.

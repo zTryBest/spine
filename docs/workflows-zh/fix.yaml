@@ -2,7 +2,8 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/fix.yaml。
 
 id: fix
-version: 9
+version: 10
+# 文档语言规则：workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
 name: 修复
 intent: 修复 Bug 或进行小型轻量改动。适用于问题已经比较清楚、风险较低的场景（包括紧急线上修复），不需要完整设计阶段；仍会保留一份精简 OpenSpec proposal 作为记录和看板数据源。
 start: inspect
