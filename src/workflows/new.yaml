@@ -1,5 +1,5 @@
 id: new
-version: 11
+version: 12
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -39,11 +39,12 @@ states:
 
   - id: build
     goal: Scaffold and implement the initial project from the confirmed design.
-    capabilities: [executing-plans, subagent-driven-development,scaffold-aries-cli,hui-pro,scaffold-starfish-initializr]
+    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
     rules:
-      - Choose exactly one implementation skill before editing source. Use executing-plans for small, local, mostly sequential implementation work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
-      - if not have code exisit,must execute the scaffold-aries-cli or scaffold-starfish-initializr skill
-      - 如果需要前端编码，对于UI组件，请使用hui-pro skill执行
+      - This build stage layers three kinds of skill. Load each from capabilities via the Skill tool whenever it applies; never skip an applicable one. Choosing an execution driver does NOT excuse you from the scaffolding and UI skills below.
+      - Execution driver — pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - Scaffolding is MANDATORY when there is no code yet. Before writing any source, you MUST run scaffold-aries-cli or scaffold-starfish-initializr to generate the project skeleton.
+      - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement.
     needs: [implemented]
     next: review
 
