@@ -1,3 +1,19 @@
+## What's Changed [0.6.31] - 2026-07-01
+
+### Added
+
+- **capability 需求标签（required / group / when）**: `capabilities` 从扁平的字符串数组升级为可带需求标签的条目，让 workflow 作者显式声明"每个 skill 何时该加载",Agent 不再靠猜。三种标签：`required: true`（阶段核心、必加载）、`group: <名>`（同组可互换、只加载一个,如 build 的 `executing-plans`/`subagent-driven-development` 驱动二选一)、`when: <条件>`（条件加载,如 `hui-pro` 仅写 UI 时、`scaffold-*` 仅无代码时）；不带标签的裸字符串仍表示"用途对得上就加载"。引擎新增 `normalizeCapability`/`resolveCapability`/`capabilityTag`（`src/skills.mjs`），`next` 输出的 capabilities 带上标签、文本渲染成 `[required]`/`[one-of:driver]`/`[when …]`，`capabilityPolicy` 说明每个标签含义。引擎保持 skill-agnostic——只透传作者的标签,从不解释某个 skill 具体干什么。裸字符串写法完全向后兼容,自定义 workflow 无需改动。
+- **看板显示需求标签**: 状态看板的阶段技能 chip 现在跟着显示 `required`/`one-of:<组>`/`when …` 小标签（新增 `.cap-tag` 样式）,`/api/*` 经 `normalizeCapability` 输出对象形态,dashboard 同时兼容对象和旧字符串(demo 数据)两种形态。
+
+### Changed
+
+- **三个内置 workflow + 中文阅读版加上需求标签**: `new`/`feature`/`fix` 的所有阶段 capabilities 改用标签形式——核心单技能标 `required`,build 的驱动/脚手架标 `group`、脚手架/`hui-pro` 标 `when`。这把之前只能靠 build 阶段堆一大段 MANDATORY 规则表达的"选驱动不代表能跳过脚手架和 UI"直接结构化。`new`→13、`feature`→12、`fix`→9；`docs/workflows-zh/*` 同步。
+- **skill 文档解释标签**: `hikspine`/`hikspine-engine-zh` 的 capabilities 速查表和"必须加载对应 Skill / Required Skill Loading"段落改为讲解四种标签语义,Agent 按标签加载而非自行判断"需不需要"。
+
+### Tests
+
+- **需求标签覆盖**: workflow kernel 测试新增断言,验证 `fix.inspect` capabilities 带 `required` 标签、`next` 的 `capabilityPolicy` 描述了 one-of/when 语义、`new.build` 的驱动与脚手架各自成 `group` 且脚手架/`hui-pro` 带 `when` 标签。
+
 ## What's Changed [0.6.30] - 2026-07-01
 
 ### Changed

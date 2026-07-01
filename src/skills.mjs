@@ -100,3 +100,40 @@ export function skillInfo(index, name) {
   if (hit) return { id: name, name, description: hit.description, source: hit.source };
   return { id: name, name, description: '', unknown: true };
 }
+
+// A workflow capability is either a bare skill name (string) or an object that
+// tags the skill with a requirement the workflow author intends:
+//   required: true   -> the skill is core to this state; it must be loaded
+//   group: <name>    -> several skills are interchangeable; load exactly one
+//   when: <text>     -> load only if that condition holds (conditional skill)
+// A bare string is untagged: load it whenever its purpose matches the work.
+// The engine stays skill-agnostic — it never interprets what a skill does,
+// only carries the author's tags through to the agent.
+export function normalizeCapability(raw) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const id = raw.id ?? raw.ref ?? raw.name ?? '';
+    const out = { id: String(id) };
+    if (raw.ref) out.ref = String(raw.ref);
+    if (raw.required === true) out.required = true;
+    if (raw.group != null && raw.group !== '') out.group = String(raw.group);
+    if (raw.when != null && raw.when !== '') out.when = String(raw.when);
+    return out;
+  }
+  return { id: String(raw ?? '') };
+}
+
+// Resolve a workflow capability (string or tagged object) to full display info:
+// discovered skill description/source merged with the requirement tags.
+export function resolveCapability(index, raw) {
+  const cap = normalizeCapability(raw);
+  return { ...skillInfo(index, cap.id), ...cap };
+}
+
+// Short requirement label for a normalized/resolved capability, '' if untagged.
+export function capabilityTag(cap) {
+  if (!cap) return '';
+  if (cap.required) return 'required';
+  if (cap.group) return `one-of:${cap.group}`;
+  if (cap.when) return `when ${cap.when}`;
+  return '';
+}

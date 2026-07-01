@@ -105,7 +105,7 @@ node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decid
 ```text
 nextAction            确定性指令：work | confirm | done（见下）
 current/goal/forbid   当前状态、目标、禁止的副作用（如 write-source）
-capabilities          本状态的 skill——凡是对得上当前工作的都要用 Skill 工具加载，不是可选项（{ id, ref, description }）
+capabilities          本状态的 skill，每个都带需求标签（{ id, ref, description, required?, group?, when? }）——按标签加载，不是可选项
 rules                 该状态的 workflow 作者声明的硬性要求——必须遵守
 needs / missing       离开该状态要记录的决策键 / 其中还没记录的
 requiresUser          true = 必须先停下征询用户
@@ -129,7 +129,16 @@ done     工作流已完成，无需再做。
 
 ## 必须加载对应 Skill
 
-每次 `next --json` 之后，检查 `capabilities`。凡是用途与当前状态工作对得上的 capability（以及任何 `rule` 点名的），都必须在任何排查、规划、编辑或验证之前加载对应 skill。不得用自己的内联工作替代用途对得上的已列 skill——例如列了 `requesting-code-review` 就不能自己手搓一遍代码评审。若有多个可互换的驱动型 skill，只选其一；否则凡是适用的都要加载。这是数据驱动的：使用 `next` 返回的 `id`（有 `ref` 时可按 `ref` 定位），包括自定义 workflow 返回的 capability。
+每次 `next --json` 之后，检查 `capabilities`。每个条目都带一个需求标签，直接告诉你何时加载，不用自己猜：
+
+```text
+required: true    干本状态工作之前必须加载这个 skill
+group: <名称>     这些 skill 可互换——从该组里只加载一个
+when: <说明>      仅当该条件成立时才加载（条件型 skill）
+（无标签）        当该 skill 用途与当前工作对得上时就加载
+```
+
+凡是标签判定为适用的 capability，都要在任何排查、规划、编辑或验证之前加载。不得用自己的内联工作替代本该加载的 skill——例如 `requesting-code-review` 标了 `required` 就不能自己手搓一遍代码评审。`next` 输出里的 `capabilityPolicy` 会重述这些规则。这是数据驱动的：使用 `next` 返回的 `id`（有 `ref` 时可按 `ref` 定位），包括自定义 workflow 返回的 capability 和标签。
 
 对每个选中的 capability，使用下面的固定触发表述，把 `<capability-id>` 替换成运行时返回的 skill 名：
 

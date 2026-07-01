@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/feature.yaml。
 
 id: feature
-version: 11
+version: 12
 name: 功能开发
 intent: 在已有项目中开发新功能或较大变更。适用于需要澄清需求、形成设计，并在实现前创建 OpenSpec 产物的工作。
 start: open
@@ -11,7 +11,9 @@ states:
   - id: open
     goal: 澄清变更内容，并创建 OpenSpec 产物。
     forbid: [write-source]
-    capabilities: [openspec-explore, openspec-propose]
+    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+      - { id: openspec-explore, required: true }
+      - { id: openspec-propose, required: true }
     rules:
       - 探索已有代码以澄清变更时，优先使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`），用它定位符号、调用路径和影响范围，避免盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
     needs: [requirements_clarified, proposal_ready]
@@ -21,7 +23,9 @@ states:
     goal: 探索技术路径，记录设计，并获得用户确认。
     forbid: [write-source]
     requires_user: true
-    capabilities: [brainstorming, writing-plans]
+    capabilities:
+      - { id: brainstorming, required: true }
+      - { id: writing-plans, required: true }
     rules:
       - 使用 brainstorming skill 探索可选方案和取舍，再确定设计方向；不要直接跳到结论。
       - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
@@ -37,7 +41,9 @@ states:
 
   - id: build
     goal: 实现已确认的设计。
-    capabilities: [executing-plans, subagent-driven-development]
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
     rules:
       - 编辑源码前必须选择且只选择一个实现 skill。小型、本地、基本顺序执行的改动使用 executing-plans；如果实现能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
     needs: [implemented]
@@ -45,7 +51,8 @@ states:
 
   - id: review
     goal: 验证前先评审实现。
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -54,7 +61,9 @@ states:
 
   - id: verify
     goal: 验证行为和 OpenSpec 覆盖。
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -65,6 +74,7 @@ states:
     goal: 用户确认后归档已完成的变更。
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     terminal: true

@@ -180,6 +180,7 @@
   .cap-list, .need-list { display:flex; flex-wrap:wrap; gap:6px; }
   .cap, .need { border:1px solid var(--line2); border-radius:999px; padding:3px 8px; font-size:11px; background:var(--panel2); color:#cbd5e8; }
   .cap { border-color:rgba(98,210,162,.32); background:rgba(98,210,162,.08); color:#d9f4e7; }
+  .cap-tag { margin-left:6px; padding:1px 6px; border-radius:999px; font-size:10px; background:rgba(98,210,162,.18); color:#8ee6bd; }
   .need { color:var(--muted); background:transparent; }
   .stage-flags { color:var(--dim); font-size:11px; margin-top:7px; }
   .modal { position:fixed; inset:0; background:rgba(2,4,9,.76); backdrop-filter:blur(8px); display:grid; place-items:center; padding:24px; z-index:20; }
@@ -797,10 +798,15 @@ function renderWorkflowDetail(workflows) {
   const skillIndex = new Map((last?.skills || []).map(s => [s.name, s]));
   const stages = Array.isArray(w.stages) ? w.stages : [];
   const stageHtml = stages.length ? stages.map((s, i) => {
-    const caps = (s.capabilities || []).map(name => {
-      const skill = skillIndex.get(name) || { name, description:'' };
+    const caps = (s.capabilities || []).map(c => {
+      const id = (c && typeof c === 'object') ? c.id : c;
+      const tag = (c && typeof c === 'object')
+        ? (c.required ? 'required' : c.group ? ('one-of:'+c.group) : c.when ? ('when '+c.when) : '')
+        : '';
+      const skill = skillIndex.get(id) || { name:id, description:'' };
       const desc = skillDesc(skill);
-      return '<span class="cap" title="'+esc(desc)+'">'+esc(name)+'</span>';
+      const tagHtml = tag ? '<span class="cap-tag">'+esc(tag)+'</span>' : '';
+      return '<span class="cap" title="'+esc(desc)+'">'+esc(id)+tagHtml+'</span>';
     }).join('') || '<span class="need">'+(lang==='zh'?'无指定技能':'No skill specified')+'</span>';
     const needs = (s.needs || []).map(n => '<span class="need">'+esc(n)+'</span>').join('');
     const flags = [

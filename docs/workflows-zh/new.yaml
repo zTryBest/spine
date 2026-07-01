@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 12
+version: 13
 name: 新建项目
 intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。
 start: brainstorm
@@ -11,7 +11,8 @@ states:
   - id: brainstorm
     goal: 在创建产物前，探索产品方向、未知点、约束和可行方案。
     forbid: [write-source]
-    capabilities: [brainstorming]
+    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+      - { id: brainstorming, required: true }
     rules:
       - 在 OpenSpec 之前使用 brainstorming，让 proposal 能记录已经探索过的方案、取舍和未解决问题。
     needs: [brainstorming_done]
@@ -20,7 +21,8 @@ states:
   - id: openspec
     goal: 根据头脑风暴方向创建 OpenSpec 产物。
     forbid: [write-source]
-    capabilities: [openspec-propose]
+    capabilities:
+      - { id: openspec-propose, required: true }
     needs: [proposal_ready]
     next: design
 
@@ -28,7 +30,8 @@ states:
     goal: 把 OpenSpec 产物转成具体实现设计，并获得用户确认。
     forbid: [write-source]
     requires_user: true
-    capabilities: [writing-plans]
+    capabilities:
+      - { id: writing-plans, required: true }
     rules:
       - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
       - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
@@ -42,7 +45,12 @@ states:
 
   - id: build
     goal: 根据已确认设计搭建骨架并实现初始项目。
-    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
+      - { id: scaffold-aries-cli, group: scaffold, when: 还没有源码时 }
+      - { id: scaffold-starfish-initializr, group: scaffold, when: 还没有源码时 }
+      - { id: hui-pro, when: 构建任何前端 UI 组件时 }
     rules:
       - 这个 build 阶段叠加三类 skill。只要能力列表中的 skill 适用，就通过 Skill 工具加载；禁止跳过适用的 skill。选择一个执行驱动并不意味着可以跳过下面的脚手架和 UI skill。
       - 执行驱动：必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
@@ -53,7 +61,8 @@ states:
 
   - id: review
     goal: 评审实现和公司规范。
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -62,7 +71,9 @@ states:
 
   - id: verify
     goal: 验证行为和 OpenSpec 覆盖。
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -73,7 +84,8 @@ states:
     goal: 用户确认后归档已完成的变更。
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     next: hido
 
@@ -81,5 +93,6 @@ states:
     goal: 进行 SVN 构建，需要询问用户确认是否构建。
     forbid: [write-source]
     requires_user: true
-    capabilities: [custom-component-creator]
+    capabilities:
+      - { id: custom-component-creator, required: true }
     terminal: true

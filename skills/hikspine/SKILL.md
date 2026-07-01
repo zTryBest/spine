@@ -109,7 +109,7 @@ A composed skill has its own stance and may end by offering a choice or asking w
 ```text
 nextAction            deterministic directive: work | confirm | done (see below)
 current/goal/forbid   current state, its goal, forbidden side effects (e.g. write-source)
-capabilities          this state's skills — load each one that fits the work with the Skill tool, not optional ({ id, ref, description })
+capabilities          this state's skills, each with a requirement tag ({ id, ref, description, required?, group?, when? }) — load per its tag, not optional
 rules                 workflow-authored requirements for this state — follow them
 needs / missing       decision keys to leave this state / those not yet recorded
 requiresUser          true = stop and ask the user first
@@ -134,7 +134,16 @@ If `next --json` returns `projectRules.readNow`, read those rule files immediate
 
 ## Required Skill Loading
 
-After each `next --json`, inspect `capabilities`. For every capability whose purpose matches the work of the current state (and every one a `rule` names), immediately load that skill before any investigation, planning, editing, or verification. Do not substitute your own inline work for a listed skill whose purpose matches the task — e.g. do not hand-roll a code review when `requesting-code-review` is listed. When several capabilities are interchangeable drivers, pick exactly one; otherwise load every one that applies. This is data-driven: use the `id` (or `ref` when present) returned by `next`, including capabilities from custom workflows.
+After each `next --json`, inspect `capabilities`. Each entry carries a requirement tag that tells you exactly when to load it — you do not have to guess:
+
+```text
+required: true    must load this skill before doing the state's work
+group: <name>     these skills are interchangeable — load exactly one from the group
+when: <text>      load only if that condition holds (a conditional skill)
+(no tag)          load whenever the skill's purpose matches the work you are doing
+```
+
+Load each capability that its tag says applies, before any investigation, planning, editing, or verification. Do not substitute your own inline work for a skill you are meant to load — e.g. do not hand-roll a code review when `requesting-code-review` is `required`. `capabilityPolicy` in the `next` output restates these rules. This is data-driven: use the `id` (or `ref` when present) returned by `next`, including capabilities and tags from custom workflows.
 
 For each selected capability, use this exact trigger form with the runtime skill name substituted:
 

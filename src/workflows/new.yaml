@@ -1,5 +1,5 @@
 id: new
-version: 12
+version: 13
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -8,7 +8,8 @@ states:
   - id: brainstorm
     goal: Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.
     forbid: [write-source]
-    capabilities: [brainstorming]
+    capabilities:
+      - { id: brainstorming, required: true }
     rules:
       - Use brainstorming before OpenSpec so the proposal captures explored options, tradeoffs, and unresolved questions.
     needs: [brainstorming_done]
@@ -17,7 +18,8 @@ states:
   - id: openspec
     goal: Create OpenSpec artifacts from the brainstormed direction.
     forbid: [write-source]
-    capabilities: [openspec-propose]
+    capabilities:
+      - { id: openspec-propose, required: true }
     needs: [proposal_ready]
     next: design
 
@@ -25,7 +27,8 @@ states:
     goal: Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [writing-plans]
+    capabilities:
+      - { id: writing-plans, required: true }
     rules:
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
       - In the main context, do not Read proposal.md, tasks.md, design.md, or specs before dispatching planning subagents. Only list or test artifact paths, then pass paths.
@@ -39,7 +42,12 @@ states:
 
   - id: build
     goal: Scaffold and implement the initial project from the confirmed design.
-    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
+      - { id: scaffold-aries-cli, group: scaffold, when: no source code exists yet }
+      - { id: scaffold-starfish-initializr, group: scaffold, when: no source code exists yet }
+      - { id: hui-pro, when: building any frontend UI component }
     rules:
       - This build stage layers three kinds of skill. Load each from capabilities via the Skill tool whenever it applies; never skip an applicable one. Choosing an execution driver does NOT excuse you from the scaffolding and UI skills below.
       - Execution driver — pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
@@ -50,7 +58,8 @@ states:
 
   - id: review
     goal: Review implementation and company standards.
-    capabilities: [requesting-code-review]
+    capabilities:
+      - { id: requesting-code-review, required: true }
     needs: [review_result=pass]
     fail_when: review_result=fail
     fail_to: build
@@ -59,7 +68,9 @@ states:
 
   - id: verify
     goal: Verify behavior and OpenSpec coverage.
-    capabilities: [verification-before-completion, openspec-verify-change]
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
     needs: [verify_result=pass]
     fail_when: verify_result=fail
     fail_to: build
@@ -70,7 +81,8 @@ states:
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
     requires_user: true
-    capabilities: [openspec-archive-change]
+    capabilities:
+      - { id: openspec-archive-change, required: true }
     needs: [archived]
     next: hido
     
@@ -78,5 +90,6 @@ states:
     goal: 进行svn构建,需要询问用户确认是否构建
     forbid: [write-source]
     requires_user: true
-    capabilities: [custom-component-creator]
+    capabilities:
+      - { id: custom-component-creator, required: true }
     terminal: true

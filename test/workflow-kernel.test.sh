@@ -306,6 +306,10 @@ eq "fix state is OpenSpec-backed" \
   "$(test -f "$T/openspec/changes/fix-login-timeout/.hikspine.yaml" && echo yes || echo no)" "yes"
 eq "fix inspect has debugging + lean openspec capabilities" \
   "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging') && j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
+eq "fix inspect capabilities carry required tag" \
+  "$(printf '%s' "$SF_NEXT" | json_test "j.capabilities.every(c=>c.required===true)" && echo yes || echo no)" "yes"
+eq "next carries a capabilityPolicy describing tags" \
+  "$(printf '%s' "$SF_NEXT" | json_test "typeof j.capabilityPolicy==='string' && /one-of/.test(j.capabilityPolicy) && /when/.test(j.capabilityPolicy)" && echo yes || echo no)" "yes"
 eq "fix inspect needs issue_understood and proposal_ready" \
   "$(printf '%s' "$SF_NEXT" | json_test "j.missing.includes('issue_understood') && j.missing.includes('proposal_ready')" && echo yes || echo no)" "yes"
 
@@ -374,6 +378,12 @@ eq "design confirmation advances directly to build" \
   "$(printf '%s' "$NP_BUILD" | json_get 'j.current')" "build"
 eq "build has implement capability" \
   "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.some(c=>c.id==='executing-plans') && j.capabilities.some(c=>c.id==='subagent-driven-development') && !j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
+eq "build drivers share a one-of group" \
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.filter(c=>c.group==='driver').map(c=>c.id).sort().join(',')==='executing-plans,subagent-driven-development'" && echo yes || echo no)" "yes"
+eq "build hui-pro is conditional (when tag)" \
+  "$(printf '%s' "$NP_BUILD" | json_test "typeof (j.capabilities.find(c=>c.id==='hui-pro')||{}).when==='string'" && echo yes || echo no)" "yes"
+eq "build scaffolds are a one-of group with a when tag" \
+  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.filter(c=>c.group==='scaffold').length===2 && j.capabilities.filter(c=>c.group==='scaffold').every(c=>typeof c.when==='string')" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 
