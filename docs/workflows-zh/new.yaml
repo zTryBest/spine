@@ -1,0 +1,85 @@
+# Hikspine 内置 workflow 中文阅读版。
+# 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
+
+id: new
+version: 12
+name: 新建项目
+intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。
+start: brainstorm
+
+states:
+  - id: brainstorm
+    goal: 在创建产物前，探索产品方向、未知点、约束和可行方案。
+    forbid: [write-source]
+    capabilities: [brainstorming]
+    rules:
+      - 在 OpenSpec 之前使用 brainstorming，让 proposal 能记录已经探索过的方案、取舍和未解决问题。
+    needs: [brainstorming_done]
+    next: openspec
+
+  - id: openspec
+    goal: 根据头脑风暴方向创建 OpenSpec 产物。
+    forbid: [write-source]
+    capabilities: [openspec-propose]
+    needs: [proposal_ready]
+    next: design
+
+  - id: design
+    goal: 把 OpenSpec 产物转成具体实现设计，并获得用户确认。
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [writing-plans]
+    rules:
+      - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
+      - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
+      - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
+      - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
+      - 如果 specs/**/*.md 超过一个文件，或 tasks.md 超过 6 个任务组，则按 spec 分片计划：每个 spec 派发一个 writing-plans subAgent，传入 proposal.md、tasks.md、可选 design.md，以及一个明确的 specs/{spec-id}/spec.md 路径。每个子计划写入 docs/superpowers/plans/{change}-{spec-id}.md。
+      - 分片子计划都生成后，创建一个精简 manifest 到 docs/superpowers/plans/{change}.md，链接所有子计划，说明执行顺序、共享契约和集成验证。不要在 manifest 里重复子计划的详细实现步骤。
+      - 主 Agent 只带回 manifest 或计划路径、分片时的子计划路径、简要摘要和阻塞点，然后请求用户确认。
+    needs: [design_documented, design_confirmed]
+    next: build
+
+  - id: build
+    goal: 根据已确认设计搭建骨架并实现初始项目。
+    capabilities: [executing-plans, subagent-driven-development, scaffold-aries-cli, scaffold-starfish-initializr, hui-pro]
+    rules:
+      - 这个 build 阶段叠加三类 skill。只要能力列表中的 skill 适用，就通过 Skill 工具加载；禁止跳过适用的 skill。选择一个执行驱动并不意味着可以跳过下面的脚手架和 UI skill。
+      - 执行驱动：必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+      - 没有代码时，脚手架是强制的。写任何源码前，必须运行 scaffold-aries-cli 或 scaffold-starfish-initializr 来生成项目骨架。
+      - 任何 UI 组件都必须使用前端 UI skill。只要编写前端 UI，就必须加载并使用 hui-pro skill 构建组件；不要手写组件，也不要使用其它 UI 库。这是执行驱动之外的额外要求，不是替代关系。
+    needs: [implemented]
+    next: review
+
+  - id: review
+    goal: 评审实现和公司规范。
+    capabilities: [requesting-code-review]
+    needs: [review_result=pass]
+    fail_when: review_result=fail
+    fail_to: build
+    fail_reason: 评审发现实现问题。
+    next: verify
+
+  - id: verify
+    goal: 验证行为和 OpenSpec 覆盖。
+    capabilities: [verification-before-completion, openspec-verify-change]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: build
+    fail_reason: 验证未通过。
+    next: archive
+
+  - id: archive
+    goal: 用户确认后归档已完成的变更。
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [openspec-archive-change]
+    needs: [archived]
+    next: hido
+
+  - id: hido
+    goal: 进行 SVN 构建，需要询问用户确认是否构建。
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [custom-component-creator]
+    terminal: true

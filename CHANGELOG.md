@@ -1,5 +1,9 @@
 ## What's Changed [0.6.29] - 2026-07-01
 
+### Added
+
+- **内置 workflow 中文阅读版**: 新增 `docs/workflows-zh/{new,feature,fix}.yaml`，把三个内置 workflow 的意图、阶段目标和规则翻译成中文，保留状态 id、skill 名和决策键等机器字段，方便阅读流程而不会被引擎误加载。
+
 ### Changed
 
 - **new workflow build 阶段规则修正（脚手架/UI 技能被跳过）**: build 阶段原规则 "Choose exactly one implementation skill" 让 Agent 以为选完 `executing-plans`/`subagent-driven-development` 就完事，把 `hui-pro`（UI 组件）和 `scaffold-*`（脚手架）漏掉；`hui-pro` 那条又是 "请…执行" 的软措辞、排在最后，且英文规则有拼写错（`exisit`）。改为把 build 明确拆成**三类技能**：执行驱动（二选一）、脚手架（无代码时 MANDATORY）、前端 UI 组件（写 UI 时 MANDATORY 用 `hui-pro`，且强调是"在执行驱动之外、额外加载"）。规则里点明"选了执行驱动不代表可以跳过脚手架和 UI 技能"，capabilities 排序与逗号空格也一并规整。`new` workflow `version` → 12。

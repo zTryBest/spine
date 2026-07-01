@@ -1,0 +1,70 @@
+# Hikspine 内置 workflow 中文阅读版。
+# 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/feature.yaml。
+
+id: feature
+version: 11
+name: 功能开发
+intent: 在已有项目中开发新功能或较大变更。适用于需要澄清需求、形成设计，并在实现前创建 OpenSpec 产物的工作。
+start: open
+
+states:
+  - id: open
+    goal: 澄清变更内容，并创建 OpenSpec 产物。
+    forbid: [write-source]
+    capabilities: [openspec-explore, openspec-propose]
+    rules:
+      - 探索已有代码以澄清变更时，优先使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`），用它定位符号、调用路径和影响范围，避免盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
+    needs: [requirements_clarified, proposal_ready]
+    next: design
+
+  - id: design
+    goal: 探索技术路径，记录设计，并获得用户确认。
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [brainstorming, writing-plans]
+    rules:
+      - 使用 brainstorming skill 探索可选方案和取舍，再确定设计方向；不要直接跳到结论。
+      - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
+      - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
+      - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
+      - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
+      - 如果 specs/**/*.md 超过一个文件，或 tasks.md 超过 6 个任务组，则按 spec 分片计划：每个 spec 派发一个 writing-plans subAgent，传入 proposal.md、tasks.md、可选 design.md，以及一个明确的 specs/{spec-id}/spec.md 路径。每个子计划写入 docs/superpowers/plans/{change}-{spec-id}.md。
+      - 分片子计划都生成后，创建一个精简 manifest 到 docs/superpowers/plans/{change}.md，链接所有子计划，说明执行顺序、共享契约和集成验证。不要在 manifest 里重复子计划的详细实现步骤。
+      - 主 Agent 只带回 manifest 或计划路径、分片时的子计划路径、简要摘要和阻塞点，然后请求用户确认。
+      - 设计需要基于现有代码：使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`）追踪将要触达区域的调用路径和影响范围；如果 codegraph 不可用，再回退到普通搜索。
+    needs: [design_documented, design_confirmed]
+    next: build
+
+  - id: build
+    goal: 实现已确认的设计。
+    capabilities: [executing-plans, subagent-driven-development]
+    rules:
+      - 编辑源码前必须选择且只选择一个实现 skill。小型、本地、基本顺序执行的改动使用 executing-plans；如果实现能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+    needs: [implemented]
+    next: review
+
+  - id: review
+    goal: 验证前先评审实现。
+    capabilities: [requesting-code-review]
+    needs: [review_result=pass]
+    fail_when: review_result=fail
+    fail_to: build
+    fail_reason: 评审发现实现问题。
+    next: verify
+
+  - id: verify
+    goal: 验证行为和 OpenSpec 覆盖。
+    capabilities: [verification-before-completion, openspec-verify-change]
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: build
+    fail_reason: 验证未通过。
+    next: archive
+
+  - id: archive
+    goal: 用户确认后归档已完成的变更。
+    forbid: [write-source]
+    requires_user: true
+    capabilities: [openspec-archive-change]
+    needs: [archived]
+    terminal: true
