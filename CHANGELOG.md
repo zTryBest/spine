@@ -6,6 +6,9 @@
 
 ### Changed
 
+- **new workflow 先脚手架后文档**: `new` 流程改为 `scaffold -> brainstorm -> openspec -> design -> build`，先确认组件标识/项目目录并拉取真实脚手架，再生成头脑风暴、OpenSpec 和实现计划，避免前置文档凭空生成与脚手架不一致的目录、包名或组件名。
+- **new workflow 新骨架上下文改用轻量探索**: 新拉取脚手架阶段不再要求 `codegraph init`，后续 brainstorm/design/build 也改为读取 `.hikspine/project-build.json`、目录树、构建配置、包/模块名和定向 `rg` 搜索，适配新骨架业务代码少、grep/tree 更可靠的场景。
+
 - **文档产物语言跟随用户请求**: `new` / `feature` / `fix` 的文档产出阶段新增 workflow 规则，要求 OpenSpec、writing-plans 与其他 Markdown 产物默认使用用户原始请求的语言，除非用户明确指定另一种语言；代码标识、命令、路径、API 名称和上游 skill 名称保持原文，避免中文需求生成英文文档。
 
 - **subagent-driven-development 脚本调用兼容提醒**: `new` / `feature` 的 build 阶段规则新增提醒，使用上游 `subagent-driven-development` 的辅助脚本时必须按真实文件名调用 `scripts/task-brief` / `scripts/review-package`，不要自行追加 `.mjs` 后缀或用 `node` 执行，避免 Agent 把 Bash 脚本误当成 Node runtime 脚本。
@@ -17,6 +20,8 @@
 - **build 阶段 hui-pro/TDD 要求传递到 subAgent**: 并行(subagent-driven-development)时,`hui-pro` 和 TDD 只在主上下文提了一句,没进 subAgent 的 brief,导致做前端的 subAgent 不知道要用 `hui-pro`。新增规则:subAgent 只看得到自己 brief 里的内容,用 subagent-driven-development 时必须把适用的按任务要求写进**每个** subAgent 的 brief——碰前端 UI 的要求它用 `hui-pro`,`tdd_mode` 为 true 的要求它遵循 test-driven-development;并强调 `hui-pro` 是产出 UI 的唯一正规途径(无前端脚手架)。`docs/workflows-zh/new.yaml` 同步。
 
 ### Tests
+
+- **new workflow 顺序与轻量上下文覆盖**: workflow kernel 测试更新为验证 `new` 从 scaffold 起步、scaffold 后进入 brainstorm、OpenSpec 直接进入 design，并断言新骨架上下文规则不再要求 codegraph。
 
 - **文档语言规则覆盖**: workflow kernel 测试新增断言，验证 `feature.open`、`feature.design`、`fix.inspect`、`new.openspec` 与 `new.design` 都会向 Agent 暴露“文档语言跟随用户原始请求”的规则。
 

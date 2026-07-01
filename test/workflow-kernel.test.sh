@@ -360,18 +360,32 @@ eq "verify pass completes fix" \
 
 rm -rf "$T"
 
-# ─── new workflow: brainstorm → openspec → design → build ────────────────
+# --- new workflow: scaffold -> brainstorm -> openspec -> design -> build ---
 
-echo "# new workflow: brainstorm -> openspec -> scaffold -> design -> build"
+echo "# new workflow: scaffold -> brainstorm -> openspec -> design -> build"
 T="$(sandbox)"
 
 NP_NEXT="$(run next my-service --workflow new --json)"
-eq "new starts with brainstorming" \
-  "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "brainstorm"
+eq "new starts with scaffold" \
+  "$(printf '%s' "$NP_NEXT" | json_get 'j.current')" "scaffold"
+eq "scaffold offers both backend scaffolds in a one-of backend group (conditional)" \
+  "$(printf '%s' "$NP_NEXT" | json_test "['scaffold-aries-cli','scaffold-starfish-initializr'].every(id=>{const c=j.capabilities.find(x=>x.id===id);return c&&c.group==='backend'&&typeof c.when==='string';})" && echo yes || echo no)" "yes"
+eq "scaffold avoids codegraph for fresh skeletons" \
+  "$(printf '%s' "$NP_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/Do not initialize or require codegraph/.test(r) && /directory tree/.test(r) && /rg/.test(r))" && echo yes || echo no)" "yes"
+eq "scaffold records build manifest (component id + svn)" \
+  "$(printf '%s' "$NP_NEXT" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /components/.test(r) && /svn/.test(r))" && echo yes || echo no)" "yes"
+eq "scaffold needs scaffolded" \
+  "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('scaffolded') ? 'yes' : 'no'")" "yes"
+
+NP_BRAINSTORM="$(run decide scaffolded --json)"
+eq "scaffolded advances to brainstorming" \
+  "$(printf '%s' "$NP_BRAINSTORM" | json_get 'j.current')" "brainstorm"
 eq "new brainstorm has brainstorming capability" \
-  "$(printf '%s' "$NP_NEXT" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$NP_BRAINSTORM" | json_test "j.capabilities.some(c=>c.id==='brainstorming')" && echo yes || echo no)" "yes"
+eq "new brainstorm is grounded in scaffold facts" \
+  "$(printf '%s' "$NP_BRAINSTORM" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /do not invent project directories/.test(r))" && echo yes || echo no)" "yes"
 eq "new brainstorm needs brainstorming_done" \
-  "$(printf '%s' "$NP_NEXT" | json_get "j.missing.includes('brainstorming_done') ? 'yes' : 'no'")" "yes"
+  "$(printf '%s' "$NP_BRAINSTORM" | json_get "j.missing.includes('brainstorming_done') ? 'yes' : 'no'")" "yes"
 
 NP_OPENSPEC="$(run decide brainstorming_done --json)"
 eq "brainstorm advances to openspec" \
@@ -382,26 +396,16 @@ eq "openspec needs proposal_ready" \
   "$(printf '%s' "$NP_OPENSPEC" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 eq "new openspec keeps workflow documents in request language" \
   "$(printf '%s' "$NP_OPENSPEC" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/same language as the user's original request/.test(r) && /Preserve code identifiers/.test(r))" && echo yes || echo no)" "yes"
+eq "new openspec is grounded in scaffold facts" \
+  "$(printf '%s' "$NP_OPENSPEC" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /component identifiers/.test(r) && /scaffold facts/.test(r))" && echo yes || echo no)" "yes"
 
-NP_SCAFFOLD="$(run decide proposal_ready --json)"
-eq "proposal advances to scaffold (before design)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
-eq "scaffold offers both backend scaffolds in a one-of backend group (conditional)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "['scaffold-aries-cli','scaffold-starfish-initializr'].every(id=>{const c=j.capabilities.find(x=>x.id===id);return c&&c.group==='backend'&&typeof c.when==='string';})" && echo yes || echo no)" "yes"
-eq "scaffold initializes codegraph before design" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
-eq "scaffold records build manifest (component id + svn)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /components/.test(r) && /svn/.test(r))" && echo yes || echo no)" "yes"
-eq "scaffold needs scaffolded" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_get "j.missing.includes('scaffolded') ? 'yes' : 'no'")" "yes"
-
-NP_DESIGN="$(run decide scaffolded --json)"
-eq "scaffolded advances to design" \
+NP_DESIGN="$(run decide proposal_ready --json)"
+eq "proposal advances to design" \
   "$(printf '%s' "$NP_DESIGN" | json_get 'j.current')" "design"
 eq "design has writing-plans capability" \
   "$(printf '%s' "$NP_DESIGN" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
-eq "new design grounds in scaffolded code via codegraph" \
-  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
+eq "new design uses lightweight scaffold context" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/lightweight context/.test(r) && /project-build\\.json/.test(r) && /rg/.test(r) && /Do not require codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "new design uses Superpowers-compatible file handoff" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/file handoff only/.test(r)) && j.rules.some(r=>/docs\\/superpowers\\/plans\\/\\{change\\}\\.md/.test(r))" && echo yes || echo no)" "yes"
 eq "new design shards multi-spec writing plans" \
@@ -428,8 +432,8 @@ eq "build hui-pro is conditional (when tag)" \
   "$(printf '%s' "$NP_BUILD" | json_test "typeof (j.capabilities.find(c=>c.id==='hui-pro')||{}).when==='string'" && echo yes || echo no)" "yes"
 eq "build no longer scaffolds (moved to scaffold stage)" \
   "$(printf '%s' "$NP_BUILD" | json_test "!j.capabilities.some(c=>/^scaffold-/.test(c.id))" && echo yes || echo no)" "yes"
-eq "build reads code via codegraph" \
-  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
+eq "build uses lightweight scaffold context instead of codegraph" \
+  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /targeted/.test(r) && /rg/.test(r) && /do not require codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "build propagates hui-pro/tdd into each subagent brief" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/brief/.test(r) && /hui-pro/.test(r) && /test-driven-development/.test(r))" && echo yes || echo no)" "yes"
 eq "new build warns subagent helper scripts are not .mjs node scripts" \

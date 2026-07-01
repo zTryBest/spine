@@ -1,43 +1,45 @@
 id: new
-version: 19
+version: 20
 name: New Project
-intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
-start: brainstorm
+intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work needs a real scaffold before requirements, OpenSpec, design, and implementation documents are written.
+start: scaffold
 
 states:
+  - id: scaffold
+    goal: Decide the project identity and backend scaffold first, pull the skeleton if needed, and record the real component/directory facts before any brainstorming or OpenSpec documents are written.
+    capabilities:
+      - { id: scaffold-aries-cli, group: backend, when: the project needs a backend service }
+      - { id: scaffold-starfish-initializr, group: backend, when: the project needs a backend service }
+    rules:
+      - Before running brainstorming or writing OpenSpec artifacts, ask only the minimum scaffold inputs needed from the user, including whether a backend service is needed, which backend scaffold/company standard applies, and the component identifier/project directory to use.
+      - scaffold-aries-cli and scaffold-starfish-initializr are BOTH backend scaffolds. When a backend is needed, pick exactly one that matches the required framework/company standard and run it; do not run both, and do not hand-write the skeleton.
+      - There is no frontend scaffold. A frontend, if any, is not scaffolded here - it is built in the build stage with the hui-pro UI component library. A frontend-only project pulls no scaffold and simply moves on.
+      - Do not initialize or require codegraph for the freshly pulled scaffold. For a new skeleton, inspect only the directory tree, file names, build files, package/module names, and lightweight `rg` searches; there is little business code yet, and grep/tree context is more reliable here.
+      - Record the build metadata to `.hikspine/project-build.json` shaped as project plus a components array, where each component entry has component (component identifier), svn (SVN URL), and optional module, buildType, and artifact fields. Append or update one entry in components for each pulled scaffold, and keep this file the single source of truth - the board displays it and the later SVN build/packaging (hido) stage reads it.
+    needs: [scaffolded]
+    next: brainstorm
+
   - id: brainstorm
-    goal: Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.
+    goal: Explore the product direction, unknowns, constraints, and viable approaches after the real scaffold/component facts are known, before creating OpenSpec artifacts.
     forbid: [write-source]
     capabilities:
       - { id: brainstorming, required: true }
     rules:
       - Write workflow-authored documents and Markdown artifacts in the same language as the user's original request, unless the user explicitly asks for another language. Preserve code identifiers, command names, paths, API names, and upstream skill names verbatim.
       - Use brainstorming before OpenSpec so the proposal captures explored options, tradeoffs, and unresolved questions.
+      - Ground brainstorming in the scaffold that already exists. Read `.hikspine/project-build.json` and inspect the directory tree/build files first; do not invent project directories, package names, or component identifiers from the feature/change name.
     needs: [brainstorming_done]
     next: openspec
 
   - id: openspec
-    goal: Create OpenSpec artifacts from the brainstormed direction.
+    goal: Create OpenSpec artifacts from the brainstormed direction and the real scaffold facts.
     forbid: [write-source]
     capabilities:
       - { id: openspec-propose, required: true }
     rules:
       - Write workflow-authored documents and Markdown artifacts in the same language as the user's original request, unless the user explicitly asks for another language. Preserve code identifiers, command names, paths, API names, and upstream skill names verbatim.
+      - Base OpenSpec names and examples on `.hikspine/project-build.json` and the actual scaffold directories. The change/spec name may describe the product capability, but component identifiers, package names, and paths must come from the scaffold facts.
     needs: [proposal_ready]
-    next: scaffold
-
-  - id: scaffold
-    goal: Decide from the confirmed proposal whether the project needs a backend, pull the backend scaffold if so, and index the pulled code with codegraph so design and build can read and modify it.
-    capabilities:
-      - { id: scaffold-aries-cli, group: backend, when: the project needs a backend service }
-      - { id: scaffold-starfish-initializr, group: backend, when: the project needs a backend service }
-    rules:
-      - Decide from the confirmed proposal whether this project needs a backend service.
-      - scaffold-aries-cli and scaffold-starfish-initializr are BOTH backend scaffolds. When a backend is needed, pick exactly one that matches the required framework/company standard and run it; do not run both, and do not hand-write the skeleton.
-      - There is no frontend scaffold. A frontend, if any, is not scaffolded here — it is built in the build stage with the hui-pro UI component library. A frontend-only project pulls no scaffold and simply moves on.
-      - After the backend skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
-      - Record the build metadata to `.hikspine/project-build.json` shaped as project plus a components array, where each component entry has component (组件标识), svn (svn 地址), and optional module, buildType, and artifact fields. Append or update one entry in components for each pulled scaffold, and keep this file the single source of truth — the board displays it and the later SVN build/packaging (hido) stage reads it.
-    needs: [scaffolded]
     next: design
 
   - id: design
@@ -49,7 +51,7 @@ states:
     rules:
       - Write workflow-authored documents and Markdown artifacts in the same language as the user's original request, unless the user explicitly asks for another language. Preserve code identifiers, command names, paths, API names, and upstream skill names verbatim.
       - Use writing-plans to document the implementation design, task breakdown, and verification approach before build starts.
-      - Ground the design in the scaffolded code via the codegraph MCP tool `codegraph_explore` (run `codegraph init` if the graph is missing) — trace the skeleton's structure, entry points, and where the new code will slot in. Fall back to normal search if codegraph is unavailable.
+      - Ground the design in the scaffolded code with lightweight context only. Read `.hikspine/project-build.json`, list the directory tree, inspect build/config files, package/module names, and use targeted `rg` searches. Do not require codegraph for the new skeleton context.
       - In the main context, do not Read proposal.md, tasks.md, design.md, or specs before dispatching planning subagents. Only list or test artifact paths, then pass paths.
       - Run writing-plans in subagents (the Task tool) using file handoff only. Pass artifact paths, not file contents; do not inline proposal.md, tasks.md, specs, design.md, or OpenSpec summaries into the prompt.
       - Single-plan handoff inputs are openspec/changes/{change}/proposal.md, openspec/changes/{change}/tasks.md, optional openspec/changes/{change}/design.md, and openspec/changes/{change}/specs/**/*.md. The subagent should read only the files it needs and write docs/superpowers/plans/{change}.md.
@@ -57,7 +59,7 @@ states:
       - Dispatch at most 3 writing-plans subagents concurrently (company concurrency limit). If there are more shards than that, run them in batches of 3 and wait for each batch to finish before starting the next, so subagents do not time out.
       - After sharded child plans exist, create a concise manifest at docs/superpowers/plans/{change}.md that links child plans, states execution order, shared contracts, and integration verification. Do not duplicate child implementation steps in the manifest.
       - The main agent should bring back only the manifest or plan path, child plan paths when sharded, a concise summary, and any blockers, then ask the user to confirm.
-      - While getting confirmation, also ask the user whether to enable TDD mode (test-driven-development) for the build. Record the answer as the tdd_mode decision — run `decide tdd_mode true` or `decide tdd_mode false` — the build stage reads it.
+      - While getting confirmation, also ask the user whether to enable TDD mode (test-driven-development) for the build. Record the answer as the tdd_mode decision - run `decide tdd_mode true` or `decide tdd_mode false` - the build stage reads it.
     needs: [design_documented, tdd_mode, design_confirmed]
     next: build
 
@@ -69,13 +71,13 @@ states:
       - { id: test-driven-development, when: the tdd_mode decision from design is true }
       - { id: hui-pro, when: building any frontend UI component }
     rules:
-      - Execution driver — pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
-      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development — load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
+      - Execution driver - pick exactly ONE. Use executing-plans for small, local, mostly sequential work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development - load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
       - When using subagent-driven-development, run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before starting the next, so subagents do not time out.
       - When using subagent-driven-development bundled helper scripts, invoke the exact script files documented by that skill, such as `scripts/task-brief` and `scripts/review-package`; do not append `.mjs` or run them with `node` unless the actual script file has that extension.
-      - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement. There is no frontend scaffold — hui-pro is the only sanctioned way to produce UI.
-      - A subagent only sees what its brief contains — build rules do NOT reach it automatically. When using subagent-driven-development, write the applicable per-task requirements into each subagent's brief: if the subagent will touch frontend UI, require it to load and use hui-pro for the components; if the tdd_mode decision is true, require it to follow test-driven-development (a failing test before the code). Restate these in every relevant subagent brief, not just once in the main context.
-      - The skeleton was already scaffolded and indexed in the scaffold stage. Before modifying code, use the codegraph MCP tool `codegraph_explore` to locate the right files and understand call paths (run `codegraph init` only if the graph is missing). Fall back to normal search if codegraph is unavailable.
+      - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement. There is no frontend scaffold - hui-pro is the only sanctioned way to produce UI.
+      - A subagent only sees what its brief contains - build rules do NOT reach it automatically. When using subagent-driven-development, write the applicable per-task requirements into each subagent brief. If the subagent will touch frontend UI, require it to load and use hui-pro for the components; if the tdd_mode decision is true, require it to follow test-driven-development (a failing test before the code). Restate these in every relevant subagent brief, not just once in the main context.
+      - The skeleton was already scaffolded before brainstorming. Before modifying code, use `.hikspine/project-build.json`, directory listings, build/config files, package/module names, and targeted `rg` searches to locate the right files. Do not re-run scaffold and do not require codegraph for this new-skeleton context.
     needs: [implemented]
     next: review
 
@@ -99,7 +101,7 @@ states:
     fail_to: build
     fail_reason: Verification did not pass.
     next: archive
-    
+
   - id: archive
     goal: Archive the completed change after user confirmation.
     forbid: [write-source]
@@ -108,9 +110,9 @@ states:
       - { id: openspec-archive-change, required: true }
     needs: [archived]
     next: hido
-    
+
   - id: hido
-    goal: 进行svn构建,需要询问用户确认是否构建
+    goal: Run the SVN build/packaging step after asking the user to confirm whether to build.
     forbid: [write-source]
     requires_user: true
     capabilities:

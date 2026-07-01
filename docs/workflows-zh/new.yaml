@@ -2,44 +2,47 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 19
-# 文档语言规则：workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
-# build 兼容提醒：使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
+version: 20
 name: 新建项目
-intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。
-start: brainstorm
+intent: 从零到一构建项目。先拉取真实脚手架并记录组件/目录事实，再进行头脑风暴、OpenSpec、设计和实现，避免文档凭空生成错误目录。
+start: scaffold
 
 states:
+  - id: scaffold
+    goal: 先确定项目身份和后端脚手架，按需拉取骨架，并在任何头脑风暴或 OpenSpec 文档生成前记录真实组件/目录事实。
+    capabilities:
+      - { id: scaffold-aries-cli, group: backend, when: 项目需要后端服务时 }
+      - { id: scaffold-starfish-initializr, group: backend, when: 项目需要后端服务时 }
+    rules:
+      - 在运行 brainstorming 或写 OpenSpec 产物前，只向用户确认最小脚手架输入：是否需要后端服务、使用哪个后端脚手架/公司标准、组件标识和项目目录。
+      - scaffold-aries-cli 和 scaffold-starfish-initializr 都是后端脚手架。需要后端时，二选一运行；不要两个都跑，也不要手写骨架。
+      - 没有前端脚手架。前端如果存在，不在这里拉取；后续 build 阶段用 hui-pro UI 组件库构建。纯前端项目本阶段不拉任何脚手架，直接往下走。
+      - 新拉取的脚手架不要初始化或要求 codegraph。新骨架业务代码很少，只检查目录树、文件名、构建文件、包/模块名，并使用轻量 `rg` 搜索；这类上下文用 grep/tree 更可靠。
+      - 把构建元数据记到 `.hikspine/project-build.json`，结构为 project 加 components 数组；每个组件条目含 component（组件标识）、svn（SVN 地址），以及可选的 module、buildType、artifact 字段。每拉一个脚手架就在 components 里追加或更新一条，保持这个文件是唯一事实来源。
+    needs: [scaffolded]
+    next: brainstorm
+
   - id: brainstorm
-    goal: 在创建产物前，探索产品方向、未知点、约束和可行方案。
+    goal: 在真实脚手架和组件事实已知后，探索产品方向、未知点、约束和可行方案，再创建 OpenSpec 产物。
     forbid: [write-source]
-    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+    capabilities:
       - { id: brainstorming, required: true }
     rules:
-      - 在 OpenSpec 之前使用 brainstorming，让 proposal 能记录已经探索过的方案、取舍和未解决问题。
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+      - 在 OpenSpec 之前使用 brainstorming，让 proposal 记录已经探索过的方案、取舍和未解决问题。
+      - 头脑风暴必须基于已存在的脚手架。先读取 `.hikspine/project-build.json` 并检查目录树/构建文件；不要根据功能名或 change 名凭空发明项目目录、包名或组件标识。
     needs: [brainstorming_done]
     next: openspec
 
   - id: openspec
-    goal: 根据头脑风暴方向创建 OpenSpec 产物。
+    goal: 根据头脑风暴方向和真实脚手架事实创建 OpenSpec 产物。
     forbid: [write-source]
     capabilities:
       - { id: openspec-propose, required: true }
-    needs: [proposal_ready]
-    next: scaffold
-
-  - id: scaffold
-    goal: 根据已确认的 proposal 判断是否需要后端，需要就拉取后端脚手架，并用 codegraph 建立索引，方便后续设计和实现读代码、改代码。
-    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
-      - { id: scaffold-aries-cli, group: backend, when: 项目需要后端服务时 }
-      - { id: scaffold-starfish-initializr, group: backend, when: 项目需要后端服务时 }
     rules:
-      - 根据已确认的 proposal 判断本项目是否需要后端服务。
-      - scaffold-aries-cli 和 scaffold-starfish-initializr 都是后端脚手架。需要后端时，从中选一个匹配所需框架/公司标准的运行；不要两个都跑，也不要手写骨架。
-      - 没有前端脚手架。前端（如果有）不在这里拉取——它在 build 阶段用 hui-pro UI 组件库来构建。纯前端项目在本阶段不拉任何脚手架，直接往下走。
-      - 后端骨架生成后，对其运行 `codegraph init` 建立索引，让后续 design 和 build 阶段能用 codegraph MCP 工具 `codegraph_explore` 追踪符号、调用路径和影响范围，而不是盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
-      - 把构建元数据记到 `.hikspine/project-build.json`，结构为 project 加一个 components 数组，每个组件条目含 component（组件标识）、svn（svn 地址），以及可选的 module、buildType、artifact 字段。每拉一个脚手架就在 components 里追加或更新一条，保持这个文件是唯一事实来源——看板会展示它、后续 SVN 构建/打包（hido）阶段会读它。
-    needs: [scaffolded]
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+      - OpenSpec 名称和示例要基于 `.hikspine/project-build.json` 与实际脚手架目录。change/spec 名可以描述产品能力，但组件标识、包名和路径必须来自脚手架事实。
+    needs: [proposal_ready]
     next: design
 
   - id: design
@@ -49,8 +52,9 @@ states:
     capabilities:
       - { id: writing-plans, required: true }
     rules:
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
       - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
-      - 设计要基于已拉取的脚手架代码：使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`）追踪骨架结构、入口点，以及新代码将嵌入的位置；如果 codegraph 不可用，再回退到普通搜索。
+      - 设计只使用轻量脚手架上下文：读取 `.hikspine/project-build.json`，列目录树，检查构建/配置文件、包/模块名，并使用定向 `rg` 搜索。不要要求新骨架使用 codegraph。
       - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
       - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
       - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
@@ -58,24 +62,25 @@ states:
       - 最多同时派发 3 个 writing-plans subAgent（公司并发限制）。分片超过 3 个时，按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
       - 分片子计划都生成后，创建一个精简 manifest 到 docs/superpowers/plans/{change}.md，链接所有子计划，说明执行顺序、共享契约和集成验证。不要在 manifest 里重复子计划的详细实现步骤。
       - 主 Agent 只带回 manifest 或计划路径、分片时的子计划路径、简要摘要和阻塞点，然后请求用户确认。
-      - 征询确认时，一并询问用户是否为 build 启用 TDD 模式（test-driven-development）。把回答记为 tdd_mode 决策——运行 `decide tdd_mode true` 或 `decide tdd_mode false`——build 阶段会读取它。
+      - 征询确认时，一并询问用户是否为 build 启用 TDD 模式（test-driven-development）。把回答记为 tdd_mode 决策：运行 `decide tdd_mode true` 或 `decide tdd_mode false`，build 阶段会读取它。
     needs: [design_documented, tdd_mode, design_confirmed]
     next: build
 
   - id: build
-    goal: 在已拉取的脚手架骨架之上，按已确认设计实现初始项目。
+    goal: 在已拉取的真实脚手架上，按已确认设计实现初始项目。
     capabilities:
       - { id: executing-plans, group: driver }
       - { id: subagent-driven-development, group: driver }
       - { id: test-driven-development, when: design 阶段的 tdd_mode 决策为 true 时 }
       - { id: hui-pro, when: 构建任何前端 UI 组件时 }
     rules:
-      - 执行驱动：必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
-      - 当 design 阶段记录的 tdd_mode 决策为 true（见 next 输出的 decisions 字段），实现必须遵循 test-driven-development——加载该 skill，先写失败测试再写代码，无论用 executing-plans 还是 subagent-driven-development。tdd_mode 为 false 时正常实现，不加载它。
-      - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent（公司并发限制）；模块更多时按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
-      - 任何 UI 组件都必须使用前端 UI skill。只要编写前端 UI，就必须加载并使用 hui-pro skill 构建组件；不要手写组件，也不要使用其它 UI 库。这是执行驱动之外的额外要求，不是替代关系。没有前端脚手架——hui-pro 是产出 UI 的唯一正规途径。
-      - subAgent 只看得到自己 brief 里的内容——build 规则不会自动传到它那里。用 subagent-driven-development 时，把适用的按任务要求写进每个 subAgent 的 brief：如果这个 subAgent 会碰前端 UI，就要求它加载并用 hui-pro 构建组件；如果 tdd_mode 决策为 true，就要求它遵循 test-driven-development（先写失败测试再写代码）。每个相关 subAgent 的 brief 都要重申，不能只在主上下文里说一次。
-      - 骨架已经在 scaffold 阶段拉取并建好索引。改代码前，使用 codegraph MCP 工具 `codegraph_explore` 定位文件、理解调用路径（只有图谱缺失时才运行 `codegraph init`）；如果 codegraph 不可用，再回退到普通搜索。
+      - 执行驱动必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+      - 当 design 阶段记录的 tdd_mode 决策为 true 时，实现必须遵循 test-driven-development：加载该 skill，先写失败测试再写代码，无论用 executing-plans 还是 subagent-driven-development。tdd_mode 为 false 时正常实现。
+      - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent；模块更多时按每批 3 个分批跑，每批跑完再开下一批。
+      - 使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
+      - 任何 UI 组件都必须使用 hui-pro；没有前端脚手架，hui-pro 是产出 UI 的唯一正规路径。
+      - subAgent 只看得到自己的 brief。使用 subagent-driven-development 时，把适用的按任务要求写进每个 subAgent brief：涉及前端 UI 的要求使用 hui-pro，tdd_mode 为 true 的要求遵循 test-driven-development。
+      - 骨架已经在 brainstorming 前拉取。改代码前使用 `.hikspine/project-build.json`、目录列表、构建/配置文件、包/模块名和定向 `rg` 搜索定位文件；不要重新运行 scaffold，也不要要求新骨架使用 codegraph。
     needs: [implemented]
     next: review
 
@@ -110,7 +115,7 @@ states:
     next: hido
 
   - id: hido
-    goal: 进行 SVN 构建，需要询问用户确认是否构建。
+    goal: 进行 SVN 构建/打包；执行前需要询问用户确认是否构建。
     forbid: [write-source]
     requires_user: true
     capabilities:
