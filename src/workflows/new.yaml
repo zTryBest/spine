@@ -39,9 +39,11 @@ states:
 
   - id: build
     goal: Scaffold and implement the initial project from the confirmed design.
-    capabilities: [executing-plans, subagent-driven-development]
+    capabilities: [executing-plans, subagent-driven-development,scaffold-aries-cli,hui-pro,scaffold-starfish-initializr]
     rules:
       - Choose exactly one implementation skill before editing source. Use executing-plans for small, local, mostly sequential implementation work. Use subagent-driven-development when the build can be split across independent modules, needs parallel agents, or benefits from isolated implementer/reviewer/fixer context.
+      - if not have code exisit,must execute the scaffold-aries-cli or scaffold-starfish-initializr skill
+      - 如果需要前端编码，对于UI组件，请使用hui-pro skill执行
     needs: [implemented]
     next: review
 
