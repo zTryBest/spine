@@ -10,11 +10,17 @@
 
 - **Claude Code runtime 启动说明修正**: README 与看板 skill 改为明确通过 `node "$HIKSPINE_ENGINE" ...` 启动看板；新增独立 `hikspine-global-ui` skill 启动 `ui --all`，`hikspine-ui` 只保留当前项目看板，避免误导团队成员以为必须存在全局 `hikspine` 命令或在同一个 skill 中切换模式。
 
+- **new.scaffold 脚手架技能纠正（starfish 也是后端）**: 之前把 `scaffold-starfish-initializr` 当成前端脚手架、和后端 `scaffold-aries-cli` 并列拉取,是错的——两者**都是后端脚手架**,而且目前**没有前端脚手架**。改为:scaffold 阶段只判断"是否需要后端",两个后端脚手架放进 `group: backend` 由 Agent **二选一**(匹配框架/公司标准),都带 `when: 需要后端时`;并写清"没有前端脚手架,前端在 build 阶段用 `hui-pro` UI 组件库构建,纯前端项目本阶段不拉脚手架"。`new` workflow `version` → 18。
+
+- **build 阶段 hui-pro/TDD 要求传递到 subAgent**: 并行(subagent-driven-development)时,`hui-pro` 和 TDD 只在主上下文提了一句,没进 subAgent 的 brief,导致做前端的 subAgent 不知道要用 `hui-pro`。新增规则:subAgent 只看得到自己 brief 里的内容,用 subagent-driven-development 时必须把适用的按任务要求写进**每个** subAgent 的 brief——碰前端 UI 的要求它用 `hui-pro`,`tdd_mode` 为 true 的要求它遵循 test-driven-development;并强调 `hui-pro` 是产出 UI 的唯一正规途径(无前端脚手架)。`docs/workflows-zh/new.yaml` 同步。
+
 ### Tests
 
 - **SDD 脚本调用规则覆盖**: workflow kernel 测试新增断言，验证 `new.build` 与 `feature.build` 的规则都会暴露 `scripts/task-brief`、`scripts/review-package` 以及不要误加 `.mjs` / 不要误用 `node` 的提醒。
 
 - **多项目 registry 与全局 UI skill 覆盖**: workflow kernel 测试隔离 `HIKSPINE_HOME`，新增断言验证全局看板能列出已登记项目、跨项目任务和产物携带项目元数据，并能发现 `hikspine-global-ui` skill。
+
+- **scaffold 后端组 + subAgent brief 传递覆盖**: 新增断言验证 `new.scaffold` 的两个后端脚手架都在 `group: backend` 且带 `when` 标签,以及 `new.build` 规则要求把 `hui-pro`/test-driven-development 写进每个 subAgent 的 brief。
 
 ## What's Changed [0.6.35] - 2026-07-01
 

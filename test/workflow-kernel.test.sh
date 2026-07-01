@@ -378,8 +378,8 @@ eq "openspec needs proposal_ready" \
 NP_SCAFFOLD="$(run decide proposal_ready --json)"
 eq "proposal advances to scaffold (before design)" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
-eq "scaffold pulls backend conditionally (when tag)" \
-  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='scaffold-aries-cli'&&typeof c.when==='string')" && echo yes || echo no)" "yes"
+eq "scaffold offers both backend scaffolds in a one-of backend group (conditional)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "['scaffold-aries-cli','scaffold-starfish-initializr'].every(id=>{const c=j.capabilities.find(x=>x.id===id);return c&&c.group==='backend'&&typeof c.when==='string';})" && echo yes || echo no)" "yes"
 eq "scaffold initializes codegraph before design" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
 eq "scaffold records build manifest (component id + svn)" \
@@ -420,6 +420,8 @@ eq "build no longer scaffolds (moved to scaffold stage)" \
   "$(printf '%s' "$NP_BUILD" | json_test "!j.capabilities.some(c=>/^scaffold-/.test(c.id))" && echo yes || echo no)" "yes"
 eq "build reads code via codegraph" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
+eq "build propagates hui-pro/tdd into each subagent brief" \
+  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/brief/.test(r) && /hui-pro/.test(r) && /test-driven-development/.test(r))" && echo yes || echo no)" "yes"
 eq "new build warns subagent helper scripts are not .mjs node scripts" \
   "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/scripts\\/task-brief/.test(r) && /scripts\\/review-package/.test(r) && /\\.mjs/.test(r) && /node/.test(r))" && echo yes || echo no)" "yes"
 

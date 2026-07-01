@@ -1,5 +1,5 @@
 id: new
-version: 17
+version: 18
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -24,13 +24,15 @@ states:
     next: scaffold
 
   - id: scaffold
-    goal: Decide the project shape from the confirmed proposal, pull the needed backend/frontend scaffold(s), and index the pulled code with codegraph so design and build can read and modify it.
+    goal: Decide from the confirmed proposal whether the project needs a backend, pull the backend scaffold if so, and index the pulled code with codegraph so design and build can read and modify it.
     capabilities:
-      - { id: scaffold-aries-cli, when: the project needs a backend service }
+      - { id: scaffold-aries-cli, group: backend, when: the project needs a backend service }
+      - { id: scaffold-starfish-initializr, group: backend, when: the project needs a backend service }
     rules:
-      - Decide from the confirmed proposal whether this project needs a backend, a frontend, or both, then pull only the scaffolds that apply — a project may need one or both.
-      - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton;  Do not hand-write the skeleton.
-      - After each skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
+      - Decide from the confirmed proposal whether this project needs a backend service.
+      - scaffold-aries-cli and scaffold-starfish-initializr are BOTH backend scaffolds. When a backend is needed, pick exactly one that matches the required framework/company standard and run it; do not run both, and do not hand-write the skeleton.
+      - There is no frontend scaffold. A frontend, if any, is not scaffolded here — it is built in the build stage with the hui-pro UI component library. A frontend-only project pulls no scaffold and simply moves on.
+      - After the backend skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
       - Record the build metadata to `.hikspine/project-build.json` shaped as project plus a components array, where each component entry has component (组件标识), svn (svn 地址), and optional module, buildType, and artifact fields. Append or update one entry in components for each pulled scaffold, and keep this file the single source of truth — the board displays it and the later SVN build/packaging (hido) stage reads it.
     needs: [scaffolded]
     next: design
@@ -67,7 +69,8 @@ states:
       - When the tdd_mode decision recorded in design is true (see the `decisions` field of the next output), the implementation MUST follow test-driven-development — load that skill and write a failing test before the code, whether you drive with executing-plans or subagent-driven-development. When tdd_mode is false, implement normally without it.
       - When using subagent-driven-development, run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before starting the next, so subagents do not time out.
       - When using subagent-driven-development bundled helper scripts, invoke the exact script files documented by that skill, such as `scripts/task-brief` and `scripts/review-package`; do not append `.mjs` or run them with `node` unless the actual script file has that extension.
-      - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement.
+      - Frontend UI is MANDATORY for any UI component. Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library. This is IN ADDITION to the execution driver, not a replacement. There is no frontend scaffold — hui-pro is the only sanctioned way to produce UI.
+      - A subagent only sees what its brief contains — build rules do NOT reach it automatically. When using subagent-driven-development, write the applicable per-task requirements into each subagent's brief: if the subagent will touch frontend UI, require it to load and use hui-pro for the components; if the tdd_mode decision is true, require it to follow test-driven-development (a failing test before the code). Restate these in every relevant subagent brief, not just once in the main context.
       - The skeleton was already scaffolded and indexed in the scaffold stage. Before modifying code, use the codegraph MCP tool `codegraph_explore` to locate the right files and understand call paths (run `codegraph init` only if the graph is missing). Fall back to normal search if codegraph is unavailable.
     needs: [implemented]
     next: review
