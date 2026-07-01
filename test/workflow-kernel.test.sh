@@ -343,7 +343,7 @@ rm -rf "$T"
 
 # ─── new workflow: brainstorm → openspec → design → build ────────────────
 
-echo "# new workflow: brainstorm -> openspec -> design -> build"
+echo "# new workflow: brainstorm -> openspec -> scaffold -> design -> build"
 T="$(sandbox)"
 
 NP_NEXT="$(run next my-service --workflow new --json)"
@@ -362,11 +362,23 @@ eq "openspec has openspec-propose capability" \
 eq "openspec needs proposal_ready" \
   "$(printf '%s' "$NP_OPENSPEC" | json_get "j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 
-NP_DESIGN="$(run decide proposal_ready --json)"
-eq "advances to design" \
+NP_SCAFFOLD="$(run decide proposal_ready --json)"
+eq "proposal advances to scaffold (before design)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_get 'j.current')" "scaffold"
+eq "scaffold pulls backend/frontend conditionally (when tags)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='scaffold-aries-cli'&&typeof c.when==='string') && j.capabilities.some(c=>c.id==='scaffold-starfish-initializr'&&typeof c.when==='string')" && echo yes || echo no)" "yes"
+eq "scaffold initializes codegraph before design" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
+eq "scaffold needs scaffolded" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_get "j.missing.includes('scaffolded') ? 'yes' : 'no'")" "yes"
+
+NP_DESIGN="$(run decide scaffolded --json)"
+eq "scaffolded advances to design" \
   "$(printf '%s' "$NP_DESIGN" | json_get 'j.current')" "design"
 eq "design has writing-plans capability" \
   "$(printf '%s' "$NP_DESIGN" | json_test "j.capabilities.some(c=>c.id==='writing-plans')" && echo yes || echo no)" "yes"
+eq "new design grounds in scaffolded code via codegraph" \
+  "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
 eq "new design uses Superpowers-compatible file handoff" \
   "$(printf '%s' "$NP_DESIGN" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/file handoff only/.test(r)) && j.rules.some(r=>/docs\\/superpowers\\/plans\\/\\{change\\}\\.md/.test(r))" && echo yes || echo no)" "yes"
 eq "new design shards multi-spec writing plans" \
@@ -382,8 +394,10 @@ eq "build drivers share a one-of group" \
   "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.filter(c=>c.group==='driver').map(c=>c.id).sort().join(',')==='executing-plans,subagent-driven-development'" && echo yes || echo no)" "yes"
 eq "build hui-pro is conditional (when tag)" \
   "$(printf '%s' "$NP_BUILD" | json_test "typeof (j.capabilities.find(c=>c.id==='hui-pro')||{}).when==='string'" && echo yes || echo no)" "yes"
-eq "build scaffolds are a one-of group with a when tag" \
-  "$(printf '%s' "$NP_BUILD" | json_test "j.capabilities.filter(c=>c.group==='scaffold').length===2 && j.capabilities.filter(c=>c.group==='scaffold').every(c=>typeof c.when==='string')" && echo yes || echo no)" "yes"
+eq "build no longer scaffolds (moved to scaffold stage)" \
+  "$(printf '%s' "$NP_BUILD" | json_test "!j.capabilities.some(c=>/^scaffold-/.test(c.id))" && echo yes || echo no)" "yes"
+eq "build reads code via codegraph" \
+  "$(printf '%s' "$NP_BUILD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph_explore/.test(r))" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

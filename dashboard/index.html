@@ -480,9 +480,10 @@ const DEMO = {
     { id:'new', intent:'Build a project from scratch (0 to 1): brainstorm, create OpenSpec artifacts, confirm design, then build.',
       stages:[
         {id:'brainstorm',goal:'Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.',capabilities:['brainstorming'],needs:['brainstorming_done'],next:'openspec'},
-        {id:'openspec',goal:'Create OpenSpec artifacts from the brainstormed direction.',capabilities:['openspec-propose'],needs:['proposal_ready'],next:'design'},
+        {id:'openspec',goal:'Create OpenSpec artifacts from the brainstormed direction.',capabilities:['openspec-propose'],needs:['proposal_ready'],next:'scaffold'},
+        {id:'scaffold',goal:'Decide the project shape, pull the needed backend/frontend scaffold(s), and index the code with codegraph.',capabilities:[{id:'scaffold-aries-cli',when:'needs a backend'},{id:'scaffold-starfish-initializr',when:'needs a frontend'}],needs:['scaffolded'],next:'design'},
         {id:'design',goal:'Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.',capabilities:['writing-plans'],needs:['design_confirmed'],requiresUser:true,next:'build'},
-        {id:'build',goal:'Scaffold and implement the initial project from the confirmed design.',capabilities:['executing-plans','subagent-driven-development'],needs:['implemented'],next:'review'},
+        {id:'build',goal:'Implement the initial project on top of the scaffolded skeleton.',capabilities:['executing-plans','subagent-driven-development',{id:'hui-pro',when:'building UI'}],needs:['implemented'],next:'review'},
         {id:'review',goal:'Review implementation and company standards.',capabilities:['requesting-code-review'],needs:['review_result'],next:'verify'},
         {id:'verify',goal:'Verify behavior and OpenSpec coverage.',capabilities:['verification-before-completion','openspec-verify-change'],needs:['verify_result'],terminal:true}
       ] },
