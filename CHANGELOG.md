@@ -3,7 +3,8 @@
 ### Changed
 
 - **new workflow 新增 scaffold 阶段（在设计之前拉代码 + codegraph 初始化）**: `new` 是从零建项目,原来脚手架是在 `build` 阶段才拉的,导致 `design` 阶段无代码可读、只能凭空设计。现在在 `openspec`(需求澄清)之后、`design` 之前插入一个 `scaffold` 阶段:根据已确认的 proposal 判断本次需要后端、前端还是两者都要,只拉取适用的脚手架(`scaffold-aries-cli` 后端 / `scaffold-starfish-initializr` 前端,均为 `when` 条件加载,可只拉其一或都拉),然后对骨架运行 `codegraph init` 建索引。这样后续 `design` 和 `build` 都能像 `feature` workflow 一样用 codegraph MCP 工具 `codegraph_explore` 读代码、找调用路径,而不是盲目 grep/Read。决策键新增 `scaffolded`;流转变为 `brainstorm → openspec → scaffold → design → build → …`。
-- **new.design / new.build 加 codegraph 规则、build 去掉脚手架职责**: `design` 新增"基于已拉取的脚手架代码用 `codegraph_explore` 落地设计"规则;`build` 移除 `scaffold-*` capability 和"脚手架 MANDATORY"规则(已前移到 scaffold 阶段),改为保留执行驱动(二选一)+ `hui-pro`(写 UI 时),并新增"改代码前先用 `codegraph_explore` 定位"规则。`new` workflow `version` → 14;`docs/workflows-zh/new.yaml` 与看板 demo 数据同步。
+- **new.design / new.build 加 codegraph 规则、build 去掉脚手架职责**: `design` 新增"基于已拉取的脚手架代码用 `codegraph_explore` 落地设计"规则;`build` 移除 `scaffold-*` capability 和"脚手架 MANDATORY"规则(已前移到 scaffold 阶段),改为保留执行驱动(二选一)+ `hui-pro`(写 UI 时),并新增"改代码前先用 `codegraph_explore` 定位"规则。`docs/workflows-zh/new.yaml` 与看板 demo 数据同步。
+- **scaffold 记录构建清单、hido 读取清单(公司构建流程)**: 代码是按组件标识 + SVN 地址从 SVN 拉的,所以 `scaffold` 阶段新增规则:每拉一个脚手架就把该组件的**组件标识、SVN 地址**及其它项目信息(模块名、构建类型、产物名)追加/更新到 `.hikspine/project-build.json`,作为唯一事实来源;`hido`(SVN 构建/打包)阶段新增规则:直接读这个清单拿组件标识和 SVN 地址来驱动构建打包,不再让用户重新提供(文件缺失才询问)。`new` workflow `version` → 15。
 
 ### Tests
 

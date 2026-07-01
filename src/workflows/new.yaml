@@ -1,5 +1,5 @@
 id: new
-version: 14
+version: 15
 name: New Project
 intent: Build a project from scratch (0 to 1). Use when there is no existing codebase and the work includes scaffolding the initial skeleton before implementation.
 start: brainstorm
@@ -32,6 +32,7 @@ states:
       - Decide from the confirmed proposal whether this project needs a backend, a frontend, or both, then pull only the scaffolds that apply — a project may need one or both.
       - When a backend is needed, use scaffold-aries-cli to generate the backend skeleton; when a frontend is needed, use scaffold-starfish-initializr. Do not hand-write the skeleton.
       - After each skeleton exists, initialize codegraph on it (run `codegraph init`) so the later design and build stages can use the codegraph MCP tool `codegraph_explore` to trace symbols, call paths, and blast radius instead of blind grep/glob/Read. Fall back to normal search if codegraph is unavailable.
+      - Record the build metadata for each pulled scaffold to `.hikspine/project-build.json` — for every component write its component identifier and SVN address, plus any other project info the company build needs (module name, build type, output artifact). Keep this file the single source of truth; the later SVN build/packaging stage reads it, so append or update an entry each time you pull a scaffold instead of leaving it stale.
     needs: [scaffolded]
     next: design
 
@@ -102,4 +103,6 @@ states:
     requires_user: true
     capabilities:
       - { id: custom-component-creator, required: true }
+    rules:
+      - Read `.hikspine/project-build.json` (written in the scaffold stage) to get each component's component identifier and SVN address; drive the SVN build/packaging from those recorded values instead of asking the user to re-supply them. If the file is missing or a component is absent, ask the user before building.
     terminal: true

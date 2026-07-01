@@ -369,6 +369,8 @@ eq "scaffold pulls backend/frontend conditionally (when tags)" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_test "j.capabilities.some(c=>c.id==='scaffold-aries-cli'&&typeof c.when==='string') && j.capabilities.some(c=>c.id==='scaffold-starfish-initializr'&&typeof c.when==='string')" && echo yes || echo no)" "yes"
 eq "scaffold initializes codegraph before design" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/codegraph init/.test(r))" && echo yes || echo no)" "yes"
+eq "scaffold records build manifest (component id + svn)" \
+  "$(printf '%s' "$NP_SCAFFOLD" | json_test "Array.isArray(j.rules) && j.rules.some(r=>/project-build\\.json/.test(r) && /component identifier/.test(r) && /SVN address/.test(r))" && echo yes || echo no)" "yes"
 eq "scaffold needs scaffolded" \
   "$(printf '%s' "$NP_SCAFFOLD" | json_get "j.missing.includes('scaffolded') ? 'yes' : 'no'")" "yes"
 

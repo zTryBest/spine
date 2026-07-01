@@ -2,7 +2,7 @@
 # 仅用于理解流程，不会被引擎加载；执行源文件是 src/workflows/new.yaml。
 
 id: new
-version: 14
+version: 15
 name: 新建项目
 intent: 从零到一构建项目。适用于没有既有代码库，并且需要在实现前先搭建初始骨架的工作。
 start: brainstorm
@@ -35,6 +35,7 @@ states:
       - 根据已确认的 proposal 判断本项目需要后端、前端还是两者都要，然后只拉取适用的脚手架——一个项目可能只需其一，也可能两者都要。
       - 需要后端时用 scaffold-aries-cli 生成后端骨架；需要前端时用 scaffold-starfish-initializr。不要手写骨架。
       - 骨架生成后，对其运行 `codegraph init` 建立索引，让后续 design 和 build 阶段能用 codegraph MCP 工具 `codegraph_explore` 追踪符号、调用路径和影响范围，而不是盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
+      - 把每个拉取的脚手架的构建元数据记到 `.hikspine/project-build.json`：每个组件写上它的组件标识和 SVN 地址，以及公司构建需要的其它项目信息（模块名、构建类型、产物名）。这个文件是唯一事实来源，后续 SVN 构建/打包阶段要读它，所以每拉一个脚手架就追加或更新对应条目，别让它过时。
     needs: [scaffolded]
     next: design
 
@@ -105,4 +106,6 @@ states:
     requires_user: true
     capabilities:
       - { id: custom-component-creator, required: true }
+    rules:
+      - 读取 `.hikspine/project-build.json`（scaffold 阶段写入）拿到每个组件的组件标识和 SVN 地址，用这些已记录的值驱动 SVN 构建/打包，不要再让用户重新提供。文件缺失或缺某个组件时，构建前先询问用户。
     terminal: true
