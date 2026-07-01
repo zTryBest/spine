@@ -92,11 +92,14 @@
   .stat .n { font-size:26px; font-weight:750; line-height:1; }
   .stat.work .n{color:var(--work)} .stat.confirm .n{color:var(--confirm)} .stat.done .n{color:#b9a6ff}
   .stat .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.7px; margin-top:7px; }
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:8px 0 4px; }
+  .stat.attn::after{background:var(--confirm)} .stat.attn .n{color:var(--confirm)}
   .projects { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin-bottom:8px; }
   .projects-hint { grid-column:1/-1; font-size:12px; color:var(--muted); margin:0 0 2px; }
   .project-card { background:linear-gradient(180deg,rgba(21,25,34,.95),rgba(13,16,21,.96)); border:1px solid var(--line); border-radius:8px; padding:12px 14px; box-shadow:var(--shadow); cursor:pointer; transition:border-color .12s, transform .12s; }
   .project-card:hover { border-color:var(--accent); transform:translateY(-1px); }
   .project-card.error { border-color:rgba(255,118,111,.42); cursor:default; }
+  .project-card.attn { border-color:var(--confirm); box-shadow:0 0 0 1px rgba(240,180,90,.18),var(--shadow); }
   .project-card .drill { margin-top:8px; font-size:11px; color:var(--accent); opacity:.85; }
   .project-name { font-weight:800; display:flex; align-items:center; gap:8px; min-width:0; }
   .project-name span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -284,6 +287,9 @@
 
   <div class="stats" id="stats"></div>
 
+  <h2 id="secMetrics" hidden></h2>
+  <div class="metrics" id="metricsPanel" hidden></div>
+
   <h2 id="secProjects" hidden></h2>
   <div class="projects" id="projects" hidden></div>
 
@@ -344,6 +350,9 @@ const I18N = {
     live:'实时 · 每 2 秒刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
     stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
     secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
+    secMetrics:'总览指标',
+    mProjects:'项目总数', mActive:'活跃项目', mWork:'进行中任务', mConfirm:'待确认', mNotif:'待处理通知', mDone:'已完成/归档',
+    emptyActive:'当前没有进行中的任务 — 所有项目要么已完成，要么在等待确认。',
     empty:'还没有任务 — 由 Agent 在 Claude Code 里创建并驱动。',
     bWork:'进行中', bConfirm:'待确认', bDone:'完成', bArchived:'已归档', bError:'异常',
     cur:'当前', pending:'待办决策', recorded:'已决策', started:'开始于',
@@ -367,6 +376,9 @@ const I18N = {
     live:'Live · refreshes every 2s', demo:'Demo data · run hikspine ui for live state',
     stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
     secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
+    secMetrics:'Overview metrics',
+    mProjects:'Projects', mActive:'Active projects', mWork:'In-progress tasks', mConfirm:'Awaiting confirm', mNotif:'Pending notifications', mDone:'Done / archived',
+    emptyActive:'No in-progress tasks right now — every project is either done or awaiting confirmation.',
     empty:'No tasks yet — the agent creates and drives them in Claude Code.',
     bWork:'In progress', bConfirm:'Needs confirm', bDone:'Done', bArchived:'Archived', bError:'Error',
     cur:'Current', pending:'Pending', recorded:'Decided', started:'Started',
@@ -777,6 +789,28 @@ function renderStats(changes) {
     '<div class="stat confirm"><div class="n">'+n.confirm+'</div><div class="l">'+t('stConfirm')+'</div></div>'+
     '<div class="stat done"><div class="n">'+n.done+'</div><div class="l">'+t('stDone')+'</div></div>';
 }
+// Global-overview KPIs, computed purely from the /api/state all-projects
+// payload (projects + changes + notifications). No engine/server dependency —
+// refreshing the page recomputes these live.
+function renderMetrics(state) {
+  const projects = Array.isArray(state.projects) ? state.projects : [];
+  const changes = (Array.isArray(state.changes) ? state.changes : []).filter(c => !c.error);
+  const notifs = (Array.isArray(state.notifications) ? state.notifications : []).filter(n => !n.handled);
+  const isDone = (c) => c.complete || c.archived;
+  const inProgress = changes.filter(c => !isDone(c));
+  const work = inProgress.filter(c => c.nextAction !== 'confirm').length;
+  const confirm = inProgress.filter(c => c.nextAction === 'confirm').length;
+  const done = changes.filter(isDone).length;
+  const activeProjects = projects.filter(p => p.counts && ((p.counts.work||0) > 0 || (p.counts.confirm||0) > 0)).length;
+  const card = (cls, n, l) => '<div class="stat '+cls+'"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>';
+  $('metricsPanel').innerHTML =
+    card('total', projects.length, t('mProjects')) +
+    card('work', activeProjects, t('mActive')) +
+    card('work', work, t('mWork')) +
+    card('attn', confirm, t('mConfirm')) +
+    card('attn', notifs.length, t('mNotif')) +
+    card('done', done, t('mDone'));
+}
 async function openArtifact(path, projectId) {
   let data;
   const demo = last && last.demo;
@@ -817,9 +851,14 @@ function renderProjects(projects) {
     host.innerHTML = '<div class="empty">'+(lang==='zh'?'还没有登记项目。先在项目里运行 hikspine next 或 hikspine ui。':'No projects registered yet. Run hikspine next or hikspine ui inside a project first.')+'</div>';
     return;
   }
+  // Focus on projects that need attention: pending confirmations first, then
+  // projects with in-progress work, then the rest (idle / all done).
+  const rank = (p) => { const c = p.counts || {}; return (c.confirm||0) > 0 ? 0 : (c.work||0) > 0 ? 1 : 2; };
+  projects = [...projects].sort((a, b) => rank(a) - rank(b) || (b.counts?.confirm||0) - (a.counts?.confirm||0) || (b.counts?.work||0) - (a.counts?.work||0));
   host.innerHTML = '<div class="projects-hint">'+esc(t('pickProject'))+'</div>' + projects.map(p => {
     const c = p.counts || {};
-    return '<article class="project-card '+(p.error?'error':'')+'" '+(p.error?'':'data-project-id="'+esc(p.id)+'"')+'>'+
+    const attn = !p.error && (c.confirm||0) > 0;
+    return '<article class="project-card '+(p.error?'error':(attn?'attn':''))+'" '+(p.error?'':'data-project-id="'+esc(p.id)+'"')+'>'+
       '<div class="project-name"><span>'+esc(p.name || p.root)+'</span>'+(p.pluginVersion?'<span class="project-version">v'+esc(p.pluginVersion)+'</span>':'')+'</div>'+
       '<div class="project-root" title="'+esc(p.root || '')+'">'+esc(p.root || '')+'</div>'+
       '<div class="project-metrics"><span>'+esc(lang==='zh'?'任务':'Tasks')+' '+(c.total||0)+'</span>'+
@@ -833,8 +872,8 @@ function renderProjects(projects) {
     card.onclick = () => { selectedProjectId = card.dataset.projectId; lastRenderKey = ''; refresh(); };
   });
 }
-function renderChanges(changes) {
-  if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+t('empty')+'</div>'; return; }
+function renderChanges(changes, emptyMsg) {
+  if (!changes.length) { $('changes').innerHTML = '<div class="empty">'+esc(emptyMsg || t('empty'))+'</div>'; return; }
   $('changes').innerHTML = changes.map(c => {
     if (c.error) return '<div class="card"><div class="top"><span class="name">'+esc(c.change)+'</span>'+badge(c)+'</div><div class="foot">'+esc(c.error)+'</div></div>';
     const missing = (c.missing && c.missing.length) ? c.missing.join(', ') : '—';
@@ -1090,6 +1129,7 @@ function renderAll() {
   $('secTasks').textContent = t('secTasks');
   $('secBuild').textContent = t('secBuild');
   $('secWf').textContent = t('secWf');
+  $('secMetrics').textContent = t('secMetrics');
   $('secWorkflowDetail').textContent = lang==='zh' ? '工作流阶段与技能' : 'Workflow stages & skills';
   $('root').textContent = last.root ? '  ·  '+last.root : '';
   const allMode = last.mode === 'all';
@@ -1098,6 +1138,12 @@ function renderAll() {
   const backBtn = $('backBtn');
   backBtn.textContent = t('backAll');
   backBtn.hidden = !last.fromAll;
+  // Global overview: show aggregate KPIs and the project grid; the per-project
+  // panels (build info, workflows, stages & skills) belong to a single project
+  // and are shown only when drilled into one.
+  $('stats').hidden = allMode;
+  $('secMetrics').hidden = !allMode;
+  $('metricsPanel').hidden = !allMode;
   $('secBuild').hidden = allMode;
   $('projectBuild').hidden = allMode;
   $('secWf').hidden = allMode;
@@ -1112,11 +1158,19 @@ function renderAll() {
   quitBtn.textContent = t('quit');
   quitBtn.hidden = !!last.demo;   // only a live board can be stopped
   renderNotifications(last.notifications || []);
-  renderStats(last.changes || []);
+  if (allMode) {
+    renderMetrics(last);
+    // Overview task list focuses on in-progress work — completed / archived
+    // changes are counted in the metrics, not listed as "in-progress".
+    const active = (last.changes || []).filter(c => c.error || (!c.complete && !c.archived));
+    renderChanges(active, t('emptyActive'));
+  } else {
+    renderStats(last.changes || []);
+    renderChanges(last.changes || []);
+    renderProjectBuild(last.projectBuild);
+    renderWorkflows(last.workflows || []);
+  }
   renderProjects(last.projects || []);
-  renderChanges(last.changes || []);
-  renderProjectBuild(last.projectBuild);
-  renderWorkflows(last.workflows || []);
   hasRendered = true;
   document.body.classList.add('no-enter-animation');
 }
