@@ -2,9 +2,33 @@
 
 ### Added
 
+- **自定义 workflow 编排画布**: 单项目看板新增工作流编排画布，可从现有 workflow 生成节点图，编辑工作流 ID/name/intent、阶段目标、capabilities、needs、next、用户确认和终止阶段，并保存为 `.hikspine/workflows/<id>.yaml` 项目级 workflow；保存后可直接通过 `next --workflow <id>` 使用，无需重新执行当前项目流程。
+
 - **本地多项目看板第一阶段**: 新增用户级 `.hikspine/projects.json` 项目登记表，Hikspine 命令访问项目时会登记项目根、项目名、最近使用时间和插件版本；`hikspine board --all --json` 与 `hikspine ui --all` 现在可以聚合展示所有已登记项目的任务、通知、阶段产物和项目摘要，便于先在本机评估插件在多个项目中的使用成效。
 
 ### Changed
+
+- **workflow 编排画布操作入口下沉**: 阶段新增/删除改为每个阶段卡片连接点上的圆形 `+` / `-` 操作，点击 `+` 会在该阶段后插入新阶段，点击 `-` 会删除当前阶段并尽量保持前后流转连续；右侧属性检查器的收起按钮移入属性框顶部，减少跨区域操作；Capabilities 文案从“组合”统一调整为“加载”，让用户更容易理解技能在阶段中的加载关系。
+- **workflow 编排画布属性分层**: 右侧属性检查器拆分为“阶段设置”和“工作流设置”，点击阶段时只编辑阶段 ID、目标、技能、规则、决策和流转；工作流 ID/name/intent/start 改为通过工具栏“工作流设置”入口编辑，避免每个阶段都重复展示工作流级信息。
+- **workflow 编排画布决策原语结构化**: 右侧属性检查器的阶段 `needs` 从逗号分隔输入框改为“流转决策”编辑器，每条决策可选择“记录即可”或“必须等于”，等于条件会显式填写匹配值；保存时仍生成引擎兼容的 `key` / `key=value` 数组，降低自定义 workflow 的理解和编辑成本。
+- **多项目看板范围切换明确化**: `ui --all` 不再自动下钻到默认项目，打开后固定展示“所有项目总览”；点击项目才进入项目详情，并通过顶部范围条明确显示当前是总览还是某个项目，返回入口改为范围条里的“所有项目总览”，减少“切换项目”和“返回所有项目”状态不清的问题。
+- **多项目下钻项目耗时指标置顶**: 从总看板进入单个项目详情时，顶部指标改为该项目的工作流耗时与阶段耗时，不再展示任务总数、进行中、待确认、已完成等数量卡；跨项目数量指标只在“所有项目总览”中展示。
+- **工作流展示翻译一致化**: 工作流列表和详情标题统一使用本地化显示名，workflow id 改为标签展示；补齐当前内置 `new` / `fix` workflow 的阶段目标中文翻译，避免同一工作流里部分阶段中文、部分阶段英文。
+- **总看板项目详情与画布入口化**: `ui --all` 进入后固定停留在所有项目总览，用户点击项目卡片后进入项目详情，并在项目详情中保留项目切换卡片；自定义 workflow 编排画布改为从工作流区域按钮打开的弹窗工具，不再直接占据看板主体空间。
+
+- **总看板项目兜底按时间倒序**: 当没有待确认或进行中的活跃项目时，项目卡片和默认打开项目会按任务更新时间 `updatedAt` / 最近使用时间 `lastSeenAt` 倒序选择，避免空闲状态下项目顺序显得随机。
+
+- **workflow 编排画布横向空间与字号放大**: 画布弹窗改为接近满屏宽度，主编排区优先占宽、检查器收窄，阶段节点扩大到更适合编辑的卡片尺寸并提升标题、目标、按钮和表单字号；长 workflow 按单行横向流程线滚动展示，避免 4 列换行导致节点拥挤、连线错乱。
+
+- **workflow 编排画布满屏规则生效**: 修正画布弹窗 CSS 优先级，避免通用 `.modal-panel` 的 `900px / 86vh` 尺寸覆盖画布专用样式；画布弹窗现在按当前浏览器视口使用 `calc(100vw - 20px)` / `calc(100vh - 20px)` 接近满屏展示。
+
+- **workflow 编排画布聚焦主画布**: 移除画布底部 YAML/文件内容预览，避免挤占编排区域；右侧属性检查器改为工具栏按钮显示/隐藏，默认收起，让画布横向空间优先用于节点编排。
+
+- **workflow 阶段点击即编辑**: 编排画布中的阶段节点现在点击后会自动选中并展开右侧属性检查器，工具栏按钮仅作为收起/展开辅助，减少为了编辑阶段还要先找折叠按钮的操作成本。
+
+- **workflow 技能组合结构化编辑**: 编排画布把 Capabilities 从手写 `id | required | one-of | when` 文本改为“技能搜索/输入 + 加载方式”表单，可选择按需加载、必须加载、同组选一项、条件加载、同组且条件，并按加载方式显示分组名/加载条件输入框；右侧检查器新增 `rules` 阶段规则多行文本框，Start、Goal、Next 等标签同步改为中文可读说明，降低自定义 workflow 的编辑门槛。
+
+- **workflow 编排画布蛇形流转**: 右侧属性检查器加宽到 460px 以容纳结构化表单；左侧阶段布局改为蛇形流程，打开属性时每行 3 个节点、收起属性时每行 4 个节点，跨行流转使用 S 型曲线连接，让多阶段 workflow 的走向更直观。
 
 - **new workflow 先脚手架后文档**: `new` 流程改为 `scaffold -> brainstorm -> openspec -> design -> build`，先确认组件标识/项目目录并拉取真实脚手架，再生成头脑风暴、OpenSpec 和实现计划，避免前置文档凭空生成与脚手架不一致的目录、包名或组件名。
 - **new workflow 新骨架上下文改用轻量探索**: 新拉取脚手架阶段不再要求 `codegraph init`，后续 brainstorm/design/build 也改为读取 `.hikspine/project-build.json`、目录树、构建配置、包/模块名和定向 `rg` 搜索，适配新骨架业务代码少、grep/tree 更可靠的场景。
@@ -21,6 +45,11 @@
 
 ### Fixed
 
+- **workflow 编排画布 rules 回填**: 看板 API 的 workflow 阶段摘要现在会携带每个阶段的 `rules`，画布右侧“阶段规则”文本框能从内置或项目 workflow 正确回填现有规则，避免编辑 workflow 时误以为空规则并覆盖掉 YAML 中的阶段规则。
+- **workflow 编排画布 rules 缓存刷新**: 画布缓存从仅按 workflow id 判断改为按完整 workflow 数据判断，API 返回同一 workflow id 的新阶段规则时会自动重建画布并回填；同时兼容字符串和数组两种 `rules` 形态，避免规则显示为空。
+- **workflow 编排画布新增阶段顺序**: 修正选中第 n 个阶段后点击“添加阶段”仍追加到末尾的问题；现在新增阶段会插入为第 n+1 阶段，原第 n+1 及后续阶段在画布顺序和编号上自动后移，同时保留原有 next 流转关系。
+- **总项目看板任务源过滤到当前工作**: `board --all` / `ui --all` 的聚合数据现在只把未完成、未归档的任务放进总览 `changes`，完成/归档任务保留在项目 counts 与指标中，避免 API 或 UI 后续模块再次把历史任务显示成“进行中的任务”；总览仍返回空的 workflows/skills/projectBuild，项目级详情只在点击单项目后加载。该改动只影响看板数据展示语义，不改变 workflow 引擎执行逻辑。
+
 - **subAgent 驱动时主 session 误加载 TDD/hui-pro 实现技能**: build 阶段用 subagent-driven-development(编排+并行 subAgent)时,主 session 本应只做编排,却按规则把 `test-driven-development` 和 `hui-pro` 也在主 session 加载了——这些实现技能应该只由**真正写代码的 subAgent** 加载。新增/改写 build 规则明确"**技能在写代码的地方加载,不在编排者处加载**":主 session 只加载所选驱动;`executing-plans`(主 session 亲自写代码)时由主 session 加载 TDD/hui-pro;`subagent-driven-development` 时由各 implementer subAgent 经 brief 加载,主 session **不得**加载 TDD/hui-pro。`feature` 同步(仅 TDD)并补上 subAgent brief 传递规则。`new` `version` → 22、`feature` → 17,中文阅读版同步。
 - **build 阶段并行 subAgent 卡在 git worktree 隔离**: 跑 `new` 的 build 阶段用 subagent-driven-development 并行派发 implementer 时,Agent 选了 worktree 隔离(`isolation: worktree`),报 `Cannot create agent worktree: not in a git repository`。根因:Agent worktree 要求 **Claude Code 会话本身是在 git 仓库里启动的**,而刚拉的脚手架项目通常不是——即便 Agent 在项目里 `git init` 也没用(会话根目录与项目目录不一致)。新增 build 规则:`new` 的并行 implementer **一律不加 worktree 隔离**,给每个 subAgent 划分互不重叠的文件/模块避免冲突;`feature`(通常是已有 git 仓库)保留可用但要求**报错即降级为不带隔离重派**;两者都强调无法划分时顺序执行、绝不因此停住。`new` `version` → 21、`feature` → 16,中文阅读版同步。
 - **总项目看板聚焦进行中、加耗时指标(纯前端)**: 全局看板此前把已完成任务也列进"进行中的任务",还想在总览堆构建信息/工作流/阶段技能(这些是单项目的)。改为:总览任务列表只列**进行中/待确认**(已完成/归档从列表移除、改在指标里计数,但**项目卡片仍列出所有项目含全部已完成的,照样可点击下钻**看其历史任务);移除总览里的构建信息、工作流、阶段技能(只在点进单个项目后显示);新增**总览计数指标**(项目总数、活跃项目、进行中、待确认、待处理通知、已完成/归档)和**耗时指标**——按 change 的 `stageDurations` 聚合出「工作流耗时(任务数/平均/总计,最慢在前)」和「阶段耗时(每阶段平均,横向条形,最慢在前)」,直观反映哪个工作流、哪个阶段慢;项目卡片按"待确认→进行中→其它"排序、待确认项目高亮。全部在前端从 `/api/state` 现有数据实时计算,**只改 `dashboard/index.html`,不动引擎/workflow/服务端**,刷新页面即生效、无需重跑流程。
@@ -28,6 +57,10 @@
 - **首个 `next` 把状态散落到用户主目录(注册表 home 被当成项目根)**: 多项目注册表在 `~/.hikspine`(或 `$HIKSPINE_HOME`)落地后,`findProjectRoot` 会把这个全局 home 当成"项目根"(命中其中的 `.hikspine`/`openspec/changes`/`.hikspine/active` 标记),于是在用户主目录下的任意子目录首次跑 `next`,`openspec/`、`.hikspine/` 会被建到主目录而不是工作目录(还会自我叠加:越跑散落越多)。修复:`findProjectRoot` 显式跳过注册表 home 目录,不再把它及其中散落的标记当项目根;显式传 `--project-root` 不受影响。
 
 ### Tests
+
+- **自定义 workflow 画布保存覆盖**: workflow kernel 测试新增项目级 workflow 保存和 `/api/workflows` 保存接口断言，验证画布产出的 workflow YAML 能被引擎加载。
+
+- **总项目看板当前任务语义覆盖**: workflow kernel 测试新增断言，验证 all-project board 的 `changes` 不包含完成/归档任务，同时项目 counts 仍保留 done 计数，并确认总览 payload 不携带 workflows、skills、projectBuild 这些单项目详情模块。
 
 - **new workflow 顺序与轻量上下文覆盖**: workflow kernel 测试更新为验证 `new` 从 scaffold 起步、scaffold 后进入 brainstorm、OpenSpec 直接进入 design，并断言新骨架上下文规则不再要求 codegraph。
 

@@ -126,6 +126,11 @@
   .project-metrics .hot { color:#ffe08a; border-color:rgba(240,198,74,.36); background:rgba(240,198,74,.08); }
   .project-metrics .done { color:#b9a6ff; border-color:rgba(182,144,240,.36); background:rgba(182,144,240,.08); }
   .project-error { color:var(--err); font-size:11.5px; margin-top:8px; }
+  .scope-bar { display:flex; align-items:center; gap:12px; margin:18px 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:rgba(18,23,31,.8); box-shadow:var(--shadow); }
+  .scope-kicker { color:var(--dim); font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; }
+  .scope-title { color:var(--text); font-size:14px; font-weight:800; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .scope-sub { color:var(--muted); font-size:11px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .scope-spacer { flex:1 1 auto; }
 
   h2 { font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:#b8c2cf; margin:30px 0 12px; font-weight:750; display:flex; align-items:center; gap:9px; }
   h2::before { content:""; width:8px; height:8px; border-radius:2px; background:var(--accent); box-shadow:0 0 0 3px rgba(98,210,162,.12); }
@@ -206,6 +211,7 @@
   .workflow-detail-head b { font-size:15px; }
   .workflow-detail-head .tag { font-size:10px; color:#d9f4e7; font-family:ui-monospace,monospace; border:1px solid rgba(98,210,162,.32); border-radius:5px; padding:1px 6px; background:rgba(98,210,162,.08); white-space:nowrap; }
   .workflow-detail-head .it { color:var(--muted); font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .workflow-actionbar { display:flex; justify-content:flex-end; align-items:center; margin:-4px 0 10px; }
   .workflow-stage { display:grid; grid-template-columns:120px 1fr; gap:12px; border-top:1px solid var(--line); padding:12px 0; }
   .workflow-stage:first-of-type { border-top:none; }
   .stage-id { display:flex; align-items:center; gap:8px; min-width:0; }
@@ -231,9 +237,80 @@
   .build-table td .svn { color:#8bb7ff; word-break:break-all; }
   .need { color:var(--muted); background:transparent; }
   .stage-flags { color:var(--dim); font-size:11px; margin-top:7px; }
+  .project-card.selected { border-color:rgba(98,210,162,.74); box-shadow:0 0 0 1px rgba(98,210,162,.25), var(--shadow); }
+  .canvas-open { font:inherit; font-size:12px; font-weight:750; border:1px solid rgba(98,210,162,.42); border-radius:7px; color:#07100b; background:linear-gradient(135deg,var(--accent),#d7e17d); padding:7px 11px; cursor:pointer; }
+  .canvas-open:hover { filter:brightness(1.06); }
+  #workflowCanvasModal { padding:10px; }
+  .canvas-modal-panel .modal-head { flex:0 0 auto; }
+  .canvas-shell { border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,rgba(21,25,34,.92),rgba(13,16,21,.96)); box-shadow:var(--shadow); overflow:hidden; }
+  .canvas-modal-panel .canvas-shell { margin:0; border:0; border-radius:0; box-shadow:none; min-height:0; flex:1 1 auto; display:flex; flex-direction:column; }
+  .canvas-toolbar { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .canvas-title { font-weight:850; font-size:15px; margin-right:auto; }
+  .canvas-btn { font:inherit; font-size:13px; font-weight:780; border:1px solid var(--line2); border-radius:7px; color:var(--text); background:rgba(255,255,255,.035); padding:7px 11px; cursor:pointer; }
+  .canvas-btn.primary { color:#07100b; border-color:transparent; background:linear-gradient(135deg,var(--accent),#d7e17d); }
+  .canvas-btn.active { border-color:rgba(98,210,162,.62); background:rgba(98,210,162,.1); }
+  .canvas-btn:hover { border-color:rgba(98,210,162,.5); }
+  .canvas-btn:disabled { opacity:.45; cursor:default; }
+  .canvas-status { color:var(--muted); font-size:12px; margin-left:4px; }
+  .canvas-main { display:grid; grid-template-columns:minmax(0,1fr) 460px; min-height:0; flex:1 1 auto; }
+  .canvas-main.inspector-closed { grid-template-columns:minmax(0,1fr); }
+  .canvas-board { position:relative; min-height:560px; overflow:auto; background:radial-gradient(circle at 16px 16px, rgba(255,255,255,.055) 1px, transparent 1px); background-size:24px 24px; }
+  .canvas-svg { position:absolute; inset:0; min-width:1500px; min-height:560px; pointer-events:none; }
+  .canvas-node { position:absolute; width:280px; min-height:132px; border:1px solid var(--line2); border-radius:8px; background:rgba(18,23,31,.96); padding:16px 17px; cursor:pointer; box-shadow:0 16px 34px -30px rgba(0,0,0,.95); text-align:left; }
+  .canvas-node:hover { border-color:rgba(98,210,162,.45); }
+  .canvas-node.selected { border-color:var(--accent); box-shadow:0 0 0 1px rgba(98,210,162,.3),0 16px 34px -30px rgba(0,0,0,.95); }
+  .canvas-node.terminal { border-color:rgba(182,144,240,.65); }
+  .canvas-node.confirm { border-color:rgba(231,189,83,.62); }
+  .canvas-node-actions { position:absolute; z-index:2; display:grid; gap:6px; }
+  .canvas-node-actions.out-right { right:-17px; top:50%; transform:translateY(-50%); }
+  .canvas-node-actions.out-left { left:-17px; top:50%; transform:translateY(-50%); }
+  .canvas-node-actions.out-bottom { left:50%; bottom:-17px; transform:translateX(-50%); grid-auto-flow:column; }
+  .canvas-node-op { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; cursor:pointer; font:18px/1 ui-monospace,Menlo,Consolas,monospace; font-weight:900; box-shadow:0 10px 20px -15px rgba(0,0,0,.9); }
+  .canvas-node-op.add { color:#07100b; border:1px solid rgba(98,210,162,.9); background:var(--accent); }
+  .canvas-node-op.remove { color:#ffc4c4; border:1px solid rgba(255,120,120,.44); background:#2a1217; }
+  .canvas-node-op:hover { filter:brightness(1.08); }
+  .canvas-node-op:disabled { opacity:.28; cursor:default; filter:none; }
+  .canvas-node-head { display:flex; align-items:center; gap:10px; }
+  .canvas-num { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:var(--panel2); border:1px solid var(--line2); color:var(--accent); font-size:13px; font-weight:900; flex:0 0 auto; }
+  .canvas-name { font-weight:850; font-size:15px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .canvas-goal { color:var(--muted); font-size:13px; line-height:1.5; margin-top:12px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .canvas-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
+  .canvas-pill { font-size:11px; color:#cbd5e8; border:1px solid var(--line2); background:rgba(255,255,255,.035); border-radius:999px; padding:2px 7px; }
+  .canvas-inspector { border-left:1px solid var(--line); padding:16px; background:rgba(12,15,20,.58); overflow:auto; }
+  .canvas-main.inspector-closed .canvas-inspector { display:none; }
+  .canvas-inspector h3 { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.7px; margin:0 0 11px; }
+  .canvas-inspector-head { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
+  .canvas-inspector-head h3 { margin:0; }
+  .canvas-panel-close { margin-left:auto; color:var(--text); background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:5px 9px; font:inherit; font-size:12px; font-weight:750; cursor:pointer; }
+  .canvas-panel-close:hover { border-color:rgba(98,210,162,.5); }
+  .form-row { display:grid; gap:6px; margin-bottom:12px; }
+  .form-row label { color:var(--muted); font-size:12px; font-weight:750; }
+  .form-row input,.form-row textarea,.form-row select { width:100%; color:var(--text); background:#0b0f15; border:1px solid var(--line2); border-radius:7px; padding:8px 9px; font:13px/1.45 ui-monospace,Menlo,Consolas,monospace; }
+  .form-row textarea { min-height:74px; resize:vertical; }
+  .form-checks { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 12px; }
+  .form-checks label { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+  .cap-editor { display:grid; gap:8px; }
+  .cap-row { display:grid; grid-template-columns:minmax(0,1fr) 150px 32px; gap:7px; align-items:center; padding:8px; border:1px solid rgba(255,255,255,.06); border-radius:8px; background:rgba(255,255,255,.018); }
+  .cap-row select,.cap-row input { width:100%; color:var(--text); background:#0b0f15; border:1px solid var(--line2); border-radius:7px; padding:7px 8px; font:12.5px/1.35 ui-monospace,Menlo,Consolas,monospace; min-width:0; }
+  .cap-param { grid-column:1/-1; display:grid; gap:4px; }
+  .cap-param label { color:var(--muted); font-size:11px; font-weight:750; }
+  .cap-row .cap-empty { grid-column:1/-1; color:var(--dim); font-size:11px; padding:0 2px; }
+  .cap-delete { width:32px; height:32px; border-radius:7px; border:1px solid var(--line2); color:#ffc0c0; background:rgba(255,90,90,.08); cursor:pointer; }
+  .cap-add { justify-self:start; color:#07100b; border:0; border-radius:7px; background:linear-gradient(135deg,var(--accent),#d7e17d); padding:7px 10px; font:inherit; font-size:12.5px; font-weight:800; cursor:pointer; }
+  .cap-help { color:var(--dim); font-size:11.5px; line-height:1.45; }
+  .decision-editor { display:grid; gap:8px; }
+  .decision-row { display:grid; grid-template-columns:minmax(0,1fr) 126px minmax(0,1fr) 32px; gap:7px; align-items:center; padding:8px; border:1px solid rgba(255,255,255,.06); border-radius:8px; background:rgba(255,255,255,.018); }
+  .decision-row.compact { grid-template-columns:minmax(0,1fr) 126px 32px; }
+  .decision-row input,.decision-row select { width:100%; color:var(--text); background:#0b0f15; border:1px solid var(--line2); border-radius:7px; padding:7px 8px; font:12.5px/1.35 ui-monospace,Menlo,Consolas,monospace; min-width:0; }
+  .decision-delete { width:32px; height:32px; border-radius:7px; border:1px solid var(--line2); color:#ffc0c0; background:rgba(255,90,90,.08); cursor:pointer; }
+  .decision-add { justify-self:start; color:#07100b; border:0; border-radius:7px; background:linear-gradient(135deg,var(--accent),#d7e17d); padding:7px 10px; font:inherit; font-size:12.5px; font-weight:800; cursor:pointer; }
+  .decision-help { color:var(--dim); font-size:11.5px; line-height:1.45; }
+  .decision-empty { color:var(--dim); font-size:11px; padding:0 2px; }
+  .canvas-errors { color:var(--err); font-size:12.5px; margin-top:8px; white-space:pre-wrap; }
   .modal { position:fixed; inset:0; background:rgba(2,4,9,.76); backdrop-filter:blur(8px); display:grid; place-items:center; padding:24px; z-index:20; }
   .modal[hidden] { display:none; }
   .modal-panel { width:min(900px,96vw); max-height:86vh; background:var(--bg2); border:1px solid var(--line2); border-radius:8px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
+  .modal-panel.canvas-modal-panel { width:calc(100vw - 20px); height:calc(100vh - 20px); max-height:calc(100vh - 20px); box-sizing:border-box; }
   .modal-head { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); }
   .modal-title-row { display:flex; align-items:center; gap:8px; min-width:0; }
   .modal-title { font-weight:750; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -272,6 +349,9 @@
     .cards { grid-template-columns:1fr; }
     .pipe { overflow-x:auto; padding-bottom:2px; }
     .workflow-stage { grid-template-columns:1fr; gap:7px; }
+    .canvas-main { grid-template-columns:1fr; }
+    .canvas-board { min-height:430px; }
+    .canvas-inspector { border-left:none; border-top:1px solid var(--line); }
     .workflow-detail-head { align-items:flex-start; flex-wrap:wrap; }
     .workflow-detail-head .it { flex-basis:100%; white-space:normal; }
     .artifact-stage { flex-direction:column; gap:5px; }
@@ -302,6 +382,7 @@
   </header>
 
   <div class="stats" id="stats"></div>
+  <div class="scope-bar" id="scopeBar" hidden></div>
 
   <h2 id="secMetrics" hidden></h2>
   <div class="metrics" id="metricsPanel" hidden></div>
@@ -320,6 +401,9 @@
   <div class="legend" id="legend"></div>
 
   <h2 id="secWorkflowDetail"></h2>
+  <div class="workflow-actionbar" id="workflowActionbar" hidden>
+    <button class="canvas-open" id="canvasOpen" type="button">Workflow canvas</button>
+  </div>
   <div class="workflow-detail" id="workflowDetail"></div>
 </div>
 
@@ -345,6 +429,21 @@
   </div>
 </div>
 
+<div class="modal" id="workflowCanvasModal" hidden>
+  <div class="modal-panel canvas-modal-panel">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title-row">
+          <div class="modal-title" id="workflowCanvasTitle"></div>
+        </div>
+        <div class="modal-path" id="workflowCanvasHint"></div>
+      </div>
+      <button class="modal-close" id="canvasClose" type="button"></button>
+    </div>
+    <div class="canvas-shell" id="workflowCanvas"></div>
+  </div>
+</div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -358,6 +457,15 @@ let uiLabels = { stages:{} };
 let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 let selectedProjectId = null;   // global board: which project is drilled into (null = overview)
+let projectOptions = [];
+let canvasWorkflow = null;
+let selectedCanvasStage = '';
+let canvasSourceId = '';
+let canvasSourceKey = '';
+let canvasDirty = false;
+let canvasOpen = false;
+let canvasInspectorOpen = false;
+let canvasInspectorMode = 'stage';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
 const I18N = {
@@ -366,8 +474,8 @@ const I18N = {
     subtitle:'需求 → 设计 → 实现 → 验证 → 公司流程 · 一眼看清每个任务走到哪一步',
     live:'实时 · 每 2 秒刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
     stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
-    secTasks:'进行中的任务', secWf:'工作流', secSkills:'技能',
-    secMetrics:'总览指标',
+    secTasks:'进行中的任务', secProjectTasks:'项目任务', secWf:'工作流', secSkills:'技能',
+    secMetrics:'总览指标', secProjectMetrics:'项目耗时指标',
     mProjects:'项目总数', mActive:'活跃项目', mWork:'进行中任务', mConfirm:'待确认', mNotif:'待处理通知', mDone:'已完成/归档',
     tWorkflowTime:'工作流耗时（最慢在前）', tStageTime:'阶段耗时（最慢在前）', tTasks:'任务', tAvg:'平均', tTotal:'总计',
     tNoTiming:'暂无耗时数据 — 任务产生阶段流转后才有时间统计。',
@@ -387,15 +495,15 @@ const I18N = {
     secBuild:'构建信息 / 组件', buildEmpty:'还没有组件构建信息 — scaffold 阶段拉取脚手架后写入 .hikspine/project-build.json。',
     bcComponent:'组件标识', bcSvn:'SVN 地址', bcModule:'模块', bcType:'构建类型', bcArtifact:'产物',
     quit:'退出看板', quitConfirm:'确定要退出看板进程吗？退出后本页将失去实时数据。', quitDone:'看板进程已退出，可关闭此页。', quitFail:'退出请求失败，可能进程已停止。',
-    backAll:'← 所有项目', pickProject:'点击某个项目查看它的任务、构建信息、工作流阶段与技能。',
+    backAll:'所有项目总览', scopeOverview:'当前范围', scopeOverviewTitle:'所有项目总览', scopeOverviewSub:'跨项目指标、活跃任务和项目列表。点击项目进入详情。', scopeProject:'当前项目', scopeProjectSub:'项目任务、构建信息、工作流阶段与技能。', pickProject:'点击某个项目查看它的任务、构建信息、工作流阶段与技能。',
   },
   en: {
     title:'Hikspine Pipeline Board',
     subtitle:'Requirements → Design → Build → Verify → Company process · see where every task stands',
     live:'Live · refreshes every 2s', demo:'Demo data · run hikspine ui for live state',
     stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
-    secTasks:'In-progress tasks', secWf:'Workflows', secSkills:'Skills',
-    secMetrics:'Overview metrics',
+    secTasks:'In-progress tasks', secProjectTasks:'Project tasks', secWf:'Workflows', secSkills:'Skills',
+    secMetrics:'Overview metrics', secProjectMetrics:'Project timing',
     mProjects:'Projects', mActive:'Active projects', mWork:'In-progress tasks', mConfirm:'Awaiting confirm', mNotif:'Pending notifications', mDone:'Done / archived',
     tWorkflowTime:'Workflow duration (slowest first)', tStageTime:'Stage duration (slowest first)', tTasks:'Tasks', tAvg:'Avg', tTotal:'Total',
     tNoTiming:'No timing data yet — appears once tasks accumulate stage-transition time.',
@@ -415,7 +523,7 @@ const I18N = {
     secBuild:'Build info / Components', buildEmpty:'No component build info yet — the scaffold stage writes it to .hikspine/project-build.json when it pulls scaffolds.',
     bcComponent:'Component', bcSvn:'SVN address', bcModule:'Module', bcType:'Build type', bcArtifact:'Artifact',
     quit:'Quit board', quitConfirm:'Stop the board process? This tab will stop receiving live data.', quitDone:'Board process stopped — you can close this tab.', quitFail:'Shutdown request failed; the process may already be stopped.',
-    backAll:'← All projects', pickProject:'Click a project to see its tasks, build info, workflow stages and skills.',
+    backAll:'All projects overview', scopeOverview:'Current scope', scopeOverviewTitle:'All projects overview', scopeOverviewSub:'Cross-project metrics, active tasks, and project list. Click a project for details.', scopeProject:'Current project', scopeProjectSub:'Project tasks, build info, workflow stages, and skills.', pickProject:'Click a project to see its tasks, build info, workflow stages and skills.',
   },
 };
 const t = (k) => I18N[lang][k];
@@ -436,10 +544,16 @@ const WF = {
   fix:    { zh:'Bug / 轻量变动', en:'Bug / small change', intentZh:'修复 Bug 或做小的轻量变动（含线上紧急修复），无需设计阶段或 OpenSpec 产物。' },
 };
 const wfTag = (id) => (WF[id] ? WF[id][lang] : '');
+const wfName = (w) => (WF[w.id] ? WF[w.id][lang] : (w.name || w.id));
 const wfIntent = (w) => (lang==='zh' && WF[w.id] && WF[w.id].intentZh) ? WF[w.id].intentZh : (w.intent||'');
 
 // Builtin stage goals (English from YAML) → Chinese.
 const GOAL_ZH = {
+  'Decide the project identity and backend scaffold first, pull the skeleton if needed, and record the real component/directory facts before any brainstorming or OpenSpec documents are written.':'先确认项目标识与后端脚手架，按需拉取骨架，并在任何头脑风暴或 OpenSpec 文档前记录真实组件/目录事实。',
+  'Explore the product direction, unknowns, constraints, and viable approaches after the real scaffold/component facts are known, before creating OpenSpec artifacts.':'在已知真实脚手架/组件事实后，创建 OpenSpec 产物前探索产品方向、未知点、约束与可行方案。',
+  'Create OpenSpec artifacts from the brainstormed direction and the real scaffold facts.':'根据头脑风暴方向和真实脚手架事实创建 OpenSpec 产物。',
+  'Implement the initial project on top of the scaffolded skeleton, following the confirmed design.':'基于脚手架骨架并按已确认设计实现初始项目。',
+  'Run the SVN build/packaging step after asking the user to confirm whether to build.':'询问用户是否构建后，执行 SVN 构建/打包步骤。',
   'Explore the product direction, unknowns, constraints, and viable approaches before creating artifacts.':'创建产物前先探索产品方向、未知点、约束与可行方案。',
   'Create OpenSpec artifacts from the brainstormed direction.':'根据头脑风暴结论创建 OpenSpec 产物。',
   'Turn the OpenSpec artifacts into a concrete implementation design and get user confirmation.':'把 OpenSpec 产物转成具体实现设计，并获得用户确认。',
@@ -455,6 +569,7 @@ const GOAL_ZH = {
   'Implement the confirmed design.':'实现已确认的设计。',
   'Review the implementation before verification.':'在验证前评审实现。',
   'Archive the completed change after user confirmation.':'用户确认后归档已完成的变更。',
+  'Understand the issue and capture a lean OpenSpec proposal.':'理解问题并记录轻量 OpenSpec 提案。',
   'Understand the issue and the smallest safe change.':'弄清问题与最小安全改动。',
   'Apply the minimal patch.':'应用最小补丁。',
   'Run focused verification.':'执行聚焦验证。',
@@ -823,8 +938,9 @@ function fmtMins(m) {
 // Timing insight for the overview: which workflow is slow, and which stage is
 // slow. Built purely from each change's stageDurations (minutes per stage,
 // already computed server-side) — no engine dependency, recomputed on refresh.
-function renderTiming(state) {
+function renderTiming(state, opts = {}) {
   const host = $('timingPanel');
+  const showTaskCount = opts.showTaskCount !== false;
   const changes = (Array.isArray(state.changes) ? state.changes : []).filter(c => !c.error);
   const wf = {};   // workflow id -> { count, total }
   const stg = {};  // stage id -> { total, visits }
@@ -850,8 +966,8 @@ function renderTiming(state) {
     return;
   }
   const wfHtml = '<div class="timing-col"><h3>' + esc(t('tWorkflowTime')) + '</h3>' +
-    '<table class="timing-table"><thead><tr><th></th><th>' + t('tTasks') + '</th><th>' + t('tAvg') + '</th><th>' + t('tTotal') + '</th></tr></thead><tbody>' +
-    wfRows.map((r, i) => '<tr' + (i === 0 && r.total > 0 ? ' class="slow"' : '') + '><td>' + esc(wfTag(r.id) || r.id) + '</td><td>' + r.count + '</td><td>' + fmtMins(r.avg) + '</td><td>' + fmtMins(r.total) + '</td></tr>').join('') +
+    '<table class="timing-table"><thead><tr><th></th>' + (showTaskCount ? '<th>' + t('tTasks') + '</th>' : '') + '<th>' + t('tAvg') + '</th><th>' + t('tTotal') + '</th></tr></thead><tbody>' +
+    wfRows.map((r, i) => '<tr' + (i === 0 && r.total > 0 ? ' class="slow"' : '') + '><td>' + esc(wfTag(r.id) || r.id) + '</td>' + (showTaskCount ? '<td>' + r.count + '</td>' : '') + '<td>' + fmtMins(r.avg) + '</td><td>' + fmtMins(r.total) + '</td></tr>').join('') +
     '</tbody></table></div>';
   const maxAvg = Math.max(...stgRows.map(r => r.avg), 1);
   const stgHtml = '<div class="timing-col"><h3>' + esc(t('tStageTime')) + '</h3><div class="stage-bars">' +
@@ -867,13 +983,11 @@ function renderTiming(state) {
 // refreshing the page recomputes these live.
 function renderMetrics(state) {
   const projects = Array.isArray(state.projects) ? state.projects : [];
-  const changes = (Array.isArray(state.changes) ? state.changes : []).filter(c => !c.error);
   const notifs = (Array.isArray(state.notifications) ? state.notifications : []).filter(n => !n.handled);
-  const isDone = (c) => c.complete || c.archived;
-  const inProgress = changes.filter(c => !isDone(c));
-  const work = inProgress.filter(c => c.nextAction !== 'confirm').length;
-  const confirm = inProgress.filter(c => c.nextAction === 'confirm').length;
-  const done = changes.filter(isDone).length;
+  const sum = (key) => projects.reduce((n, p) => n + Number(p.counts?.[key] || 0), 0);
+  const work = sum('work');
+  const confirm = sum('confirm');
+  const done = sum('done');
   const activeProjects = projects.filter(p => p.counts && ((p.counts.work||0) > 0 || (p.counts.confirm||0) > 0)).length;
   const card = (cls, n, l) => '<div class="stat '+cls+'"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>';
   $('metricsPanel').innerHTML =
@@ -911,27 +1025,79 @@ async function openArtifact(path, projectId) {
 function closeArtifact() {
   $('artifactModal').hidden = true;
 }
+function projectAttentionRank(p) {
+  const c = p?.counts || {};
+  return (c.confirm || 0) > 0 ? 0 : (c.work || 0) > 0 ? 1 : 2;
+}
+function projectTimeRank(p) {
+  return Date.parse(p?.updatedAt || p?.lastSeenAt || '') || 0;
+}
+function compareProjects(a, b) {
+  const ar = projectAttentionRank(a);
+  const br = projectAttentionRank(b);
+  return ar - br
+    || (b.counts?.confirm || 0) - (a.counts?.confirm || 0)
+    || (b.counts?.work || 0) - (a.counts?.work || 0)
+    || projectTimeRank(b) - projectTimeRank(a);
+}
+function currentProjectMeta() {
+  return projectOptions.find(p => p.id === selectedProjectId) || null;
+}
+function goProjectOverview() {
+  selectedProjectId = null;
+  closeWorkflowCanvas(false);
+  lastRenderKey = '';
+  refresh();
+}
+function renderScopeBar() {
+  const host = $('scopeBar');
+  if (!last || (last.mode !== 'all' && !last.fromAll)) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+  host.hidden = false;
+  if (last.mode === 'all') {
+    host.innerHTML =
+      '<div><div class="scope-kicker">'+esc(t('scopeOverview'))+'</div>'+
+      '<div class="scope-title">'+esc(t('scopeOverviewTitle'))+'</div>'+
+      '<div class="scope-sub">'+esc(t('scopeOverviewSub'))+'</div></div>';
+    return;
+  }
+  const meta = currentProjectMeta();
+  const name = last.projectName || meta?.name || last.root || selectedProjectId || '';
+  const root = meta?.root || last.root || '';
+  host.innerHTML =
+    '<div><div class="scope-kicker">'+esc(t('scopeProject'))+'</div>'+
+    '<div class="scope-title">'+esc(name)+'</div>'+
+    '<div class="scope-sub" title="'+esc(root)+'">'+esc(root || t('scopeProjectSub'))+'</div></div>'+
+    '<div class="scope-spacer"></div><button class="back-btn" id="scopeOverviewBtn" type="button">'+esc(t('backAll'))+'</button>';
+  $('scopeOverviewBtn').onclick = goProjectOverview;
+}
 function renderProjects(projects) {
   const host = $('projects');
   const title = $('secProjects');
   const allMode = last && last.mode === 'all';
-  title.hidden = !allMode;
-  host.hidden = !allMode;
-  if (!allMode) { host.innerHTML = ''; return; }
-  title.textContent = lang === 'zh' ? '项目' : 'Projects';
+  const fromAll = last && last.fromAll;
+  projects = allMode ? projects : (fromAll ? projectOptions : []);
+  const showProjects = allMode || (fromAll && Array.isArray(projects) && projects.length);
+  title.hidden = !showProjects;
+  host.hidden = !showProjects;
+  if (!showProjects) { host.innerHTML = ''; return; }
+  title.textContent = allMode ? (lang === 'zh' ? '项目' : 'Projects') : (lang === 'zh' ? '切换项目' : 'Switch project');
   projects = Array.isArray(projects) ? projects : [];
   if (!projects.length) {
     host.innerHTML = '<div class="empty">'+(lang==='zh'?'还没有登记项目。先在项目里运行 hikspine next 或 hikspine ui。':'No projects registered yet. Run hikspine next or hikspine ui inside a project first.')+'</div>';
     return;
   }
   // Focus on projects that need attention: pending confirmations first, then
-  // projects with in-progress work, then the rest (idle / all done).
-  const rank = (p) => { const c = p.counts || {}; return (c.confirm||0) > 0 ? 0 : (c.work||0) > 0 ? 1 : 2; };
-  projects = [...projects].sort((a, b) => rank(a) - rank(b) || (b.counts?.confirm||0) - (a.counts?.confirm||0) || (b.counts?.work||0) - (a.counts?.work||0));
+  // in-progress work. If no project is active, newest project activity wins.
+  projects = [...projects].sort(compareProjects);
   host.innerHTML = '<div class="projects-hint">'+esc(t('pickProject'))+'</div>' + projects.map(p => {
     const c = p.counts || {};
     const attn = !p.error && (c.confirm||0) > 0;
-    return '<article class="project-card '+(p.error?'error':(attn?'attn':''))+'" '+(p.error?'':'data-project-id="'+esc(p.id)+'"')+'>'+
+    const selected = p.id && p.id === selectedProjectId;
+    return '<article class="project-card '+(p.error?'error':(attn?'attn':'')+' '+(selected?'selected':''))+'" '+(p.error?'':'data-project-id="'+esc(p.id)+'"')+'>'+
       '<div class="project-name"><span>'+esc(p.name || p.root)+'</span>'+(p.pluginVersion?'<span class="project-version">v'+esc(p.pluginVersion)+'</span>':'')+'</div>'+
       '<div class="project-root" title="'+esc(p.root || '')+'">'+esc(p.root || '')+'</div>'+
       '<div class="project-metrics"><span>'+esc(lang==='zh'?'任务':'Tasks')+' '+(c.total||0)+'</span>'+
@@ -942,7 +1108,7 @@ function renderProjects(projects) {
     '</article>';
   }).join('');
   host.querySelectorAll('.project-card[data-project-id]').forEach(card => {
-    card.onclick = () => { selectedProjectId = card.dataset.projectId; lastRenderKey = ''; refresh(); };
+    card.onclick = () => { selectedProjectId = card.dataset.projectId; closeWorkflowCanvas(false); lastRenderKey = ''; refresh(); };
   });
 }
 function renderChanges(changes, emptyMsg) {
@@ -1003,22 +1169,30 @@ function renderProjectBuild(pb) {
 
 function renderWorkflows(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
+  $('workflowActionbar').hidden = !workflows.length;
+  $('canvasOpen').textContent = lang === 'zh' ? '打开编排画布' : 'Open canvas';
   if (!workflows.length) {
+    closeWorkflowCanvas(false);
     $('legend').innerHTML = '';
     $('workflowDetail').innerHTML = '<div class="empty">'+(lang==='zh'?'暂无工作流。':'No workflows found.')+'</div>';
     return;
   }
   if (!selectedWorkflowId || !workflows.some(w => w.id === selectedWorkflowId)) selectedWorkflowId = workflows[0].id;
-  $('legend').innerHTML = workflows.map(w=>'<button type="button" class="wf-chip '+(w.id===selectedWorkflowId?'active':'')+'" data-workflow="'+esc(w.id)+'"><div class="id">'+esc(w.id)+
-    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+'</div><div class="it">'+esc(wfIntent(w))+'</div></button>').join('');
+  $('legend').innerHTML = workflows.map(w=>'<button type="button" class="wf-chip '+(w.id===selectedWorkflowId?'active':'')+'" data-workflow="'+esc(w.id)+'"><div class="id">'+esc(wfName(w))+
+    '<span class="tag">'+esc(w.id)+'</span></div><div class="it">'+esc(wfIntent(w))+'</div></button>').join('');
   $('legend').querySelectorAll('[data-workflow]').forEach(btn => {
     btn.onclick = () => {
       selectedWorkflowId = btn.dataset.workflow;
+      canvasWorkflow = null;
+      canvasSourceId = '';
+      canvasSourceKey = '';
+      canvasDirty = false;
       localStorage.setItem('hikspine-workflow', selectedWorkflowId);
       renderWorkflows(workflows);
     };
   });
   renderWorkflowDetail(workflows);
+  if (canvasOpen) renderWorkflowCanvas(workflows);
 }
 
 function renderWorkflowDetail(workflows) {
@@ -1048,9 +1222,509 @@ function renderWorkflowDetail(workflows) {
       (needs?'<div class="need-list" style="margin-top:7px">'+needs+'</div>':'')+
       (flags?'<div class="stage-flags">'+esc(flags)+'</div>':'')+'</div></div>';
   }).join('') : '<div class="empty">'+(lang==='zh'?'这个工作流还没有阶段详情。':'This workflow has no stage details yet.')+'</div>';
-  $('workflowDetail').innerHTML = '<div class="workflow-detail-head"><b>'+esc(w.id)+'</b>'+
-    (wfTag(w.id)?'<span class="tag">'+esc(wfTag(w.id))+'</span>':'')+
+  $('workflowDetail').innerHTML = '<div class="workflow-detail-head"><b>'+esc(wfName(w))+'</b>'+
+    '<span class="tag">'+esc(w.id)+'</span>'+
     '<span class="it">'+esc(wfIntent(w))+'</span></div>'+stageHtml;
+}
+
+function openWorkflowCanvas() {
+  if (!last || last.mode === 'all') return;
+  canvasOpen = true;
+  canvasInspectorMode = 'stage';
+  $('workflowCanvasTitle').textContent = lang === 'zh' ? 'Workflow 编排画布' : 'Workflow orchestration canvas';
+  $('workflowCanvasHint').textContent = lang === 'zh' ? '编辑后会保存为当前项目的 .hikspine/workflows/<id>.yaml' : 'Saves to the current project .hikspine/workflows/<id>.yaml';
+  $('canvasClose').textContent = lang === 'zh' ? '关闭' : 'Close';
+  renderWorkflowCanvas(last.workflows || []);
+  $('workflowCanvasModal').hidden = false;
+}
+function closeWorkflowCanvas(clearDirty) {
+  canvasOpen = false;
+  $('workflowCanvasModal').hidden = true;
+  if (clearDirty) {
+    canvasWorkflow = null;
+    canvasSourceId = '';
+    canvasSourceKey = '';
+    canvasDirty = false;
+  }
+}
+
+function capId(c) {
+  return typeof c === 'string' ? c : (c?.id || '');
+}
+function capMode(c) {
+  if (!c || typeof c === 'string') return 'optional';
+  if (c.group && c.when) return 'one-of-when';
+  if (c.group) return 'one-of';
+  if (c.when) return 'when';
+  if (c.required) return 'required';
+  return 'optional';
+}
+function makeCapability(id, mode, group, when) {
+  id = String(id || '').trim();
+  if (!id) return null;
+  mode = String(mode || 'optional');
+  const out = { id };
+  if (mode === 'required') out.required = true;
+  if (mode === 'one-of' || mode === 'one-of-when') out.group = String(group || '').trim();
+  if (mode === 'when' || mode === 'one-of-when') out.when = String(when || '').trim();
+  Object.keys(out).forEach(k => { if (out[k] === '') delete out[k]; });
+  return Object.keys(out).length === 1 ? id : out;
+}
+function capabilityModeLabel(mode) {
+  const zh = {
+    optional:'按需加载',
+    required:'必须加载',
+    'one-of':'同组选一项',
+    when:'条件加载',
+    'one-of-when':'同组且条件',
+  };
+  const en = {
+    optional:'Load as needed',
+    required:'Must load',
+    'one-of':'One from group',
+    when:'Conditional load',
+    'one-of-when':'Group + condition',
+  };
+  return (lang === 'zh' ? zh : en)[mode] || mode;
+}
+function skillOptions() {
+  const names = new Set((last?.skills || []).map(s => s.name).filter(Boolean));
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+function skillOptionHtml(selected) {
+  const names = new Set(skillOptions());
+  if (selected) names.add(selected);
+  return [...names].sort((a, b) => a.localeCompare(b)).map(name => '<option value="'+esc(name)+'"></option>').join('');
+}
+function capabilityEditorHtml(caps) {
+  caps = Array.isArray(caps) ? caps : [];
+  const modeOptions = ['optional','required','one-of','when','one-of-when'];
+  const rows = caps.map((cap, i) => {
+    const id = capId(cap);
+    const mode = capMode(cap);
+    const group = (cap && typeof cap === 'object') ? (cap.group || '') : '';
+    const when = (cap && typeof cap === 'object') ? (cap.when || '') : '';
+    const groupHtml = (mode === 'one-of' || mode === 'one-of-when')
+      ? '<div class="cap-param"><label>'+(lang==='zh'?'技能分组':'Skill group')+'</label><input data-cap-group value="'+esc(group)+'" placeholder="driver / backend"></div>'
+      : '';
+    const whenHtml = (mode === 'when' || mode === 'one-of-when')
+      ? '<div class="cap-param"><label>'+(lang==='zh'?'加载条件':'Load when')+'</label><input data-cap-when value="'+esc(when)+'" placeholder="'+esc(lang==='zh'?'例如：需要构建 UI 时':'e.g. when building UI')+'"></div>'
+      : '';
+    return '<div class="cap-row" data-cap-index="'+i+'">'+
+      '<input data-cap-id list="capSkillOptions" value="'+esc(id)+'" placeholder="'+esc(lang==='zh'?'搜索或输入技能名':'Search or type skill name')+'">'+
+      '<select data-cap-mode>'+modeOptions.map(m => '<option value="'+m+'" '+(m===mode?'selected':'')+'>'+esc(capabilityModeLabel(m))+'</option>').join('')+'</select>'+
+      '<button class="cap-delete" type="button" data-cap-delete="'+i+'" title="'+esc(lang==='zh'?'删除':'Delete')+'">×</button>'+
+      groupHtml+whenHtml+
+      (!groupHtml && !whenHtml ? '<div class="cap-empty">'+esc(lang==='zh'?'无需额外参数':'No extra parameters')+'</div>' : '')+
+    '</div>';
+  }).join('');
+  return '<div class="cap-editor" id="csCapsEditor">'+
+    '<datalist id="capSkillOptions">'+skillOptionHtml('')+'</datalist>'+
+    '<div class="cap-help">'+esc(lang==='zh'?'选择或搜索技能，并设置技能加载方式。必须加载 = 本阶段核心技能；同组选一项 = 同组能力二选一或多选一；条件加载 = 只有条件成立才加载该技能。':'Search or type a skill, then choose how it loads. Must load = core skill; One from group = choose exactly one from the group; Conditional load = load only when the condition applies.')+'</div>'+
+    (rows || '<div class="cap-empty">'+esc(lang==='zh'?'暂无技能规则':'No capability rules yet')+'</div>')+
+    '<button class="cap-add" type="button" id="capAdd">'+esc(lang==='zh'?'添加技能':'Add skill')+'</button>'+
+  '</div>';
+}
+function readCapabilityEditor() {
+  return [...document.querySelectorAll('#csCapsEditor .cap-row')].map(row => {
+    return makeCapability(
+      row.querySelector('[data-cap-id]')?.value,
+      row.querySelector('[data-cap-mode]')?.value,
+      row.querySelector('[data-cap-group]')?.value,
+      row.querySelector('[data-cap-when]')?.value
+    );
+  }).filter(Boolean);
+}
+function linesText(value) {
+  if (Array.isArray(value)) return value.join('\n');
+  return String(value || '');
+}
+function parseLines(value) {
+  return String(value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+}
+function normalizeLines(value) {
+  if (Array.isArray(value)) return value.map(s => String(s || '').trim()).filter(Boolean);
+  return parseLines(value);
+}
+function parseNeed(value) {
+  const text = String(value || '').trim();
+  const i = text.indexOf('=');
+  if (i < 0) return { key: text, op: 'exists', value: '' };
+  return { key: text.slice(0, i).trim(), op: 'equals', value: text.slice(i + 1).trim() };
+}
+function makeNeed(key, op, value) {
+  key = String(key || '').trim();
+  if (!key) return '';
+  if (op === 'equals') return key + '=' + String(value || '').trim();
+  return key;
+}
+function decisionEditorHtml(needs) {
+  needs = Array.isArray(needs) ? needs : [];
+  const rows = needs.map((need, i) => {
+    const item = parseNeed(need);
+    const compact = item.op !== 'equals';
+    return '<div class="decision-row '+(compact?'compact':'')+'" data-decision-index="'+i+'">'+
+      '<input data-decision-key value="'+esc(item.key)+'" placeholder="'+esc(lang==='zh'?'例如：proposal_ready':'e.g. proposal_ready')+'">'+
+      '<select data-decision-op>'+
+      '<option value="exists" '+(item.op==='exists'?'selected':'')+'>'+esc(lang==='zh'?'记录即可':'Recorded')+'</option>'+
+      '<option value="equals" '+(item.op==='equals'?'selected':'')+'>'+esc(lang==='zh'?'必须等于':'Must equal')+'</option>'+
+      '</select>'+
+      (item.op === 'equals' ? '<input data-decision-value value="'+esc(item.value)+'" placeholder="'+esc(lang==='zh'?'例如：pass':'e.g. pass')+'">' : '')+
+      '<button class="decision-delete" type="button" data-decision-delete="'+i+'" title="'+esc(lang==='zh'?'删除决策':'Delete decision')+'">×</button>'+
+    '</div>';
+  }).join('');
+  return '<div class="decision-editor" id="csNeedsEditor">'+
+    '<div class="decision-help">'+esc(lang==='zh'?'流转会等待本阶段的所有决策条件满足后进入下一阶段。记录即可 = 运行 decide <key> 后即可满足；必须等于 = 运行 decide <key> <value> 且值匹配，例如 review_result = pass。':'The workflow advances after every decision condition in this stage is satisfied. Recorded = decide <key> is enough; Must equal = decide <key> <value> must match, for example review_result = pass.')+'</div>'+
+    (rows || '<div class="decision-empty">'+esc(lang==='zh'?'暂无流转决策':'No transition decisions yet')+'</div>')+
+    '<button class="decision-add" type="button" id="decisionAdd">'+esc(lang==='zh'?'添加决策':'Add decision')+'</button>'+
+  '</div>';
+}
+function readDecisionEditor() {
+  return [...document.querySelectorAll('#csNeedsEditor .decision-row')].map(row => {
+    return makeNeed(
+      row.querySelector('[data-decision-key]')?.value,
+      row.querySelector('[data-decision-op]')?.value,
+      row.querySelector('[data-decision-value]')?.value
+    );
+  }).filter(Boolean);
+}
+function workflowToCanvas(w) {
+  const states = (w.stages || []).map(s => ({
+    id: s.id,
+    goal: s.goal || '',
+    capabilities: s.capabilities || [],
+    rules: normalizeLines(s.rules),
+    needs: s.needs || [],
+    requires_user: !!s.requiresUser,
+    terminal: !!s.terminal,
+    next: s.next || '',
+  }));
+  return {
+    id: w.id || 'custom-workflow',
+    version: Number(w.version || 1),
+    name: w.name || w.id || 'Custom Workflow',
+    intent: w.intent || '',
+    start: states[0]?.id || '',
+    states,
+  };
+}
+function prepareWorkflowForSave(w) {
+  return {
+    id: String(w.id || '').trim(),
+    version: Number(w.version || 1),
+    name: String(w.name || w.id || '').trim(),
+    intent: String(w.intent || '').trim(),
+    start: String(w.start || w.states?.[0]?.id || '').trim(),
+    states: (w.states || []).map(s => {
+      const out = {
+        id: String(s.id || '').trim(),
+        goal: String(s.goal || '').trim(),
+        capabilities: Array.isArray(s.capabilities) ? s.capabilities : [],
+        rules: normalizeLines(s.rules),
+        needs: Array.isArray(s.needs) ? s.needs : [],
+      };
+      if (s.requires_user) out.requires_user = true;
+      if (s.terminal) out.terminal = true;
+      if (s.next) out.next = s.next;
+      return out;
+    }),
+  };
+}
+function canvasErrors(w) {
+  const ids = new Set();
+  const errors = [];
+  if (!/^[A-Za-z0-9_-]+$/.test(w.id || '')) errors.push('workflow id 只能使用字母、数字、-、_');
+  if (!w.states?.length) errors.push('至少需要一个阶段');
+  for (const s of w.states || []) {
+    if (!s.id) errors.push('存在空阶段 id');
+    if (ids.has(s.id)) errors.push('阶段 id 重复: ' + s.id);
+    ids.add(s.id);
+  }
+  if (w.start && !ids.has(w.start)) errors.push('start 不在阶段列表中: ' + w.start);
+  for (const s of w.states || []) {
+    if (s.next && !ids.has(s.next)) errors.push(s.id + ' 的 next 不存在: ' + s.next);
+    if (!s.terminal && !s.next) errors.push(s.id + ' 不是终止阶段，但没有 next');
+  }
+  return errors;
+}
+function canvasEnsure(workflows) {
+  const selected = (workflows || []).find(w => w.id === selectedWorkflowId) || (workflows || [])[0];
+  if (!selected) return null;
+  const selectedKey = JSON.stringify(selected);
+  if (!canvasWorkflow || (!canvasDirty && (canvasSourceId !== selected.id || canvasSourceKey !== selectedKey))) {
+    canvasWorkflow = workflowToCanvas(selected);
+    canvasSourceId = selected.id;
+    canvasSourceKey = selectedKey;
+    selectedCanvasStage = canvasWorkflow.start || canvasWorkflow.states[0]?.id || '';
+    canvasDirty = false;
+  }
+  return canvasWorkflow;
+}
+function selectedStage() {
+  return (canvasWorkflow?.states || []).find(s => s.id === selectedCanvasStage) || canvasWorkflow?.states?.[0] || null;
+}
+function markCanvasDirty(rerender = true) {
+  canvasDirty = true;
+  const status = $('canvasStatus');
+  if (status) status.textContent = lang === 'zh' ? '未保存' : 'Unsaved';
+  if (rerender) renderWorkflowCanvas(last?.workflows || []);
+}
+function addCanvasStage(afterId = selectedCanvasStage) {
+  if (!canvasWorkflow) return;
+  const states = canvasWorkflow.states;
+  const current = states.find(s => s.id === afterId) || selectedStage();
+  const currentIndex = current ? states.findIndex(s => s.id === current.id) : -1;
+  const insertAt = currentIndex >= 0 ? currentIndex + 1 : states.length;
+  let n = insertAt + 1;
+  let id = 'stage-' + n;
+  while (states.some(s => s.id === id)) id = 'stage-' + (++n);
+  const stage = { id, goal: '', capabilities: [], needs: [], next: current ? current.next : '', requires_user: false, terminal: !current };
+  if (current) { current.next = id; current.terminal = false; }
+  states.splice(insertAt, 0, stage);
+  selectedCanvasStage = id;
+  canvasInspectorMode = 'stage';
+  canvasInspectorOpen = true;
+  markCanvasDirty();
+}
+function deleteCanvasStage(id = selectedCanvasStage) {
+  if (!canvasWorkflow || canvasWorkflow.states.length <= 1) return;
+  const states = canvasWorkflow.states;
+  const removed = states.find(s => s.id === id);
+  const fallbackNext = removed?.next || '';
+  canvasWorkflow.states = states.filter(s => s.id !== id);
+  for (const s of canvasWorkflow.states) {
+    if (s.next !== id) continue;
+    s.next = fallbackNext;
+    s.terminal = !fallbackNext;
+  }
+  if (canvasWorkflow.start === id) canvasWorkflow.start = canvasWorkflow.states[0]?.id || '';
+  selectedCanvasStage = fallbackNext && canvasWorkflow.states.some(s => s.id === fallbackNext)
+    ? fallbackNext
+    : (canvasWorkflow.start || canvasWorkflow.states[0]?.id || '');
+  canvasInspectorMode = 'stage';
+  markCanvasDirty();
+}
+async function saveCanvasWorkflow() {
+  const status = $('canvasStatus');
+  const workflow = prepareWorkflowForSave(canvasWorkflow);
+  const errors = canvasErrors(workflow);
+  if (errors.length) { status.textContent = errors[0]; return; }
+  status.textContent = lang === 'zh' ? '保存中...' : 'Saving...';
+  try {
+    const payload = { workflow };
+    if (selectedProjectId) payload.projectId = selectedProjectId;
+    const result = await api('/api/workflows', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
+    if (result.error) throw new Error(result.error);
+    selectedWorkflowId = workflow.id;
+    localStorage.setItem('hikspine-workflow', selectedWorkflowId);
+    canvasDirty = false;
+    canvasSourceId = workflow.id;
+    canvasSourceKey = JSON.stringify(workflow);
+    lastRenderKey = '';
+    status.textContent = lang === 'zh' ? '已保存到项目 workflow' : 'Saved to project workflow';
+    await refresh();
+  } catch (err) {
+    status.textContent = err.message || String(err);
+  }
+}
+function renderWorkflowCanvas(workflows) {
+  const host = $('workflowCanvas');
+  const w = canvasEnsure(workflows);
+  if (!w) { host.innerHTML = ''; return; }
+  const states = w.states || [];
+  const current = selectedStage();
+  const errors = canvasErrors(prepareWorkflowForSave(w));
+  const nodeW = 280, nodeH = 132, x0 = 64, y0 = 70, gapX = 374, gapY = 230;
+  const cols = canvasInspectorOpen ? 3 : 4;
+  const positionForIndex = (i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const snakeCol = row % 2 === 0 ? col : (cols - 1 - col);
+    return { x: x0 + snakeCol * gapX, y: y0 + row * gapY, row, col: snakeCol, index: i };
+  };
+  const pos = new Map(states.map((s, i) => [s.id, positionForIndex(i)]));
+  const layoutCount = Math.max(1, states.length);
+  const usedCols = Math.min(cols, Math.max(1, layoutCount));
+  const rows = Math.max(1, Math.ceil(layoutCount / cols));
+  const boardW = Math.max(1500, x0 * 2 + (usedCols - 1) * gapX + nodeW + 42);
+  const boardH = Math.max(560, y0 * 2 + (rows - 1) * gapY + nodeH + 42);
+  const edges = states.map(s => s.next && pos.has(s.next) ? [s, pos.get(s.id), pos.get(s.next)] : null).filter(Boolean)
+    .map(([s,a,b]) => {
+      const sameRow = Math.abs(a.y - b.y) < 4;
+      let x1, y1, x2, y2, d;
+      if (sameRow) {
+        const forward = b.x >= a.x;
+        x1 = forward ? a.x + nodeW : a.x;
+        x2 = forward ? b.x : b.x + nodeW;
+        y1 = a.y + nodeH / 2;
+        y2 = b.y + nodeH / 2;
+        const c = Math.max(42, Math.abs(x2 - x1) / 2);
+        d = 'M'+x1+' '+y1+' C '+(forward ? x1+c : x1-c)+' '+y1+', '+(forward ? x2-c : x2+c)+' '+y2+', '+x2+' '+y2;
+      } else {
+        const down = b.y > a.y;
+        x1 = a.x + nodeW / 2;
+        y1 = down ? a.y + nodeH : a.y;
+        x2 = b.x + nodeW / 2;
+        y2 = down ? b.y : b.y + nodeH;
+        const midY = (y1 + y2) / 2;
+        const bend = Math.max(80, Math.abs(x2 - x1) / 2);
+        const c1x = x1 + (x2 >= x1 ? bend : -bend);
+        const c2x = x2 + (x2 >= x1 ? -bend : bend);
+        d = 'M'+x1+' '+y1+' C '+c1x+' '+midY+', '+c2x+' '+midY+', '+x2+' '+y2;
+      }
+      return '<path d="'+d+'" stroke="rgba(98,210,162,.66)" stroke-width="2.8" fill="none" marker-end="url(#arrow)"><title>'+esc(s.id+' -> '+s.next)+'</title></path>';
+    }).join('');
+  const nodes = states.map((s, i) => {
+    const p = pos.get(s.id);
+    const nextP = positionForIndex(i + 1);
+    const outSide = nextP.row === p.row ? (nextP.x > p.x ? 'right' : 'left') : 'bottom';
+    const cls = ['canvas-node', s.id === selectedCanvasStage ? 'selected' : '', s.terminal ? 'terminal' : '', s.requires_user ? 'confirm' : ''].filter(Boolean).join(' ');
+    return '<article class="'+cls+'" role="button" tabindex="0" data-canvas-stage="'+esc(s.id)+'" style="left:'+p.x+'px;top:'+p.y+'px">'+
+      '<div class="canvas-node-actions out-'+outSide+'">'+
+      '<button type="button" class="canvas-node-op add" data-canvas-add-after="'+esc(s.id)+'" title="'+esc(lang==='zh'?'在此阶段后添加':'Add after this stage')+'">+</button>'+
+      '<button type="button" class="canvas-node-op remove" data-canvas-delete="'+esc(s.id)+'" '+(states.length<=1?'disabled':'')+' title="'+esc(lang==='zh'?'删除此阶段':'Delete this stage')+'">-</button></div>'+
+      '<div class="canvas-node-head"><span class="canvas-num">'+(i+1)+'</span><span class="canvas-name">'+esc(label(s.id))+'</span></div>'+
+      '<div class="canvas-goal">'+esc(s.goal || (lang==='zh'?'暂无目标':'No goal yet'))+'</div>'+
+      '<div class="canvas-meta">'+(s.requires_user?'<span class="canvas-pill">'+(lang==='zh'?'确认':'confirm')+'</span>':'')+
+      (s.terminal?'<span class="canvas-pill">'+(lang==='zh'?'终止':'terminal')+'</span>':'')+
+      '<span class="canvas-pill">'+(s.capabilities?.length||0)+' skills</span></div></article>';
+  }).join('');
+  const options = [''].concat(states.map(s => s.id)).map(id => '<option value="'+esc(id)+'" '+(current?.next===id?'selected':'')+'>'+(id?esc(label(id)):'-')+'</option>').join('');
+  const L = lang === 'zh'
+    ? { workflow:'工作流', workflowId:'工作流 ID', name:'名称', intent:'适用场景', start:'起始阶段（流程从这里开始）', stage:'当前阶段', stageId:'阶段 ID', goal:'阶段目标', caps:'技能组合', rules:'阶段规则（每行一条）', needs:'流转决策', next:'下一阶段', confirm:'需要用户确认', terminal:'终止阶段' }
+    : { workflow:'Workflow', workflowId:'Workflow ID', name:'Name', intent:'Intent', start:'Start stage', stage:'Stage', stageId:'Stage ID', goal:'Goal', caps:'Skill composition', rules:'Rules (one per line)', needs:'Transition decisions', next:'Next stage', confirm:'Needs user confirmation', terminal:'Terminal stage' };
+  const workflowPanel =
+    '<div class="form-row"><label>'+esc(L.workflowId)+'</label><input id="cwId" value="'+esc(w.id)+'"></div>'+
+    '<div class="form-row"><label>'+esc(L.name)+'</label><input id="cwName" value="'+esc(w.name||'')+'"></div>'+
+    '<div class="form-row"><label>'+esc(L.intent)+'</label><textarea id="cwIntent">'+esc(w.intent||'')+'</textarea></div>'+
+    '<div class="form-row"><label>'+esc(L.start)+'</label><select id="cwStart">'+states.map(s=>'<option value="'+esc(s.id)+'" '+(w.start===s.id?'selected':'')+'>'+esc(label(s.id))+'</option>').join('')+'</select></div>';
+  const stagePanel = current
+    ? '<div class="form-row"><label>'+esc(L.stageId)+'</label><input id="csId" value="'+esc(current.id)+'"></div>'+
+      '<div class="form-row"><label>'+esc(L.goal)+'</label><textarea id="csGoal">'+esc(current.goal||'')+'</textarea></div>'+
+      '<div class="form-row"><label>'+esc(L.caps)+'</label>'+capabilityEditorHtml(current.capabilities||[])+'</div>'+
+      '<div class="form-row"><label>'+esc(L.rules)+'</label><textarea id="csRules">'+esc(linesText(current.rules||[]))+'</textarea></div>'+
+      '<div class="form-row"><label>'+esc(L.needs)+'</label>'+decisionEditorHtml(current.needs||[])+'</div>'+
+      '<div class="form-row"><label>'+esc(L.next)+'</label><select id="csNext">'+options+'</select></div>'+
+      '<div class="form-checks"><label><input type="checkbox" id="csUser" '+(current.requires_user?'checked':'')+'> '+esc(L.confirm)+'</label><label><input type="checkbox" id="csTerminal" '+(current.terminal?'checked':'')+'> '+esc(L.terminal)+'</label></div>'
+    : '<div class="empty">'+esc(lang==='zh'?'请选择一个阶段。':'Select a stage.')+'</div>';
+  const inspectorTitle = canvasInspectorMode === 'workflow' ? L.workflow : L.stage;
+  const inspectorBody = canvasInspectorMode === 'workflow' ? workflowPanel : stagePanel;
+  host.innerHTML =
+    '<div class="canvas-toolbar"><div class="canvas-title">'+(lang==='zh'?'工作流编排画布':'Workflow orchestration canvas')+'</div>'+
+    '<button class="canvas-btn '+(canvasInspectorMode==='workflow'?'active':'')+'" id="canvasWorkflowSettings" type="button">'+(lang==='zh'?'工作流设置':'Workflow settings')+'</button>'+
+    '<button class="canvas-btn primary" id="canvasSave" type="button">'+(lang==='zh'?'保存为项目 workflow':'Save project workflow')+'</button>'+
+    '<span class="canvas-status" id="canvasStatus">'+(canvasDirty ? (lang==='zh'?'未保存':'Unsaved') : (w.source==='project'?'Project':'Ready'))+'</span></div>'+
+    '<div class="canvas-main '+(canvasInspectorOpen?'':'inspector-closed')+'"><div class="canvas-board" style="min-height:'+boardH+'px">'+
+    '<svg class="canvas-svg" width="'+boardW+'" height="'+boardH+'" viewBox="0 0 '+boardW+' '+boardH+'"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="rgba(98,210,162,.72)"></path></marker></defs>'+edges+'</svg>'+nodes+'</div>'+
+    '<aside class="canvas-inspector"><div class="canvas-inspector-head"><h3>'+esc(inspectorTitle)+'</h3><button class="canvas-panel-close" id="canvasInspectorCollapse" type="button">'+(lang==='zh'?'收起':'Collapse')+'</button></div>'+
+    inspectorBody+'<div class="canvas-errors">'+esc(errors.join('\n'))+'</div></aside></div>';
+  host.querySelectorAll('[data-canvas-stage]').forEach(btn => {
+    btn.onclick = () => {
+      selectedCanvasStage = btn.dataset.canvasStage;
+      canvasInspectorMode = 'stage';
+      canvasInspectorOpen = true;
+      renderWorkflowCanvas(workflows);
+    };
+    btn.onkeydown = event => {
+      if (event.target !== btn) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      btn.click();
+    };
+  });
+  host.querySelectorAll('[data-canvas-delete]').forEach(btn => btn.onclick = event => {
+    event.stopPropagation();
+    if (states.length <= 1) return;
+    deleteCanvasStage(btn.dataset.canvasDelete);
+  });
+  host.querySelectorAll('[data-canvas-add-after]').forEach(btn => btn.onclick = event => {
+    event.stopPropagation();
+    addCanvasStage(btn.dataset.canvasAddAfter);
+  });
+  const collapse = $('canvasInspectorCollapse');
+  if (collapse) collapse.onclick = () => {
+    canvasInspectorOpen = false;
+    renderWorkflowCanvas(workflows);
+  };
+  $('canvasWorkflowSettings').onclick = () => {
+    canvasInspectorMode = 'workflow';
+    canvasInspectorOpen = true;
+    renderWorkflowCanvas(workflows);
+  };
+  $('canvasSave').onclick = saveCanvasWorkflow;
+  const bind = (id, fn) => {
+    const el = $(id);
+    if (!el) return;
+    el.oninput = () => { fn(el); markCanvasDirty(false); };
+    el.onchange = () => { fn(el); markCanvasDirty(true); };
+  };
+  bind('cwId', el => { w.id = el.value.trim(); });
+  bind('cwName', el => { w.name = el.value; });
+  bind('cwIntent', el => { w.intent = el.value; });
+  bind('cwStart', el => { w.start = el.value; });
+  bind('csId', el => {
+    const old = current.id;
+    current.id = el.value.trim();
+    for (const s of states) if (s.next === old) s.next = current.id;
+    if (w.start === old) w.start = current.id;
+    selectedCanvasStage = current.id;
+  });
+  bind('csGoal', el => { current.goal = el.value; });
+  bind('csRules', el => { current.rules = parseLines(el.value); });
+  bind('csNext', el => { current.next = el.value; current.terminal = !el.value ? current.terminal : false; });
+  bind('csUser', el => { current.requires_user = el.checked; });
+  bind('csTerminal', el => { current.terminal = el.checked; if (el.checked) current.next = ''; });
+  const decisionEditor = $('csNeedsEditor');
+  if (decisionEditor && current) {
+    const syncNeeds = (rerender = false) => {
+      current.needs = readDecisionEditor();
+      markCanvasDirty(rerender);
+    };
+    decisionEditor.querySelectorAll('[data-decision-key],[data-decision-value]').forEach(el => {
+      el.oninput = () => syncNeeds(false);
+      el.onchange = () => syncNeeds(false);
+    });
+    decisionEditor.querySelectorAll('[data-decision-op]').forEach(el => {
+      el.onchange = () => syncNeeds(true);
+    });
+    decisionEditor.querySelectorAll('[data-decision-delete]').forEach(btn => {
+      btn.onclick = () => {
+        current.needs.splice(Number(btn.dataset.decisionDelete), 1);
+        markCanvasDirty(true);
+      };
+    });
+    const addDecision = $('decisionAdd');
+    if (addDecision) addDecision.onclick = () => {
+      current.needs.push('decision_ready');
+      markCanvasDirty(true);
+    };
+  }
+  const capEditor = $('csCapsEditor');
+  if (capEditor && current) {
+    const syncCaps = (rerender = false) => {
+      current.capabilities = readCapabilityEditor();
+      markCanvasDirty(rerender);
+    };
+    capEditor.querySelectorAll('[data-cap-id],[data-cap-group],[data-cap-when]').forEach(el => {
+      el.oninput = () => syncCaps(false);
+      el.onchange = () => syncCaps(false);
+    });
+    capEditor.querySelectorAll('[data-cap-mode]').forEach(el => {
+      el.onchange = () => syncCaps(true);
+    });
+    capEditor.querySelectorAll('[data-cap-delete]').forEach(btn => {
+      btn.onclick = () => {
+        current.capabilities.splice(Number(btn.dataset.capDelete), 1);
+        markCanvasDirty(true);
+      };
+    });
+    const add = $('capAdd');
+    if (add) add.onclick = () => {
+      const firstSkill = (last?.skills || []).map(s => s.name).filter(Boolean).sort()[0] || 'skill-name';
+      current.capabilities.push(firstSkill);
+      markCanvasDirty(true);
+    };
+  }
 }
 
 let skillPage = 1;
@@ -1199,31 +1873,34 @@ function renderAll() {
   document.documentElement.lang = (lang==='zh') ? 'zh-CN' : 'en';
   $('title').textContent = t('title');
   $('subtitle').textContent = t('subtitle');
-  $('secTasks').textContent = t('secTasks');
+  const allMode = last.mode === 'all';
+  $('secTasks').textContent = allMode ? t('secTasks') : t('secProjectTasks');
   $('secBuild').textContent = t('secBuild');
   $('secWf').textContent = t('secWf');
-  $('secMetrics').textContent = t('secMetrics');
+  $('secMetrics').textContent = allMode ? t('secMetrics') : t('secProjectMetrics');
   $('secWorkflowDetail').textContent = lang==='zh' ? '工作流阶段与技能' : 'Workflow stages & skills';
   $('root').textContent = last.root ? '  ·  '+last.root : '';
-  const allMode = last.mode === 'all';
   if (allMode) $('root').textContent = '  ·  '+(lang==='zh'?'所有已登记项目':'all registered projects');
   else if (last.fromAll) $('root').textContent = '  ·  '+(last.projectName || last.root || '');
   const backBtn = $('backBtn');
   backBtn.textContent = t('backAll');
-  backBtn.hidden = !last.fromAll;
+  backBtn.hidden = true;
+  renderScopeBar();
   // Global overview: show aggregate KPIs and the project grid; the per-project
   // panels (build info, workflows, stages & skills) belong to a single project
   // and are shown only when drilled into one.
-  $('stats').hidden = allMode;
-  $('secMetrics').hidden = !allMode;
+  $('stats').hidden = true;
+  $('secMetrics').hidden = false;
   $('metricsPanel').hidden = !allMode;
-  $('timingPanel').hidden = !allMode;
+  $('timingPanel').hidden = false;
   $('secBuild').hidden = allMode;
   $('projectBuild').hidden = allMode;
   $('secWf').hidden = allMode;
   $('legend').hidden = allMode;
   $('secWorkflowDetail').hidden = allMode;
+  $('workflowActionbar').hidden = allMode;
   $('workflowDetail').hidden = allMode;
+  if (allMode) closeWorkflowCanvas(false);
   $('dot').className = 'dot' + (last.demo?' demo':'');
   $('livetext').textContent = last.demo ? t('demo') : t('live');
   $('lzh').classList.toggle('on', lang==='zh');
@@ -1234,13 +1911,13 @@ function renderAll() {
   renderNotifications(last.notifications || []);
   if (allMode) {
     renderMetrics(last);
-    renderTiming(last);
+    renderTiming(last, { showTaskCount: true });
     // Overview task list focuses on in-progress work — completed / archived
     // changes are counted in the metrics, not listed as "in-progress".
     const active = (last.changes || []).filter(c => c.error || (!c.complete && !c.archived));
     renderChanges(active, t('emptyActive'));
   } else {
-    renderStats(last.changes || []);
+    renderTiming(last, { showTaskCount: false });
     renderChanges(last.changes || []);
     renderProjectBuild(last.projectBuild);
     renderWorkflows(last.workflows || []);
@@ -1267,9 +1944,12 @@ $('quitBtn').onclick = async () => {
     alert(t('quitFail'));
   }
 };
-$('backBtn').onclick = () => { selectedProjectId = null; lastRenderKey = ''; refresh(); };
+$('backBtn').onclick = goProjectOverview;
 $('artifactClose').onclick = closeArtifact;
 $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
+$('canvasOpen').onclick = openWorkflowCanvas;
+$('canvasClose').onclick = () => closeWorkflowCanvas(false);
+$('workflowCanvasModal').onclick = (event) => { if (event.target.id === 'workflowCanvasModal') closeWorkflowCanvas(false); };
 
 async function refresh() {
   try {
@@ -1280,11 +1960,18 @@ async function refresh() {
   }
   let s;
   if (selectedProjectId) {
+    try {
+      const overview = await api('/api/state');
+      if (overview && overview.mode === 'all') projectOptions = Array.isArray(overview.projects) ? overview.projects : [];
+    } catch (e) {}
     try { s = await api('/api/state?projectId='+encodeURIComponent(selectedProjectId)); }
     catch (e) { s = null; }
     if (!s || s.error) { selectedProjectId = null; try { s = await api('/api/state'); } catch (e2) { s = DEMO; } }
   } else {
     try { s = await api('/api/state'); } catch (e) { s = DEMO; }
+    if (s && s.mode === 'all') {
+      projectOptions = Array.isArray(s.projects) ? s.projects : [];
+    }
   }
   if (!s.demo && (!s.changes)) s.demo = true;
   const renderKey = JSON.stringify(s) + '|' + JSON.stringify(uiLabels) + '|' + lang + '|' + Math.floor(Date.now() / 60000);

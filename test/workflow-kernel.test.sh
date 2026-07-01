@@ -500,6 +500,10 @@ eq "note_written advances to review" \
 CT_DONE="$(run decide review_done --json)"
 eq "review_done completes custom workflow" \
   "$(printf '%s' "$CT_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
+CANVAS_SAVE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveProjectWorkflow, loadWorkflow } = await import("./src/store.mjs"); saveProjectWorkflow(root, { id:"canvas-flow", version:1, name:"Canvas Flow", intent:"Saved from the workflow canvas.", start:"draft", states:[{ id:"draft", goal:"Draft it.", capabilities:["brainstorming"], needs:["drafted"], next:"done" }, { id:"done", goal:"Finish.", capabilities:[], needs:[], terminal:true }] }); const wf=loadWorkflow(root, "canvas-flow"); console.log(`${wf.id}:${wf.states.length}:${wf.states[0].next}`);' "$T")"
+eq "canvas can save project workflow yaml" "$CANVAS_SAVE" "canvas-flow:2:done"
+CANVAS_API="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { createBoardServer } = await import("./src/server.mjs"); const server=createBoardServer(root); await new Promise((resolve,reject)=>{ server.once("error", reject); server.listen(0, "127.0.0.1", resolve); }); const port=server.address().port; const res=await fetch(`http://127.0.0.1:${port}/api/workflows`, { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ workflow:{ id:"canvas-api", version:1, name:"Canvas API", intent:"Saved through UI API.", start:"one", states:[{ id:"one", goal:"One.", capabilities:[], needs:["ok"], terminal:true }] } }) }); const j=await res.json(); await new Promise(resolve=>server.close(resolve)); console.log(`${res.status}:${j.id}:${j.workflow.states.length}`);' "$T")"
+eq "canvas API saves project workflow yaml" "$CANVAS_API" "200:canvas-api:1"
 
 rm -rf "$T"
 
@@ -630,7 +634,7 @@ eq "board changes carry history and decisions" \
 eq "board exposes normalized notifications" \
   "$(printf '%s' "$BOARD" | json_test "Array.isArray(j.notifications) && j.notifications.length === 2 && j.notifications.every(n=>n.id && typeof n.handled==='boolean') && j.notifications.some(n=>n.type==='idle_prompt' && !n.handled) && j.notifications.some(n=>n.id==='done-1' && n.handled)" && echo yes || echo no)" "yes"
 eq "board exposes workflow stage details" \
-  "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities)))" && echo yes || echo no)" "yes"
+  "$(printf '%s' "$BOARD" | json_test "j.workflows.every(w=>Array.isArray(w.stages) && w.stages.length>0 && w.stages.every(s=>Array.isArray(s.capabilities) && Array.isArray(s.rules))) && j.workflows.find(w=>w.id==='feature').stages.find(s=>s.id==='open').rules.some(r=>/codegraph/.test(r))" && echo yes || echo no)" "yes"
 eq "board exposes stage durations and markdown artifacts" \
   "$(printf '%s' "$BOARD" | json_test "j.changes.every(c=>typeof c.stageDurations==='object' && Array.isArray(c.artifacts)) && j.changes.find(c=>c.change==='feat-x').artifacts.some(a=>a.path.endsWith('proposal.md') && a.stage==='open')" && echo yes || echo no)" "yes"
 eq "board annotates artifact types" \
@@ -644,6 +648,10 @@ eq "all-project board lists registered projects" \
   "$(printf '%s' "$ALL_BOARD" | json_test "j.mode==='all' && Array.isArray(j.projects) && j.projects.some(p=>p.counts && p.counts.total>=3)" && echo yes || echo no)" "yes"
 eq "all-project board carries project metadata on changes" \
   "$(printf '%s' "$ALL_BOARD" | json_test "j.changes.some(c=>c.change==='bug-1' && c.projectId && c.projectRoot && c.artifacts.every(a=>a.projectId===c.projectId))" && echo yes || echo no)" "yes"
+eq "all-project board changes focus on active work" \
+  "$(printf '%s' "$ALL_BOARD" | json_test "j.changes.every(c=>c.error || (!c.complete && !c.archived)) && !j.changes.some(c=>c.change==='archived-x') && j.projects.some(p=>p.counts && p.counts.done>=1)" && echo yes || echo no)" "yes"
+eq "all-project board omits project-detail modules" \
+  "$(printf '%s' "$ALL_BOARD" | json_test "Array.isArray(j.workflows) && j.workflows.length===0 && Array.isArray(j.skills) && j.skills.length===0 && j.projectBuild===null" && echo yes || echo no)" "yes"
 
 rm -rf "$T"
 

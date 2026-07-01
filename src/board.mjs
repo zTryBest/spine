@@ -187,6 +187,7 @@ function workflowDetails(root, summary) {
         id: state.id,
         goal: state.goal || '',
         capabilities: (state.capabilities || []).map(normalizeCapability),
+        rules: state.rules || [],
         needs: state.needs || [],
         requiresUser: !!state.requires_user,
         terminal: !!state.terminal,
@@ -294,11 +295,15 @@ function projectCounts(changes) {
   const counts = { total: changes.length, work: 0, confirm: 0, done: 0, error: 0 };
   for (const change of changes) {
     if (change.error) counts.error += 1;
-    else if (change.complete) counts.done += 1;
+    else if (change.complete || change.archived) counts.done += 1;
     else if (change.nextAction === 'confirm') counts.confirm += 1;
     else counts.work += 1;
   }
   return counts;
+}
+
+function isActiveOverviewChange(change) {
+  return change.error || !(change.complete || change.archived);
 }
 
 export function allProjectsBoardState() {
@@ -322,7 +327,7 @@ export function allProjectsBoardState() {
         active: change.change === state.active,
         artifacts: (change.artifacts || []).map((artifact) => ({ ...artifact, projectId: project.id })),
       }));
-      changes.push(...projectChanges);
+      changes.push(...projectChanges.filter(isActiveOverviewChange));
       notifications.push(...(state.notifications || []).map((notification) => ({
         ...notification,
         id: `${project.id}:${notification.id}`,

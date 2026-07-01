@@ -116,6 +116,18 @@ export function listWorkflows(root) {
   return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
+export function saveProjectWorkflow(root, workflow) {
+  const id = String(workflow?.id || '').trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) die('Workflow id must use letters, numbers, dash, or underscore.');
+  const copy = clone(workflow);
+  copy.id = id;
+  copy.version = Number(copy.version || 1);
+  validateWorkflow(copy);
+  const file = path.join(root, '.hikspine', 'workflows', `${id}.yaml`);
+  writeYamlFile(file, copy);
+  return { id, file: rel(root, file), workflow: loadWorkflow(root, id) };
+}
+
 export function stateById(workflow, id) {
   return (workflow.states || []).find((s) => s.id === id) || null;
 }

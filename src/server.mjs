@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { allProjectsBoardState, boardState } from './board.mjs';
 import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
-import { setActive } from './store.mjs';
+import { saveProjectWorkflow, setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 import { findRegisteredProject, readRegisteredProjects } from './project-registry.mjs';
 
@@ -247,6 +247,17 @@ export function createBoardServer(root, { all = false } = {}) {
             : markNotificationsHandled(root, body.ids || body.id);
         }
         sendJson(res, 200, result);
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/workflows') {
+        const body = await readBody(req);
+        try {
+          const targetRoot = all ? rootForRequest(root, url, body) : root;
+          const result = saveProjectWorkflow(targetRoot, body.workflow || body);
+          sendJson(res, 200, result);
+        } catch (err) {
+          sendJson(res, 400, { error: err.message });
+        }
         return;
       }
       // Manual failsafe for when the SessionEnd cleanup hook does not fire (or
