@@ -125,6 +125,8 @@ eq "open state forbids write-source" \
   "$(printf '%s' "$FIRST_NEXT" | json_get "j.forbid.includes('write-source') ? 'yes' : 'no'")" "yes"
 eq "open state has capabilities" \
   "$(printf '%s' "$FIRST_NEXT" | json_test "Array.isArray(j.capabilities) && j.capabilities.length >= 2 && j.capabilities.some(c=>c.id==='openspec-explore') && j.capabilities.some(c=>c.id==='openspec-propose')" && echo yes || echo no)" "yes"
+eq "open state carries a capabilityPolicy" \
+  "$(printf '%s' "$FIRST_NEXT" | json_test "typeof j.capabilityPolicy === 'string' && j.capabilityPolicy.length > 0" && echo yes || echo no)" "yes"
 eq "open state needs" \
   "$(printf '%s' "$FIRST_NEXT" | json_get "j.missing.includes('requirements_clarified') && j.missing.includes('proposal_ready') ? 'yes' : 'no'")" "yes"
 eq "open state is not terminal" \

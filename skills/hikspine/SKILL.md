@@ -109,7 +109,7 @@ A composed skill has its own stance and may end by offering a choice or asking w
 ```text
 nextAction            deterministic directive: work | confirm | done (see below)
 current/goal/forbid   current state, its goal, forbidden side effects (e.g. write-source)
-capabilities          skills you may compose freely ({ id, ref, description })
+capabilities          this state's skills — load each one that fits the work with the Skill tool, not optional ({ id, ref, description })
 rules                 workflow-authored requirements for this state — follow them
 needs / missing       decision keys to leave this state / those not yet recorded
 requiresUser          true = stop and ask the user first
@@ -134,7 +134,7 @@ If `next --json` returns `projectRules.readNow`, read those rule files immediate
 
 ## Required Skill Loading
 
-After each `next --json`, inspect `capabilities`. For every capability required by the current state and its `rules`, immediately load that skill before any investigation, planning, editing, or verification. This is data-driven: use the `id` (or `ref` when present) returned by `next`, including capabilities from custom workflows.
+After each `next --json`, inspect `capabilities`. For every capability whose purpose matches the work of the current state (and every one a `rule` names), immediately load that skill before any investigation, planning, editing, or verification. Do not substitute your own inline work for a listed skill whose purpose matches the task — e.g. do not hand-roll a code review when `requesting-code-review` is listed. When several capabilities are interchangeable drivers, pick exactly one; otherwise load every one that applies. This is data-driven: use the `id` (or `ref` when present) returned by `next`, including capabilities from custom workflows.
 
 For each selected capability, use this exact trigger form with the runtime skill name substituted:
 

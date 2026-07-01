@@ -1,3 +1,13 @@
+## What's Changed [0.6.30] - 2026-07-01
+
+### Changed
+
+- **capabilities 不再被当成"可选"（review/build 阶段漏加载 skill 的根因）**: 引擎的 `next` 输出把该状态的 capabilities 呈现为 "Available skills (compose freely)"，skill 速查表也写 "可自由组合的 skill" —— "freely / 自由" 这个措辞给了 Agent"可以不加载、自己内联做"的许可，导致 `review` 阶段不加载 `requesting-code-review` 直接手搓自审、`build` 阶段漏 `hui-pro`（此前只能靠给单个阶段堆 MANDATORY 规则打补丁）。改为在引擎层根治且保持 skill-agnostic（不点名任何具体 skill）：`next --json` 新增 `capabilityPolicy` 字段、文本输出把标题改为 "Skills for this state — load each one whose purpose matches the work with the Skill tool before acting"，明确"用途对得上的已列 skill 必须用 Skill 工具加载、不得用内联工作替代；多个可互换驱动则二选一"。中英文 skill（`hikspine`/`hikspine-engine-zh`）的速查表和"必须加载对应 Skill"段落同步收紧，去掉"required by / 需要哪个"的模糊表述。
+
+### Tests
+
+- **capabilityPolicy 覆盖**: workflow kernel 测试新增断言，验证 `next --json` 会返回非空的 `capabilityPolicy` 字段。
+
 ## What's Changed [0.6.29] - 2026-07-01
 
 ### Added

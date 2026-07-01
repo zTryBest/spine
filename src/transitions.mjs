@@ -146,6 +146,11 @@ export function computeNext(root, workflow, state) {
     // offering to proceed is never a phase boundary.
     transitionPolicy:
       "Transitions follow this workflow, not the composed skills. A composed skill ending or offering to proceed is not a stop — record this state's needs with decide, then call next. Stop for the user only when requiresUser is true.",
+    // Skill-agnostic reminder that capabilities are not optional. The engine
+    // names no specific skill; the workflow's capability list drives which to
+    // load. This kills the "compose freely = may skip" reading.
+    capabilityPolicy:
+      "Capabilities are this state's skills, not optional suggestions. Before doing the work, load each listed skill whose purpose matches the task with the Skill tool and follow its instructions — do not hand-roll inline what a listed skill covers. When several are interchangeable (e.g. alternative drivers), pick exactly one; otherwise use every one that applies.",
   };
 }
 
@@ -185,8 +190,9 @@ export function formatNextAction(action) {
   }
   if (action.capabilities?.length) {
     lines.push('');
-    lines.push('Available skills (compose freely):');
+    lines.push('Skills for this state — load each one whose purpose matches the work with the Skill tool before acting:');
     for (const c of action.capabilities) lines.push(`- ${c.id} -> ${c.ref || c.id}: ${c.description || ''}`);
+    if (action.capabilityPolicy) lines.push(action.capabilityPolicy);
   }
 
   lines.push('');
