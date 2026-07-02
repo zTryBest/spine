@@ -498,11 +498,15 @@ function localizedPath(p) {
 }
 const api = (p,o) => fetch(localizedPath(p),o).then(r=>r.json());
 
+const ACTIVE_POLL_MS = 8000;
+const IDLE_POLL_MS = 20000;
+const HIDDEN_POLL_MS = 60000;
 let lang = localStorage.getItem('hikspine-lang') || 'zh';
 let last = null;
 let lastRenderKey = '';
 let hasRendered = false;
 let uiLabels = { stages:{} };
+let uiLabelsCache = new Map();  // project id/root scope -> labels; avoids one request per poll
 let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 let selectedWorkflowKey = localStorage.getItem('hikspine-workflow-key') || '';
@@ -524,7 +528,7 @@ const I18N = {
   zh: {
     title:'Hikspine 流水线看板',
     subtitle:'需求 → 设计 → 实现 → 验证 → 公司流程 · 一眼看清每个任务走到哪一步',
-    live:'实时 · 每 2 秒刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
+    live:'实时 · 自动刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
     stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
     secTasks:'进行中的任务', secProjectTasks:'项目任务', secWf:'工作流', secSkills:'技能',
     secMetrics:'总览指标', secProjectMetrics:'项目指标',
@@ -547,12 +551,12 @@ const I18N = {
     secBuild:'构建信息 / 组件', buildEmpty:'还没有组件构建信息 — scaffold 阶段拉取脚手架后写入 .hikspine/project-build.json。',
     bcComponent:'组件标识', bcSvn:'SVN 地址', bcModule:'模块', bcType:'构建类型', bcArtifact:'产物',
     quit:'退出看板', quitConfirm:'确定要退出看板进程吗？退出后本页将失去实时数据。', quitDone:'看板进程已退出，可关闭此页。', quitFail:'退出请求失败，可能进程已停止。',
-    backAll:'所有项目总览', scopeOverview:'当前范围', scopeOverviewTitle:'所有项目总览', scopeOverviewSub:'跨项目指标、活跃任务和项目列表。点击项目进入详情。', scopeProject:'当前项目', scopeProjectSub:'项目任务、构建信息、工作流阶段与技能。', pickProject:'点击某个项目查看它的任务、构建信息、工作流阶段与技能。',
+    backAll:'所有项目总览', loadingProject:'正在加载项目详情...', scopeOverview:'当前范围', scopeOverviewTitle:'所有项目总览', scopeOverviewSub:'跨项目指标、活跃任务和项目列表。点击项目进入详情。', scopeProject:'当前项目', scopeProjectSub:'项目任务、构建信息、工作流阶段与技能。', pickProject:'点击某个项目查看它的任务、构建信息、工作流阶段与技能。',
   },
   en: {
     title:'Hikspine Pipeline Board',
     subtitle:'Requirements → Design → Build → Verify → Company process · see where every task stands',
-    live:'Live · refreshes every 2s', demo:'Demo data · run hikspine ui for live state',
+    live:'Live · auto-refresh', demo:'Demo data · run hikspine ui for live state',
     stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
     secTasks:'In-progress tasks', secProjectTasks:'Project tasks', secWf:'Workflows', secSkills:'Skills',
     secMetrics:'Overview metrics', secProjectMetrics:'Project metrics',
@@ -575,7 +579,7 @@ const I18N = {
     secBuild:'Build info / Components', buildEmpty:'No component build info yet — the scaffold stage writes it to .hikspine/project-build.json when it pulls scaffolds.',
     bcComponent:'Component', bcSvn:'SVN address', bcModule:'Module', bcType:'Build type', bcArtifact:'Artifact',
     quit:'Quit board', quitConfirm:'Stop the board process? This tab will stop receiving live data.', quitDone:'Board process stopped — you can close this tab.', quitFail:'Shutdown request failed; the process may already be stopped.',
-    backAll:'All projects overview', scopeOverview:'Current scope', scopeOverviewTitle:'All projects overview', scopeOverviewSub:'Cross-project metrics, active tasks, and project list. Click a project for details.', scopeProject:'Current project', scopeProjectSub:'Project tasks, build info, workflow stages, and skills.', pickProject:'Click a project to see its tasks, build info, workflow stages and skills.',
+    backAll:'All projects overview', loadingProject:'Loading project details...', scopeOverview:'Current scope', scopeOverviewTitle:'All projects overview', scopeOverviewSub:'Cross-project metrics, active tasks, and project list. Click a project for details.', scopeProject:'Current project', scopeProjectSub:'Project tasks, build info, workflow stages, and skills.', pickProject:'Click a project to see its tasks, build info, workflow stages and skills.',
   },
 };
 const t = (k) => I18N[lang][k];
@@ -587,6 +591,26 @@ const label = (id) => {
   if (!item || typeof item !== 'object') return id;
   return item[lang] || item.zh || item.en || id;
 };
+
+function uiLabelsCacheKey(projectId = selectedProjectId) {
+  return projectId || '__root__';
+}
+
+async function loadUiLabels(projectId = selectedProjectId, force = false) {
+  const key = uiLabelsCacheKey(projectId);
+  if (!force && uiLabelsCache.has(key)) {
+    return uiLabelsCache.get(key);
+  }
+  const suffix = projectId ? '?projectId=' + encodeURIComponent(projectId) : '';
+  try {
+    const labels = await api('/api/ui-labels' + suffix);
+    const value = labels && typeof labels === 'object' ? labels : { stages:{} };
+    uiLabelsCache.set(key, value);
+    return value;
+  } catch (e) {
+    return { stages:{} };
+  }
+}
 
 // Workflow id → bilingual short name + Chinese intent (English intent comes
 // from the workflow YAML; Chinese is overlaid here).
@@ -1108,6 +1132,43 @@ function compareProjects(a, b) {
 function currentProjectMeta() {
   return projectOptions.find(p => p.id === selectedProjectId) || null;
 }
+let projectOptionsLoading = false;
+function ensureProjectOptions() {
+  if (projectOptions.length || projectOptionsLoading) return;
+  projectOptionsLoading = true;
+  api('/api/state')
+    .then(overview => {
+      if (overview && overview.mode === 'all') {
+        projectOptions = Array.isArray(overview.projects) ? overview.projects : [];
+        if (last?.fromAll && !last.loading) { lastRenderKey = ''; renderAll(); }
+      }
+    })
+    .catch(() => {})
+    .finally(() => { projectOptionsLoading = false; });
+}
+function openProjectDetail(projectId) {
+  if (!projectId) return;
+  selectedProjectId = projectId;
+  closeWorkflowCanvas(false);
+  const meta = projectOptions.find(p => p.id === projectId) || {};
+  last = {
+    mode: 'project',
+    fromAll: true,
+    loading: true,
+    projectId,
+    projectName: meta.name || '',
+    root: meta.root || '',
+    active: '',
+    changes: [],
+    workflows: [],
+    skills: [],
+    notifications: [],
+    projectBuild: null,
+  };
+  lastRenderKey = '';
+  renderAll();
+  refresh();
+}
 function goProjectOverview() {
   selectedProjectId = null;
   closeWorkflowCanvas(false);
@@ -1173,7 +1234,7 @@ function renderProjects(projects) {
     '</article>';
   }).join('');
   host.querySelectorAll('.project-card[data-project-id]').forEach(card => {
-    card.onclick = () => { selectedProjectId = card.dataset.projectId; closeWorkflowCanvas(false); lastRenderKey = ''; refresh(); };
+    card.onclick = () => openProjectDetail(card.dataset.projectId);
   });
 }
 function renderChanges(changes, emptyMsg) {
@@ -1204,9 +1265,8 @@ function renderChanges(changes, emptyMsg) {
         });
       } catch(e) {}
       if (last?.mode === 'all' && projectId) {
-        selectedProjectId = projectId;
-        closeWorkflowCanvas(false);
-        lastRenderKey = '';
+        openProjectDetail(projectId);
+        return;
       }
       refresh();
     };
@@ -1992,7 +2052,7 @@ function renderWorkflowCanvas(workflows) {
     });
     const add = $('capAdd');
     if (add) add.onclick = () => {
-      const firstSkill = (last?.skills || []).map(s => s.name).filter(Boolean).sort()[0] || 'skill-name';
+      const firstSkill = skillOptions()[0] || 'skill-name';
       current.capabilities.push(firstSkill);
       markCanvasDirty(true);
     };
@@ -2181,6 +2241,18 @@ function renderAll() {
   quitBtn.textContent = t('quit');
   quitBtn.hidden = !!last.demo;   // only a live board can be stopped
   renderNotifications(last.notifications || []);
+  if (last.loading) {
+    renderProjectMetrics(last);
+    renderTiming(last, { showTaskCount: false });
+    $('changes').innerHTML = '<div class="empty">'+esc(t('loadingProject'))+'</div>';
+    $('projectBuild').innerHTML = '<div class="need">'+esc(t('loadingProject'))+'</div>';
+    $('legend').innerHTML = '';
+    $('workflowDetail').innerHTML = '<div class="empty">'+esc(t('loadingProject'))+'</div>';
+    renderProjects([]);
+    hasRendered = true;
+    document.body.classList.add('no-enter-animation');
+    return;
+  }
   if (allMode) {
     renderMetrics(last);
     renderTiming(last, { showTaskCount: true });
@@ -2229,29 +2301,35 @@ $('rulesModalSave').onclick = saveRulesModal;
 $('rulesAdd').onclick = () => { rulesDraft.push(''); renderRulesList(); focusLastRule(); };
 $('rulesModal').onclick = (event) => { if (event.target.id === 'rulesModal') closeRulesModal(); };
 
+function needsFastPoll(state) {
+  const changes = Array.isArray(state?.changes) ? state.changes : [];
+  const notifications = Array.isArray(state?.notifications) ? state.notifications : [];
+  return notifications.some(n => !n.handled && !n.handledAt)
+    || changes.some(c => c.error || (!c.complete && !c.archived));
+}
+function nextPollDelay() {
+  if (document.hidden) return HIDDEN_POLL_MS;
+  return needsFastPoll(last) ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+}
+function scheduleRefresh(delay = nextPollDelay()) {
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(() => refresh(), delay);
+}
+
 async function refresh() {
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
   // Only the newest refresh may apply. Clicking a project starts a fresh
   // refresh; any slower in-flight poll (e.g. an overview fetch begun before the
   // click) must NOT overwrite the drill-in view when it finally resolves.
   const seq = ++refreshSeq;
-  try {
-    const labels = await api('/api/ui-labels');
-    uiLabels = labels && typeof labels === 'object' ? labels : { stages:{} };
-  } catch (e) {
-    uiLabels = { stages:{} };
-  }
+  const projectIdAtStart = selectedProjectId;
+  const labelsPromise = loadUiLabels(projectIdAtStart);
   let s;
-  if (selectedProjectId) {
-    // Drill-in: fetch only this project's board. The project list for the
-    // "switch project" dropdown is loaded lazily (once), not on every poll, so
-    // we don't pay the full overview scan while viewing one project.
-    if (!projectOptions.length) {
-      try {
-        const overview = await api('/api/state');
-        if (overview && overview.mode === 'all') projectOptions = Array.isArray(overview.projects) ? overview.projects : [];
-      } catch (e) {}
-    }
-    try { s = await api('/api/state?projectId='+encodeURIComponent(selectedProjectId)); }
+  if (projectIdAtStart) {
+    // Drill-in: fetch only this project's board. Project list backfill runs in
+    // the background and never blocks the detail page.
+    ensureProjectOptions();
+    try { s = await api('/api/state?projectId='+encodeURIComponent(projectIdAtStart)); }
     catch (e) { s = null; }
     if (!s || s.error) { selectedProjectId = null; try { s = await api('/api/state'); } catch (e2) { s = DEMO; } }
   } else {
@@ -2260,20 +2338,27 @@ async function refresh() {
       projectOptions = Array.isArray(s.projects) ? s.projects : [];
     }
   }
+  const labels = await labelsPromise;
   if (seq !== refreshSeq) return;   // a newer refresh started while we awaited — drop this stale result
+  uiLabels = labels && typeof labels === 'object' ? labels : { stages:{} };
   if (!s.demo && (!s.changes)) s.demo = true;
   const renderKey = JSON.stringify(s) + '|' + JSON.stringify(uiLabels) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
-  if (renderKey === lastRenderKey) return;
-  lastRenderKey = renderKey;
-  last = s;
-  renderAll();
+  if (renderKey !== lastRenderKey) {
+    lastRenderKey = renderKey;
+    last = s;
+    renderAll();
+  }
+  scheduleRefresh();
 }
 
 if ('Notification' in window && Notification.permission === 'default') {
   try { Notification.requestPermission(); } catch (e) {}
 }
 refresh();
-pollTimer = setInterval(refresh, 2000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) scheduleRefresh(HIDDEN_POLL_MS);
+  else refresh();
+});
 </script>
 </body>
 </html>

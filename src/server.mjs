@@ -156,10 +156,11 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
         if (all) {
-          // Drill-in: /api/state?projectId=<id> returns that one project's full
-          // board (workflows, skills, build) so the global board can show the
-          // detail panels for the selected project. No projectId => the
-          // aggregate overview across all registered projects.
+          // Drill-in: /api/state?projectId=<id> returns that one project's
+          // board (changes, workflows, build) so the global board can show the
+          // detail panels quickly. Skills are intentionally loaded on demand by
+          // /api/skills when the canvas picker opens, because marketplace skill
+          // discovery can be expensive. No projectId => aggregate overview.
           const projectId = url.searchParams.get('projectId') || url.searchParams.get('project');
           if (projectId) {
             const project = findRegisteredProject(projectId);
@@ -167,7 +168,7 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
               sendJson(res, 404, { error: 'Registered project not found.' });
               return;
             }
-            const detail = boardState(project.root, { locale: requestLocale });
+            const detail = boardState(project.root, { locale: requestLocale, includeSkills: false });
             detail.fromAll = true;
             detail.projectId = project.id;
             detail.projectName = project.name;
@@ -177,11 +178,12 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
           sendJson(res, 200, allProjectsBoardState({ locale: requestLocale }));
           return;
         }
-        sendJson(res, 200, boardState(root, { locale: requestLocale }));
+        sendJson(res, 200, boardState(root, { locale: requestLocale, includeSkills: false }));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
-        sendJson(res, 200, readUiLabels(root));
+        const targetRoot = all ? rootForRequest(root, url) : root;
+        sendJson(res, 200, readUiLabels(targetRoot));
         return;
       }
       // Discoverable skill catalog for the canvas skill picker. Cached, on

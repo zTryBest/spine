@@ -281,13 +281,14 @@ export function boardState(root, opts = {}) {
   ensureProjectWorkflows(root);
   const active = getActive(root);
   const workflows = listWorkflows(root, opts);
+  const includeSkills = opts.includeSkills !== false;
   return {
     mode: 'project',
     root,
     active,
     changes: listChangeSummaries(root, active, opts),
     workflows: workflows.map((workflow) => workflowDetails(root, workflow, opts)),
-    skills: skillCatalog(root),
+    skills: includeSkills ? skillCatalog(root) : [],
     notifications: readNotifications(root),
     projectBuild: readProjectBuild(root),
   };
