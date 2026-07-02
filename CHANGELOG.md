@@ -1,3 +1,13 @@
+## What's Changed [0.6.38] - 2026-07-02
+
+### Fixed
+
+- **旧状态文件 locale 兼容**: 旧引擎创建的 `.hikspine.yaml` 没有 `workflowLocale` 字段时，加载状态默认按 `zh` 处理，确保已有项目升级后继续执行和看板展示都读取中文 workflow；显式记录默认/英文 locale 的新状态不受影响。
+
+### Tests
+
+- **legacy workflowLocale 回归**: 增加旧状态文件无 `workflowLocale` 的加载测试，验证默认补齐为 `zh` 并读取中文 workflow。
+
 ## What's Changed [0.6.37] - 2026-07-02
 
 ### Added

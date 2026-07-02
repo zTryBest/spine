@@ -334,6 +334,10 @@ export function loadStateEntry(root, entry) {
   const state = readYamlFile(file);
   state.version ||= 1;
   state.change ||= entry.change;
+  // Legacy state files created before localized workflows did not record a
+  // locale. The Chinese entry existed first for most users, so treat missing
+  // workflowLocale as zh while preserving explicit default/English states.
+  if (state.workflowLocale == null) state.workflowLocale = 'zh';
   // tolerate legacy `current: { phase, node }` shape
   if (typeof state.current !== 'string') state.current = state.current?.phase || '';
   state.decisions ||= {};

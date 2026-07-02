@@ -520,6 +520,8 @@ eq "existing zh change resumes with stored locale" \
   "$(printf '%s' "$ZH_RESUME" | json_get 'j.workflowLocale')" "zh"
 has "existing zh change keeps zh goal without --locale" \
   "$(printf '%s' "$ZH_RESUME" | json_get 'j.goal')" "澄清"
+LEGACY_LOCALE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { ensureDir, writeText } = await import("./src/utils.mjs"); const { openSpecStateFile, loadState, loadWorkflow } = await import("./src/store.mjs"); ensureDir(`${root}/openspec/changes/legacy-locale/specs`); writeText(openSpecStateFile(root, "legacy-locale"), "version: 1\nchange: legacy-locale\nworkflow: feature\nworkflowVersion: \"17\"\nstorage: openspec\ncurrent: open\ndecisions: {}\nhistory:\n  - at: 2026-07-02T00:00:00.000Z\n    type: started\n    workflow: feature\n    state: open\n"); const state=loadState(root, "legacy-locale"); const wf=loadWorkflow(root, state.workflow, { locale: state.workflowLocale }); console.log(`${state.workflowLocale}:${wf.__locale}:${wf.states[0].goal}`);' "$T")"
+has "legacy state without workflowLocale defaults to zh" "$LEGACY_LOCALE" "zh:zh:澄清"
 CANVAS_ZH="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveProjectWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveProjectWorkflow(root, { id:"canvas-zh", version:1, name:"中文画布", intent:"中文编排保存。", start:"draft", states:[{ id:"draft", goal:"写草稿。", capabilities:[], needs:["drafted"], terminal:true }] }, { locale:"zh" }); const wf=loadWorkflow(root, "canvas-zh", { locale:"zh" }); console.log(`${r.file}:${wf.__locale}:${wf.name}`);' "$T")"
 eq "canvas can save zh project workflow yaml" "$CANVAS_ZH" ".hikspine/workflows/zh/canvas-zh.yaml:zh:中文画布"
 
