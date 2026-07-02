@@ -3,6 +3,7 @@
 ### Fixed
 
 - **中文入口 workflow 回落英文**: `hikspine-zh` 的引擎命令示例和执行规范改为每次显式传 `--project-root "$PROJECT_ROOT"` 与 `--locale zh`，不再只依赖 `HIKSPINE_WORKFLOW_LOCALE=zh`。这样即使 Claude Code 把 runtime 定位和后续 `node` 调用拆成多个 Bash，也不会因为环境变量丢失而列出/启动英文 workflow，空项目第一次运行也会落到正确项目根。
+- **Claude Code 插件版本同步**: `.claude-plugin/plugin.json` 的版本号同步到 `0.6.43`，避免 Claude Code 继续按旧 manifest 安装或缓存 `0.6.36` 插件。
 
 ### Tests
 
