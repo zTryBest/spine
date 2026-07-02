@@ -448,7 +448,12 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const api = (p,o) => fetch(p,o).then(r=>r.json());
+function localizedPath(p) {
+  if (!/^\/api\/(state|workflows)\b/.test(p)) return p;
+  const sep = p.includes('?') ? '&' : '?';
+  return p + sep + 'locale=' + encodeURIComponent(lang === 'zh' ? 'zh' : 'en');
+}
+const api = (p,o) => fetch(localizedPath(p),o).then(r=>r.json());
 
 let lang = localStorage.getItem('hikspine-lang') || 'zh';
 let last = null;
@@ -582,7 +587,7 @@ const goalText = (c) => (lang==='zh' && GOAL_ZH[c.goal]) ? GOAL_ZH[c.goal] : (c.
 const SKILL_ZH = {
   hikspine:'驱动 Hikspine 的 next / decide 工作流。',
   'hikspine-ui':'启动本地 Hikspine 看板并指向当前项目。',
-  'hikspine-engine-zh':'Hikspine 引擎的中文操作说明。',
+  'hikspine-zh':'用中文驱动 Hikspine 工作流并加载中文 workflow。',
   brainstorming:'探索方案、未知点、取舍与待澄清问题。',
   'writing-plans':'编写实现计划。',
   'executing-plans':'执行实现计划或聚焦修复。',
@@ -1540,7 +1545,7 @@ async function saveCanvasWorkflow() {
   if (errors.length) { status.textContent = errors[0]; return; }
   status.textContent = lang === 'zh' ? '保存中...' : 'Saving...';
   try {
-    const payload = { workflow };
+    const payload = { workflow, locale: lang === 'zh' ? 'zh' : 'en' };
     if (selectedProjectId) payload.projectId = selectedProjectId;
     const result = await api('/api/workflows', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
     if (result.error) throw new Error(result.error);

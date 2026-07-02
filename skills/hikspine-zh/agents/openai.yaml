@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hikspine 中文工作流"
+  short_description: "用中文选择、启动和推进 Hikspine workflow，并按状态加载所需 skills。"
+  default_prompt: "用中文通过 Hikspine 推进当前工作流。"

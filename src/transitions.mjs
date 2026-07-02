@@ -137,6 +137,7 @@ export function computeNext(root, workflow, state) {
   return {
     change: state.change,
     workflow: state.workflow,
+    workflowLocale: state.workflowLocale || workflow.__locale || '',
     ...summarize(workflow, state),
     capabilities: list(s.capabilities).map((raw) => resolveCapability(index, raw)),
     // Decisions recorded so far (key -> value). A capability's `when` condition

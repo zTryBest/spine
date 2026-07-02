@@ -1,0 +1,39 @@
+# Hikspine 内置 workflow 中文运行版。
+# 仅翻译人类可读字段；id、states[].id、needs、capabilities、next 等状态机键保持英文。
+
+id: fix
+version: 10
+# 文档语言规则：workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+name: 修复
+intent: 修复 Bug 或进行小型轻量改动。适用于问题已经比较清楚、风险较低的场景（包括紧急线上修复），不需要完整设计阶段；仍会保留一份精简 OpenSpec proposal 作为记录和看板数据源。
+start: inspect
+
+states:
+  - id: inspect
+    goal: 理解问题，并记录一份精简 OpenSpec proposal。
+    forbid: [write-source]
+    capabilities:                        # required=必加载, group=同组二选一, when=条件加载
+      - { id: systematic-debugging, required: true }
+      - { id: openspec-propose, required: true }
+    rules:
+      - 理解 bug 及其影响范围时，优先使用 codegraph MCP 工具 `codegraph_explore`（如果图谱缺失，先运行一次 `codegraph init`），不要盲目 grep/glob/Read；如果 codegraph 不可用，再回退到普通搜索。
+      - 保持 OpenSpec proposal 精简：只写一份短 proposal.md，描述哪里坏了以及打算如何修复。小改动跳过 design.md 和详细 tasks/specs；这份 spec 是快速记录和看板数据源，不是重型产物。
+    needs: [issue_understood, proposal_ready]
+    next: fix
+
+  - id: fix
+    goal: 应用最小补丁。
+    capabilities:
+      - { id: executing-plans, required: true }
+    needs: [patched]
+    next: verify
+
+  - id: verify
+    goal: 执行聚焦验证。
+    capabilities:
+      - { id: verification-before-completion, required: true }
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: fix
+    fail_reason: 验证未通过。
+    terminal: true

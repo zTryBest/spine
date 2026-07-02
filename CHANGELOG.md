@@ -1,3 +1,20 @@
+## What's Changed [0.6.37] - 2026-07-02
+
+### Added
+
+- **中文运行时 workflow 资源**: 新增 `src/workflows/zh/`，中文入口可直接加载中文 `name`、`intent`、`goal`、`rules`，同时保持 `id`、`states[].id`、`needs`、`capabilities`、`next` 等状态机键不变，避免翻译破坏流转。
+
+### Changed
+
+- **workflow locale 持久化**: 引擎支持 `--locale zh` 与 `HIKSPINE_WORKFLOW_LOCALE=zh`，新建 change 会记录 `workflowLocale`，后续恢复优先使用状态文件里的语言，避免切换入口后中英文 workflow 混用。
+- **中文 skill 入口执行中文 workflow**: 中文入口改名为 `hikspine-zh`，runtime 定位块会设置 `HIKSPINE_WORKFLOW_LOCALE=zh`，并说明中文自定义 workflow 保存到 `.hikspine/workflows/zh/<id>.yaml`。
+- **中文 skill 聚焦执行规范**: 重写 `hikspine-zh`，去掉面向文件自身的解释，保留中文工作流运行纪律、workflow 选择、next/decide 主循环、capability skill 加载、用户确认点和看板启动规范。
+- **看板编排保存按语言落盘**: UI 在中文语言下请求中文 workflow，并把画布保存到项目级中文 workflow 目录；默认语言仍保存到 `.hikspine/workflows/<id>.yaml`。
+
+### Tests
+
+- **workflow locale 覆盖**: 增加中文 workflow 结构一致性、中文列表、中文 change 创建/恢复、中文画布保存路径的内核测试，防止后续误翻译决策键或状态 id。
+
 ## What's Changed [0.6.36] - 2026-07-01
 
 ### Added

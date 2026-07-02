@@ -1,0 +1,127 @@
+# Hikspine 内置 workflow 中文运行版。
+# 仅翻译人类可读字段；id、states[].id、needs、capabilities、next 等状态机键保持英文。
+
+id: new
+version: 22
+name: 新建项目
+intent: 从零到一构建项目。先拉取真实脚手架并记录组件/目录事实，再进行头脑风暴、OpenSpec、设计和实现，避免文档凭空生成错误目录。
+start: scaffold
+
+states:
+  - id: scaffold
+    goal: 先确定项目身份和后端脚手架，按需拉取骨架，并在任何头脑风暴或 OpenSpec 文档生成前记录真实组件/目录事实。
+    capabilities:
+      - { id: scaffold-aries-cli, group: backend, when: 项目需要后端服务时 }
+      - { id: scaffold-starfish-initializr, group: backend, when: 项目需要后端服务时 }
+    rules:
+      - 在运行 brainstorming 或写 OpenSpec 产物前，只向用户确认最小脚手架输入：是否需要后端服务、使用哪个后端脚手架/公司标准、组件标识和项目目录。
+      - scaffold-aries-cli 和 scaffold-starfish-initializr 都是后端脚手架。需要后端时，二选一运行；不要两个都跑，也不要手写骨架。
+      - 没有前端脚手架。前端如果存在，不在这里拉取；后续 build 阶段用 hui-pro UI 组件库构建。纯前端项目本阶段不拉任何脚手架，直接往下走。
+      - 新拉取的脚手架不要初始化或要求 codegraph。新骨架业务代码很少，只检查目录树、文件名、构建文件、包/模块名，并使用轻量 `rg` 搜索；这类上下文用 grep/tree 更可靠。
+      - 把构建元数据记到 `.hikspine/project-build.json`，结构为 project 加 components 数组；每个组件条目含 component（组件标识）、svn（SVN 地址），以及可选的 module、buildType、artifact 字段。每拉一个脚手架就在 components 里追加或更新一条，保持这个文件是唯一事实来源。
+    needs: [scaffolded]
+    next: brainstorm
+
+  - id: brainstorm
+    goal: 在真实脚手架和组件事实已知后，探索产品方向、未知点、约束和可行方案，再创建 OpenSpec 产物。
+    forbid: [write-source]
+    capabilities:
+      - { id: brainstorming, required: true }
+    rules:
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+      - 在 OpenSpec 之前使用 brainstorming，让 proposal 记录已经探索过的方案、取舍和未解决问题。
+      - 头脑风暴必须基于已存在的脚手架。先读取 `.hikspine/project-build.json` 并检查目录树/构建文件；不要根据功能名或 change 名凭空发明项目目录、包名或组件标识。
+    needs: [brainstorming_done]
+    next: openspec
+
+  - id: openspec
+    goal: 根据头脑风暴方向和真实脚手架事实创建 OpenSpec 产物。
+    forbid: [write-source]
+    capabilities:
+      - { id: openspec-propose, required: true }
+    rules:
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+      - OpenSpec 名称和示例要基于 `.hikspine/project-build.json` 与实际脚手架目录。change/spec 名可以描述产品能力，但组件标识、包名和路径必须来自脚手架事实。
+    needs: [proposal_ready]
+    next: design
+
+  - id: design
+    goal: 把 OpenSpec 产物转成具体实现设计，并获得用户确认。
+    forbid: [write-source]
+    requires_user: true
+    capabilities:
+      - { id: writing-plans, required: true }
+    rules:
+      - workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言；除非用户明确要求另一种语言。代码标识、命令、路径、API 名称和上游 skill 名称保持原文。
+      - 使用 writing-plans 在 build 开始前记录实现设计、任务拆分和验证方案。
+      - 设计只使用轻量脚手架上下文：读取 `.hikspine/project-build.json`，列目录树，检查构建/配置文件、包/模块名，并使用定向 `rg` 搜索。不要要求新骨架使用 codegraph。
+      - 在主上下文中，派发 planning subAgent 前不要 Read proposal.md、tasks.md、design.md 或 specs 内容；只列出或检查产物路径，然后传递路径。
+      - 在 subAgent（Task 工具）中运行 writing-plans，并且只使用文件交接。只传产物路径，不传文件内容；不要把 proposal.md、tasks.md、specs、design.md 或 OpenSpec 摘要内联进 prompt。
+      - 单计划模式的交接输入是 openspec/changes/{change}/proposal.md、openspec/changes/{change}/tasks.md、可选的 openspec/changes/{change}/design.md，以及 openspec/changes/{change}/specs/**/*.md。subAgent 只读取自己需要的文件，并写入 docs/superpowers/plans/{change}.md。
+      - 如果 specs/**/*.md 超过一个文件，或 tasks.md 超过 6 个任务组，则按 spec 分片计划：每个 spec 派发一个 writing-plans subAgent，传入 proposal.md、tasks.md、可选 design.md，以及一个明确的 specs/{spec-id}/spec.md 路径。每个子计划写入 docs/superpowers/plans/{change}-{spec-id}.md。
+      - 最多同时派发 3 个 writing-plans subAgent（公司并发限制）。分片超过 3 个时，按每批 3 个分批跑，每批跑完再开下一批，避免 subAgent 超时。
+      - 分片子计划都生成后，创建一个精简 manifest 到 docs/superpowers/plans/{change}.md，链接所有子计划，说明执行顺序、共享契约和集成验证。不要在 manifest 里重复子计划的详细实现步骤。
+      - 主 Agent 只带回 manifest 或计划路径、分片时的子计划路径、简要摘要和阻塞点，然后请求用户确认。
+      - 征询确认时，一并询问用户是否为 build 启用 TDD 模式（test-driven-development）。把回答记为 tdd_mode 决策：运行 `decide tdd_mode true` 或 `decide tdd_mode false`，build 阶段会读取它。
+    needs: [design_documented, tdd_mode, design_confirmed]
+    next: build
+
+  - id: build
+    goal: 在已拉取的真实脚手架上，按已确认设计实现初始项目。
+    capabilities:
+      - { id: executing-plans, group: driver }
+      - { id: subagent-driven-development, group: driver }
+      - { id: test-driven-development, when: design 阶段的 tdd_mode 决策为 true 时 }
+      - { id: hui-pro, when: 构建任何前端 UI 组件时 }
+    rules:
+      - 执行驱动必须且只能选择一个。小型、本地、基本顺序执行的工作使用 executing-plans；如果 build 能拆分到独立模块、需要并行 agent，或能从隔离的实现/评审/修复上下文中获益，则使用 subagent-driven-development。
+      - 技能在"写代码的地方"加载，不在编排者处加载。主 session 只加载你选的驱动。按任务技能 test-driven-development 和 hui-pro 由真正写代码的一方加载——用 executing-plans 时是主 session，用 subagent-driven-development 时是各 implementer subAgent(经其 brief)。用 subagent-driven-development 时，**主 session 不要加载** test-driven-development 和 hui-pro，主 session 只负责编排。
+      - 当 design 阶段记录的 tdd_mode 决策为 true 时，实现必须先写失败测试再写代码。谁写代码谁加载 test-driven-development：executing-plans 下是主 session，subagent-driven-development 下是 implementer subAgent。tdd_mode 为 false 时正常实现。
+      - 使用 subagent-driven-development 时，最多同时跑 3 个实现 subAgent；模块更多时按每批 3 个分批跑，每批跑完再开下一批。
+      - 不要依赖 git worktree 隔离来并行 subAgent。Agent worktree 要求 Claude Code 会话本身是在一个 git 仓库里启动的；刚拉的脚手架通常不是，而且在项目里 `git init` 也救不了（会话根目录不一致时会报 "Cannot create agent worktree: not in a git repository"）。并行 implementer 一律**不加** worktree 隔离，给每个 subAgent 划分互不重叠的文件/模块，避免冲突。若带隔离的派发报错，立刻改成不带隔离重派，不要停；无法划分互不重叠时就顺序执行。
+      - 使用 subagent-driven-development 的内置辅助脚本时，按上游 skill 文档里的真实脚本名调用，例如 `scripts/task-brief` 和 `scripts/review-package`；不要自行追加 `.mjs` 后缀，也不要用 `node` 执行，除非实际脚本文件确实是该扩展名。
+      - 任何 UI 组件都必须使用 hui-pro：谁写前端 UI 谁加载 hui-pro——executing-plans 下是主 session，subagent-driven-development 下是 implementer subAgent。没有前端脚手架，hui-pro 是产出 UI 的唯一正规路径。
+      - subAgent 只看得到自己的 brief。使用 subagent-driven-development 时，把适用的按任务要求写进每个 subAgent brief：涉及前端 UI 的要求使用 hui-pro，tdd_mode 为 true 的要求遵循 test-driven-development。
+      - 骨架已经在 brainstorming 前拉取。改代码前使用 `.hikspine/project-build.json`、目录列表、构建/配置文件、包/模块名和定向 `rg` 搜索定位文件；不要重新运行 scaffold，也不要要求新骨架使用 codegraph。
+    needs: [implemented]
+    next: review
+
+  - id: review
+    goal: 评审实现和公司规范。
+    capabilities:
+      - { id: requesting-code-review, required: true }
+    needs: [review_result=pass]
+    fail_when: review_result=fail
+    fail_to: build
+    fail_reason: 评审发现实现问题。
+    next: verify
+
+  - id: verify
+    goal: 验证行为和 OpenSpec 覆盖。
+    capabilities:
+      - { id: verification-before-completion, required: true }
+      - { id: openspec-verify-change, required: true }
+    needs: [verify_result=pass]
+    fail_when: verify_result=fail
+    fail_to: build
+    fail_reason: 验证未通过。
+    next: archive
+
+  - id: archive
+    goal: 用户确认后归档已完成的变更。
+    forbid: [write-source]
+    requires_user: true
+    capabilities:
+      - { id: openspec-archive-change, required: true }
+    needs: [archived]
+    next: hido
+
+  - id: hido
+    goal: 进行 SVN 构建/打包；执行前需要询问用户确认是否构建。
+    forbid: [write-source]
+    requires_user: true
+    capabilities:
+      - { id: custom-component-creator, required: true }
+    rules:
+      - 读取 `.hikspine/project-build.json`（scaffold 阶段写入）拿到每个组件的组件标识和 SVN 地址，用这些已记录的值驱动 SVN 构建/打包，不要再让用户重新提供。文件缺失或缺某个组件时，构建前先询问用户。
+    terminal: true
