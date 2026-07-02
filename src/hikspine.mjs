@@ -18,7 +18,6 @@ import {
 } from './utils.mjs';
 import {
   getActive,
-  ensureProjectWorkflows,
   listWorkflows,
   loadOrCreatePair,
   loadState,
@@ -47,7 +46,6 @@ function resolveRegisteredProjectRoot(opts) {
 function cmdNext(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
-  ensureProjectWorkflows(root);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const { state, workflow, created } = loadOrCreatePair(root, opts._[0], opts);
   const action = computeNext(root, workflow, state);
@@ -92,16 +90,18 @@ function cmdChanges(args) {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
-// List available workflows (builtin + project) with their selection intent,
-// so the agent can route a request to the right workflow.
+// List available workflows with their selection intent, so the agent can route
+// a request and detect duplicate ids across scopes.
 function cmdWorkflows(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
-  ensureProjectWorkflows(root);
   const workflows = listWorkflows(root, opts);
   if (opts.json) { printJson({ workflows }); return; }
   const lines = ['HIKSPINE workflows:'];
-  for (const w of workflows) lines.push(`- ${w.id} [${w.source}]: ${w.intent || w.name}`);
+  for (const w of workflows) {
+    const conflict = w.conflictSources?.length ? ` conflict:${w.conflictSources.join('|')}` : '';
+    lines.push(`- ${w.id} [${w.source}${conflict}]: ${w.intent || w.name}`);
+  }
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
@@ -131,7 +131,6 @@ function cmdBoard(args) {
     return;
   }
   const root = resolveRegisteredProjectRoot(opts);
-  ensureProjectWorkflows(root);
   const state = boardState(root, opts);
   if (opts.json) { printJson(state); return; }
   const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
@@ -150,14 +149,13 @@ function cmdBoard(args) {
 function cmdUi(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
-  ensureProjectWorkflows(root);
   const port = opts.port ? Number(opts.port) : 4319;
   startBoard(root, { port, all: !!opts.all, locale: opts.locale || '' }).catch((err) => die(`Cannot start board: ${err.message}`));
 }
 
 function help() {
   process.stdout.write(`Usage:
-  hikspine next [change] [--workflow <id>] [--storage openspec|standalone] [--locale zh] [--json]
+  hikspine next [change] [--workflow <id>] [--workflow-source user|local|builtin] [--storage openspec|standalone] [--locale zh] [--json]
   hikspine decide <key> [value] [--change <change>] [--locale zh] [--json]
   hikspine changes [--json]
   hikspine workflows [--json]
@@ -169,6 +167,7 @@ Global options:
   --project-root <dir>  Read/write Hikspine state for this project instead of the current directory.
   HIKSPINE_PROJECT_ROOT may also be set in the environment.
   --locale zh           Use localized workflow YAML when available. Existing changes keep their recorded workflowLocale.
+  --workflow-source     Choose a workflow scope when the same workflow id exists in multiple scopes.
   HIKSPINE_WORKFLOW_LOCALE may also be set in the environment.
 
 Agent protocol:
@@ -191,8 +190,8 @@ Examples:
   hikspine ui --project-root /path/to/project
   hikspine ui --all
 
-Workflows resolve from .hikspine/workflows/<locale>/<id>.yaml first when --locale is set,
-then .hikspine/workflows/<id>.yaml, builtin locale workflows, and builtin default workflows.
+Workflows resolve from local .hikspine/workflows, user ~/.hikspine/workflows, and read-only builtin templates.
+If the same workflow id exists in multiple scopes, ask the user which one to use and pass --workflow-source.
 If --workflow is omitted for a new change, Hikspine uses .hikspine/config.yaml defaultWorkflow,
 then the builtin default.
 `);

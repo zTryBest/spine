@@ -10,7 +10,7 @@ import path from 'node:path';
 import { allProjectsBoardState, boardState } from './board.mjs';
 import { skillCatalog } from './skills.mjs';
 import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
-import { saveProjectWorkflow, setActive } from './store.mjs';
+import { saveWorkflow, setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 import { findRegisteredProject, readRegisteredProjects } from './project-registry.mjs';
 
@@ -155,6 +155,7 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/state') {
+        const fast = url.searchParams.get('fast') === '1' || url.searchParams.get('fast') === 'true';
         if (all) {
           // Drill-in: /api/state?projectId=<id> returns that one project's
           // board (changes, workflows, build) so the global board can show the
@@ -168,8 +169,14 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
               sendJson(res, 404, { error: 'Registered project not found.' });
               return;
             }
-            const detail = boardState(project.root, { locale: requestLocale, includeSkills: false });
+            const detail = boardState(project.root, {
+              locale: requestLocale,
+              includeSkills: false,
+              includeArtifacts: !fast,
+              includeWorkflowDetails: !fast,
+            });
             detail.fromAll = true;
+            detail.fast = fast;
             detail.projectId = project.id;
             detail.projectName = project.name;
             sendJson(res, 200, detail);
@@ -178,7 +185,14 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
           sendJson(res, 200, allProjectsBoardState({ locale: requestLocale }));
           return;
         }
-        sendJson(res, 200, boardState(root, { locale: requestLocale, includeSkills: false }));
+        const detail = boardState(root, {
+          locale: requestLocale,
+          includeSkills: false,
+          includeArtifacts: !fast,
+          includeWorkflowDetails: !fast,
+        });
+        detail.fast = fast;
+        sendJson(res, 200, detail);
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
@@ -272,7 +286,10 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
         const body = await readBody(req);
         try {
           const targetRoot = all ? rootForRequest(root, url, body) : root;
-          const result = saveProjectWorkflow(targetRoot, body.workflow || body, { locale: localeForRequest(url, body) || locale });
+          const result = saveWorkflow(targetRoot, body.workflow || body, {
+            locale: localeForRequest(url, body) || locale,
+            scope: body.scope || body.source || 'local',
+          });
           sendJson(res, 200, result);
         } catch (err) {
           sendJson(res, 400, { error: err.message });

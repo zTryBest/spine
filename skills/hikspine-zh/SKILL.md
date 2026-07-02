@@ -50,7 +50,7 @@ PROJECT_ROOT="<项目根目录>"
 node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
-`--locale zh` 会让新建 change 优先加载项目级 `.hikspine/workflows/zh/<workflow-id>.yaml`。`workflows`、`next`、`board`、`ui` 会把插件内置 workflow 模板补齐到当前项目 `.hikspine/workflows/`，只复制缺失文件，不覆盖项目已有定制。已有 change 使用状态文件里记录的 `workflowLocale`，不会因为之后切换入口而改变。
+`--locale zh` 会让新建 change 优先加载中文 workflow YAML。workflow scope 分为 `builtin`（插件内置只读模板）、`user`（本机 `~/.hikspine/workflows`，新项目也可加载）和 `local`（当前项目 `.hikspine/workflows`）。已有 change 使用状态文件里记录的 `workflowLocale` 和 `workflowSource`，不会因为之后切换入口而改变。若同一个 workflow id 同时存在于多个 scope，必须先询问用户使用哪一个，并在 `next` 命令里显式传 `--workflow-source user|local|builtin`，禁止自行猜测。
 
 引擎命令必须传 `--project-root "$PROJECT_ROOT"`。全新项目第一次 `next` 必须显式指向项目根目录，确保 `openspec/` 和 `.hikspine/` 落在根目录。
 
@@ -178,4 +178,4 @@ feature   open -> design -> build -> review -> verify -> archive
 fix       inspect -> fix -> verify
 ```
 
-新增中文 workflow 放当前项目 `.hikspine/workflows/zh/<id>.yaml`，默认语言 workflow 放当前项目 `.hikspine/workflows/<id>.yaml`，传 `--workflow <id>`。插件内置 workflow 只是模板来源，不要直接编辑插件目录里的 workflow。
+新增 workflow 可以保存到用户级 `~/.hikspine/workflows/<id>.yaml`（中文为 `~/.hikspine/workflows/zh/<id>.yaml`），也可以保存到项目级 `.hikspine/workflows/<id>.yaml`（中文为 `.hikspine/workflows/zh/<id>.yaml`），然后传 `--workflow <id>`。插件内置 workflow 是只读模板，不要编辑插件目录里的 workflow；需要定制时先复制到用户级或项目级。若 id 与内置或其他 scope 冲突，启动前必须询问用户，并显式传 `--workflow-source`。

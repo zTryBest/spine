@@ -69,16 +69,15 @@ function samePath(a, b) {
 // hooks (notifications, ui pid) anchor to the SAME .hikspine the engine writes
 // — not the git toplevel of whatever subdirectory the agent happens to be in.
 // Prefers a "real" project (has openspec/changes, .hikspine/active, or
-// .hikspine/changes) over a bare .hikspine (which may be a stray from a wrong
-// cwd), and falls back to startDir when nothing is found. The global registry
-// home (~/.hikspine) is explicitly NOT a project marker, otherwise every dir
-// under the user's home would resolve its project root to the home directory.
+// .hikspine/changes). A bare .hikspine ancestor is not enough: it may be a
+// stray UI/cache directory from a wrong cwd, and capturing a brand-new child
+// project would scatter state into the wrong root. The global registry home
+// (~/.hikspine) is explicitly NOT a project marker either.
 export function findProjectRoot(startDir) {
   let dir;
   try { dir = path.resolve(startDir || '.'); } catch { return path.resolve('.'); }
   const start = dir;
   const home = hikspineHomeDir();
-  let weakHit = '';
   for (;;) {
     // The home directory that hosts the registry (~/.hikspine) is never a
     // project root, even if scattered openspec/.hikspine state landed there.
@@ -89,12 +88,11 @@ export function findProjectRoot(startDir) {
       || fs.existsSync(path.join(dir, '.hikspine', 'changes'))
     );
     if (strong) return dir;
-    if (!weakHit && !isHome && fs.existsSync(path.join(dir, '.hikspine'))) weakHit = dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  return weakHit || start;
+  return start;
 }
 
 export function nowIso() {

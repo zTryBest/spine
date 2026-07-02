@@ -253,6 +253,8 @@
   .canvas-btn:hover { border-color:rgba(98,210,162,.5); }
   .canvas-btn:disabled { opacity:.45; cursor:default; }
   .canvas-status { color:var(--muted); font-size:12px; margin-left:4px; }
+  .canvas-save-scope { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; font-weight:750; }
+  .canvas-save-scope select { color:var(--text); background:#0b0f15; border:1px solid var(--line2); border-radius:7px; padding:6px 8px; font:12px/1.2 ui-sans-serif,system-ui,sans-serif; }
   .canvas-main { display:grid; grid-template-columns:minmax(0,1fr) 460px; min-height:0; flex:1 1 auto; }
   .canvas-main.inspector-closed { grid-template-columns:minmax(0,1fr); }
   .canvas-board { position:relative; min-height:560px; overflow:auto; background:radial-gradient(circle at 16px 16px, rgba(255,255,255,.055) 1px, transparent 1px); background-size:24px 24px; }
@@ -522,6 +524,8 @@ let canvasDirty = false;
 let canvasOpen = false;
 let canvasInspectorOpen = false;
 let canvasInspectorMode = 'stage';
+let canvasReadOnly = false;
+let canvasSaveScope = localStorage.getItem('hikspine-workflow-save-scope') || 'user';
 
 // ── i18n: UI chrome ───────────────────────────────────────────────
 const I18N = {
@@ -1167,7 +1171,7 @@ function openProjectDetail(projectId) {
   };
   lastRenderKey = '';
   renderAll();
-  refresh();
+  refresh({ fast:true });
 }
 function goProjectOverview() {
   selectedProjectId = null;
@@ -1310,6 +1314,33 @@ function renderProjectBuild(pb) {
 function workflowKey(w) {
   return [w?.source || '', w?.locale || '', w?.id || ''].join(':');
 }
+function workflowSourceLabel(source) {
+  const labels = {
+    builtin: { zh:'内置模板', en:'Builtin template' },
+    user: { zh:'用户级', en:'User scope' },
+    local: { zh:'项目级', en:'Project scope' },
+    project: { zh:'项目级', en:'Project scope' },
+  };
+  return (labels[source] && labels[source][lang]) || source || '';
+}
+function workflowSourceHint(source) {
+  const hints = {
+    builtin: { zh:'插件内置模板只读；复制后可保存为自定义 workflow。', en:'Plugin built-in templates are read-only. Copy one to save a custom workflow.' },
+    user: { zh:'保存到本机 Hikspine 用户目录，新项目也能加载。', en:'Saved in the local Hikspine user directory and available to new projects.' },
+    local: { zh:'保存到当前项目 .hikspine/workflows。', en:'Saved to this project under .hikspine/workflows.' },
+    project: { zh:'保存到当前项目 .hikspine/workflows。', en:'Saved to this project under .hikspine/workflows.' },
+  };
+  return (hints[source] && hints[source][lang]) || '';
+}
+function workflowConflictText(w) {
+  const sources = Array.isArray(w?.conflictSources) ? w.conflictSources : [];
+  if (!sources.length) return '';
+  const names = sources.map(workflowSourceLabel).join(' / ');
+  return lang === 'zh' ? '同名冲突：' + names : 'Name conflict: ' + names;
+}
+function isBuiltinWorkflow(w) {
+  return w?.readonly || w?.source === 'builtin';
+}
 function selectedWorkflow(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
   return workflows.find(w => workflowKey(w) === selectedWorkflowKey)
@@ -1321,7 +1352,7 @@ function selectedWorkflow(workflows) {
 function renderWorkflows(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
   $('workflowActionbar').hidden = !workflows.length;
-  $('canvasOpen').textContent = lang === 'zh' ? '自定义工作流' : 'Custom workflow';
+  $('canvasOpen').textContent = lang === 'zh' ? '工作流编排中心' : 'Workflow studio';
   if (!workflows.length) {
     closeWorkflowCanvas(false);
     $('legend').innerHTML = '';
@@ -1333,9 +1364,10 @@ function renderWorkflows(workflows) {
   selectedWorkflowKey = selected ? workflowKey(selected) : '';
   $('legend').innerHTML = workflows.map(w=>{
     const key = workflowKey(w);
-    const sourceTag = w.source ? '<span class="tag">'+esc(w.source)+(w.conflictsBuiltin?' !':'')+'</span>' : '';
+    const conflict = workflowConflictText(w);
+    const sourceTag = w.source ? '<span class="tag" title="'+esc(workflowSourceHint(w.source))+'">'+esc(workflowSourceLabel(w.source))+(conflict?' !':'')+'</span>' : '';
     return '<button type="button" class="wf-chip '+(key===selectedWorkflowKey?'active':'')+'" data-workflow-key="'+esc(key)+'"><div class="id">'+esc(wfName(w))+
-      '<span class="tag">'+esc(w.id)+'</span>'+sourceTag+'</div><div class="it">'+esc(wfIntent(w))+'</div></button>';
+      '<span class="tag">'+esc(w.id)+'</span>'+sourceTag+'</div><div class="it">'+esc(conflict || wfIntent(w))+'</div></button>';
   }).join('');
   $('legend').querySelectorAll('[data-workflow-key]').forEach(btn => {
     btn.onclick = () => {
@@ -1389,10 +1421,12 @@ function renderWorkflowDetail(workflows) {
 
 async function openWorkflowCanvas() {
   if (!last || last.mode === 'all') return;
+  if (last.fast) await refresh({ full:true });
+  if (!last || last.mode === 'all') return;
   canvasOpen = true;
   canvasInspectorMode = 'stage';
-  $('workflowCanvasTitle').textContent = lang === 'zh' ? '自定义 workflow 编排' : 'Custom workflow canvas';
-  $('workflowCanvasHint').textContent = lang === 'zh' ? '保存会写入当前项目 .hikspine/workflows；插件内置 workflow 只作为模板，项目副本才可编辑。' : 'Saves to the current project .hikspine/workflows. Plugin built-in workflows are templates; project copies are editable.';
+  $('workflowCanvasTitle').textContent = lang === 'zh' ? '工作流编排中心' : 'Workflow studio';
+  $('workflowCanvasHint').textContent = lang === 'zh' ? '内置 workflow 是只读模板；复制后可保存到用户级或项目级自定义 workflow。' : 'Built-in workflows are read-only templates. Copy one, then save it to user or project scope.';
   $('canvasClose').textContent = lang === 'zh' ? '关闭' : 'Close';
   renderWorkflowCanvas(last.workflows || []);
   $('workflowCanvasModal').hidden = false;
@@ -1761,6 +1795,7 @@ function canvasEnsure(workflows) {
     selectedCanvasStage = canvasWorkflow.start || canvasWorkflow.states[0]?.id || '';
     canvasDirty = false;
   }
+  canvasReadOnly = isBuiltinWorkflow(selected) && !String(canvasSourceId || '').startsWith('copy:') && !String(canvasSourceId || '').startsWith('blank:');
   return canvasWorkflow;
 }
 function selectedStage() {
@@ -1809,24 +1844,28 @@ function deleteCanvasStage(id = selectedCanvasStage) {
 }
 async function saveCanvasWorkflow() {
   const status = $('canvasStatus');
+  if (canvasReadOnly) {
+    status.textContent = lang === 'zh' ? '内置模板只读，请先复制为自定义 workflow。' : 'Built-in templates are read-only. Copy one before saving.';
+    return;
+  }
   const workflow = prepareWorkflowForSave(canvasWorkflow);
   const errors = canvasErrors(workflow);
   if (errors.length) { status.textContent = errors[0]; return; }
   status.textContent = lang === 'zh' ? '保存中...' : 'Saving...';
   try {
-    const payload = { workflow, locale: lang === 'zh' ? 'zh' : 'en' };
+    const payload = { workflow, locale: lang === 'zh' ? 'zh' : 'en', scope: canvasSaveScope };
     if (selectedProjectId) payload.projectId = selectedProjectId;
     const result = await api('/api/workflows', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
     if (result.error) throw new Error(result.error);
     selectedWorkflowId = workflow.id;
-    selectedWorkflowKey = workflowKey({ id: workflow.id, source: result.source || 'project', locale: result.locale || '' });
+    selectedWorkflowKey = workflowKey({ id: workflow.id, source: result.source || canvasSaveScope, locale: result.locale || '' });
     localStorage.setItem('hikspine-workflow', selectedWorkflowId);
     localStorage.setItem('hikspine-workflow-key', selectedWorkflowKey);
     canvasDirty = false;
     canvasSourceId = selectedWorkflowKey;
     canvasSourceKey = JSON.stringify(result.workflow || workflow);
     lastRenderKey = '';
-    status.textContent = lang === 'zh' ? '已保存到当前项目 .hikspine/workflows' : 'Saved to current project .hikspine/workflows';
+    status.textContent = (lang === 'zh' ? '已保存到' : 'Saved to ') + workflowSourceLabel(result.source || canvasSaveScope);
     await refresh();
   } catch (err) {
     status.textContent = err.message || String(err);
@@ -1884,10 +1923,12 @@ function renderWorkflowCanvas(workflows) {
     const nextP = positionForIndex(i + 1);
     const outSide = nextP.row === p.row ? (nextP.x > p.x ? 'right' : 'left') : 'bottom';
     const cls = ['canvas-node', s.id === selectedCanvasStage ? 'selected' : '', s.terminal ? 'terminal' : '', s.requires_user ? 'confirm' : ''].filter(Boolean).join(' ');
+    const addDisabled = canvasReadOnly ? 'disabled' : '';
+    const removeDisabled = (canvasReadOnly || states.length <= 1) ? 'disabled' : '';
     return '<article class="'+cls+'" role="button" tabindex="0" data-canvas-stage="'+esc(s.id)+'" style="left:'+p.x+'px;top:'+p.y+'px">'+
       '<div class="canvas-node-actions out-'+outSide+'">'+
-      '<button type="button" class="canvas-node-op add" data-canvas-add-after="'+esc(s.id)+'" title="'+esc(lang==='zh'?'在此阶段后添加':'Add after this stage')+'">+</button>'+
-      '<button type="button" class="canvas-node-op remove" data-canvas-delete="'+esc(s.id)+'" '+(states.length<=1?'disabled':'')+' title="'+esc(lang==='zh'?'删除此阶段':'Delete this stage')+'">-</button></div>'+
+      '<button type="button" class="canvas-node-op add" data-canvas-add-after="'+esc(s.id)+'" '+addDisabled+' title="'+esc(lang==='zh'?'在此阶段后添加':'Add after this stage')+'">+</button>'+
+      '<button type="button" class="canvas-node-op remove" data-canvas-delete="'+esc(s.id)+'" '+removeDisabled+' title="'+esc(lang==='zh'?'删除此阶段':'Delete this stage')+'">-</button></div>'+
       '<div class="canvas-node-head"><span class="canvas-num">'+(i+1)+'</span><span class="canvas-name">'+esc(label(s.id))+'</span></div>'+
       '<div class="canvas-goal">'+esc(s.goal || (lang==='zh'?'暂无目标':'No goal yet'))+'</div>'+
       '<div class="canvas-meta">'+(s.requires_user?'<span class="canvas-pill">'+(lang==='zh'?'确认':'confirm')+'</span>':'')+
@@ -1915,13 +1956,23 @@ function renderWorkflowCanvas(workflows) {
     : '<div class="empty">'+esc(lang==='zh'?'请选择一个阶段。':'Select a stage.')+'</div>';
   const inspectorTitle = canvasInspectorMode === 'workflow' ? L.workflow : L.stage;
   const inspectorBody = canvasInspectorMode === 'workflow' ? workflowPanel : stagePanel;
+  const activeWorkflow = selectedWorkflow(workflows);
+  const activeSource = activeWorkflow?.source || '';
+  const sourceNote = workflowConflictText(activeWorkflow) || workflowSourceHint(activeSource);
+  const saveScopeOptions = ['user', 'local'].map(scope =>
+    '<option value="'+scope+'" '+(canvasSaveScope===scope?'selected':'')+'>'+esc(workflowSourceLabel(scope))+'</option>'
+  ).join('');
+  const statusText = canvasReadOnly
+    ? (lang === 'zh' ? '内置模板只读，请复制后保存' : 'Read-only template; copy before saving')
+    : (canvasDirty ? (lang==='zh'?'未保存':'Unsaved') : workflowSourceLabel(activeSource || canvasSaveScope));
   host.innerHTML =
-    '<div class="canvas-toolbar"><div class="canvas-title">'+(lang==='zh'?'工作流编排画布':'Workflow orchestration canvas')+'</div>'+
+    '<div class="canvas-toolbar"><div class="canvas-title">'+(lang==='zh'?'工作流编排中心':'Workflow studio')+'</div>'+
+    '<label class="canvas-save-scope">'+(lang==='zh'?'保存到':'Save to')+' <select id="canvasSaveScope">'+saveScopeOptions+'</select></label>'+
     '<button class="canvas-btn" id="canvasNewBlank" type="button">'+(lang==='zh'?'新建空白':'New blank')+'</button>'+
     '<button class="canvas-btn" id="canvasCopySelected" type="button">'+(lang==='zh'?'复制当前':'Copy selected')+'</button>'+
     '<button class="canvas-btn '+(canvasInspectorMode==='workflow'?'active':'')+'" id="canvasWorkflowSettings" type="button">'+(lang==='zh'?'工作流设置':'Workflow settings')+'</button>'+
-    '<button class="canvas-btn primary" id="canvasSave" type="button">'+(lang==='zh'?'保存为项目 workflow':'Save project workflow')+'</button>'+
-    '<span class="canvas-status" id="canvasStatus">'+(canvasDirty ? (lang==='zh'?'未保存':'Unsaved') : (lang==='zh'?'项目 workflow':'Project workflow'))+'</span></div>'+
+    '<button class="canvas-btn primary" id="canvasSave" type="button" '+(canvasReadOnly?'disabled':'')+'>'+(lang==='zh'?'保存自定义 workflow':'Save custom workflow')+'</button>'+
+    '<span class="canvas-status" id="canvasStatus" title="'+esc(sourceNote)+'">'+esc(statusText)+'</span></div>'+
     '<div class="canvas-main '+(canvasInspectorOpen?'':'inspector-closed')+'"><div class="canvas-board" style="min-height:'+boardH+'px">'+
     '<svg class="canvas-svg" width="'+boardW+'" height="'+boardH+'" viewBox="0 0 '+boardW+' '+boardH+'"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="rgba(98,210,162,.72)"></path></marker></defs>'+edges+'</svg>'+nodes+'</div>'+
     '<aside class="canvas-inspector"><div class="canvas-inspector-head"><h3>'+esc(inspectorTitle)+'</h3><button class="canvas-panel-close" id="canvasInspectorCollapse" type="button">'+(lang==='zh'?'收起':'Collapse')+'</button></div>'+
@@ -1942,11 +1993,12 @@ function renderWorkflowCanvas(workflows) {
   });
   host.querySelectorAll('[data-canvas-delete]').forEach(btn => btn.onclick = event => {
     event.stopPropagation();
-    if (states.length <= 1) return;
+    if (canvasReadOnly || states.length <= 1) return;
     deleteCanvasStage(btn.dataset.canvasDelete);
   });
   host.querySelectorAll('[data-canvas-add-after]').forEach(btn => btn.onclick = event => {
     event.stopPropagation();
+    if (canvasReadOnly) return;
     addCanvasStage(btn.dataset.canvasAddAfter);
   });
   const collapse = $('canvasInspectorCollapse');
@@ -1959,10 +2011,16 @@ function renderWorkflowCanvas(workflows) {
     canvasInspectorOpen = true;
     renderWorkflowCanvas(workflows);
   };
+  $('canvasSaveScope').onchange = (event) => {
+    canvasSaveScope = event.target.value === 'local' ? 'local' : 'user';
+    localStorage.setItem('hikspine-workflow-save-scope', canvasSaveScope);
+    renderWorkflowCanvas(workflows);
+  };
   $('canvasNewBlank').onclick = () => {
     canvasWorkflow = newBlankWorkflow();
     canvasSourceId = 'blank:' + canvasWorkflow.id;
     canvasSourceKey = JSON.stringify(canvasWorkflow);
+    canvasReadOnly = false;
     selectedCanvasStage = canvasWorkflow.start;
     canvasInspectorMode = 'workflow';
     canvasInspectorOpen = true;
@@ -1976,6 +2034,10 @@ function renderWorkflowCanvas(workflows) {
     canvasWorkflow.name = (lang === 'zh' ? '自定义 ' : 'Custom ') + (source.name || source.id || 'Workflow');
     canvasSourceId = 'copy:' + workflowKey(source);
     canvasSourceKey = JSON.stringify(source);
+    canvasReadOnly = false;
+    if (source.source === 'user' || source.source === 'local') canvasSaveScope = source.source;
+    else canvasSaveScope = 'user';
+    localStorage.setItem('hikspine-workflow-save-scope', canvasSaveScope);
     selectedCanvasStage = canvasWorkflow.start || canvasWorkflow.states[0]?.id || '';
     canvasInspectorMode = 'workflow';
     canvasInspectorOpen = true;
@@ -1985,6 +2047,10 @@ function renderWorkflowCanvas(workflows) {
   const bind = (id, fn) => {
     const el = $(id);
     if (!el) return;
+    if (canvasReadOnly) {
+      el.disabled = true;
+      return;
+    }
     el.oninput = () => { fn(el); markCanvasDirty(false); };
     el.onchange = () => { fn(el); markCanvasDirty(true); };
   };
@@ -2002,13 +2068,18 @@ function renderWorkflowCanvas(workflows) {
   bind('csGoal', el => { current.goal = el.value; });
   bind('csRules', el => { current.rules = parseLines(el.value); });
   const csRulesExpand = $('csRulesExpand');
-  if (csRulesExpand) csRulesExpand.onclick = openRulesModal;
+  if (csRulesExpand) {
+    csRulesExpand.disabled = canvasReadOnly;
+    if (!canvasReadOnly) csRulesExpand.onclick = openRulesModal;
+  }
   bind('csNext', el => { current.next = el.value; current.terminal = !el.value ? current.terminal : false; });
   bind('csUser', el => { current.requires_user = el.checked; });
   bind('csTerminal', el => { current.terminal = el.checked; if (el.checked) current.next = ''; });
   const decisionEditor = $('csNeedsEditor');
   if (decisionEditor && current) {
+    if (canvasReadOnly) decisionEditor.querySelectorAll('input,select,button').forEach(el => { el.disabled = true; });
     const syncNeeds = (rerender = false) => {
+      if (canvasReadOnly) return;
       current.needs = readDecisionEditor();
       markCanvasDirty(rerender);
     };
@@ -2020,20 +2091,26 @@ function renderWorkflowCanvas(workflows) {
       el.onchange = () => syncNeeds(true);
     });
     decisionEditor.querySelectorAll('[data-decision-delete]').forEach(btn => {
+      btn.disabled = canvasReadOnly;
       btn.onclick = () => {
+        if (canvasReadOnly) return;
         current.needs.splice(Number(btn.dataset.decisionDelete), 1);
         markCanvasDirty(true);
       };
     });
     const addDecision = $('decisionAdd');
+    if (addDecision) addDecision.disabled = canvasReadOnly;
     if (addDecision) addDecision.onclick = () => {
+      if (canvasReadOnly) return;
       current.needs.push('decision_ready');
       markCanvasDirty(true);
     };
   }
   const capEditor = $('csCapsEditor');
   if (capEditor && current) {
+    if (canvasReadOnly) capEditor.querySelectorAll('input,select,button').forEach(el => { el.disabled = true; });
     const syncCaps = (rerender = false) => {
+      if (canvasReadOnly) return;
       current.capabilities = readCapabilityEditor();
       markCanvasDirty(rerender);
     };
@@ -2045,13 +2122,17 @@ function renderWorkflowCanvas(workflows) {
       el.onchange = () => syncCaps(true);
     });
     capEditor.querySelectorAll('[data-cap-delete]').forEach(btn => {
+      btn.disabled = canvasReadOnly;
       btn.onclick = () => {
+        if (canvasReadOnly) return;
         current.capabilities.splice(Number(btn.dataset.capDelete), 1);
         markCanvasDirty(true);
       };
     });
     const add = $('capAdd');
+    if (add) add.disabled = canvasReadOnly;
     if (add) add.onclick = () => {
+      if (canvasReadOnly) return;
       const firstSkill = skillOptions()[0] || 'skill-name';
       current.capabilities.push(firstSkill);
       markCanvasDirty(true);
@@ -2316,7 +2397,7 @@ function scheduleRefresh(delay = nextPollDelay()) {
   pollTimer = setTimeout(() => refresh(), delay);
 }
 
-async function refresh() {
+async function refresh(options = {}) {
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
   // Only the newest refresh may apply. Clicking a project starts a fresh
   // refresh; any slower in-flight poll (e.g. an overview fetch begun before the
@@ -2329,7 +2410,8 @@ async function refresh() {
     // Drill-in: fetch only this project's board. Project list backfill runs in
     // the background and never blocks the detail page.
     ensureProjectOptions();
-    try { s = await api('/api/state?projectId='+encodeURIComponent(projectIdAtStart)); }
+    const fastParam = options.fast ? '&fast=1' : '';
+    try { s = await api('/api/state?projectId='+encodeURIComponent(projectIdAtStart)+fastParam); }
     catch (e) { s = null; }
     if (!s || s.error) { selectedProjectId = null; try { s = await api('/api/state'); } catch (e2) { s = DEMO; } }
   } else {
@@ -2348,7 +2430,11 @@ async function refresh() {
     last = s;
     renderAll();
   }
-  scheduleRefresh();
+  if (s?.fast && selectedProjectId === projectIdAtStart) {
+    setTimeout(() => refresh({ full:true }), 0);
+  } else {
+    scheduleRefresh();
+  }
 }
 
 if ('Notification' in window && Notification.permission === 'default') {

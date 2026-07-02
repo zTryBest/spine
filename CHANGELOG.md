@@ -1,3 +1,23 @@
+## What's Changed [0.6.44] - 2026-07-02
+
+### Changed
+
+- **Workflow scope 模型**: 内置 workflow 改为只读模板，不再自动复制到每个项目；自定义 workflow 支持保存到用户级 `~/.hikspine/workflows` 或项目级 `.hikspine/workflows`，方便 Claude plugin 用户在不写插件缓存目录的情况下定制流程。
+- **Workflow 冲突选择**: 当同一个 workflow id 同时存在于 `builtin`、`user` 或 `local` 多个 scope 时，引擎会要求 Agent 询问用户并显式传 `--workflow-source user|local|builtin`，避免默认猜测导致执行了错误流程。
+- **Workflow 编排中心**: UI 画布将内置 workflow 展示为只读模板，支持复制后保存为用户级或项目级自定义 workflow；保存位置在画布中显式选择，避免误写插件目录。
+- **项目详情加载体验**: 看板项目详情增加 `fast=1` 轻量首屏，点击项目后先跳过 Markdown 产物递归扫描和 workflow 阶段详情，快速渲染任务与指标，再后台补全完整数据。
+
+### Fixed
+
+- **旧状态兼容**: 旧状态中记录的 `workflowSource: project` 继续按项目级 `local` 兼容；若旧项目 workflow 副本被清理但状态文件保存了 `workflowHash`，会按 hash 回退到匹配的 workflow 文件继续恢复。
+- **项目根目录误判**: `findProjectRoot` 不再让裸 `.hikspine` 祖先捕获全新子目录，避免 dogfooding 或 UI 缓存目录把新项目状态写到错误根目录。
+- **插件仓库运行态隔离**: 本仓库忽略 dogfooding 产生的 `.hikspine/` 运行态目录，避免把 UI pid、临时 workflow 副本或测试状态误提交为插件源码。
+- **Claude plugin manifest 版本**: `.claude-plugin/plugin.json` 与 `package.json` 同步升级到 `0.6.44`，确保团队通过 Claude plugin 重新安装后加载到本次 UI 和引擎改动。
+
+### Tests
+
+- **Workflow scope 回归**: 更新内核测试覆盖内置模板不再自动复制、local/user 保存、同名冲突强制显式 source、UI API 默认 local 保存和 user 保存，以及中文 local workflow 保存路径。
+
 ## What's Changed [0.6.43] - 2026-07-02
 
 ### Fixed

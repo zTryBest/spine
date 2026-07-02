@@ -32,6 +32,7 @@ case "$NODE_BIN" in
 esac
 export HIKSPINE_HOME="$REPO/.tmp/hikspine-home"
 mkdir -p "$HIKSPINE_HOME"
+rm -rf "$HIKSPINE_HOME/workflows"
 # Create sandboxes under the repo, not the OS temp dir. The OS temp dir lives
 # under the user's home, and any stray openspec/.hikspine there (e.g. debris
 # from an earlier wrong project-root resolution) would make findProjectRoot
@@ -505,12 +506,16 @@ eq "note_written advances to review" \
 CT_DONE="$(run decide review_done --json)"
 eq "review_done completes custom workflow" \
   "$(printf '%s' "$CT_DONE" | json_get "j.complete ? 'yes' : 'no'")" "yes"
-PROJECT_WORKFLOW_INIT="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'import fs from "node:fs"; import path from "node:path"; const root=process.argv[1]; const { ensureProjectWorkflows, listWorkflows } = await import("./src/store.mjs"); const r1=ensureProjectWorkflows(root); const feature=path.join(root, ".hikspine", "workflows", "feature.yaml"); const original=fs.readFileSync(feature, "utf8"); fs.writeFileSync(feature, `# custom sentinel\n${original}`, "utf8"); const r2=ensureProjectWorkflows(root); const kept=fs.readFileSync(feature, "utf8").startsWith("# custom sentinel"); const allProject=listWorkflows(root).filter(w=>["new","feature","fix"].includes(w.id)).every(w=>w.source==="project"); console.log(`${r1.copied}:${r2.copied}:${kept}:${allProject}`);' "$T")"
-eq "builtin workflow templates are copied to the project without overwriting edits" "$PROJECT_WORKFLOW_INIT" "6:0:true:true"
-CANVAS_SAVE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveProjectWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveProjectWorkflow(root, { id:"canvas-flow", version:1, name:"Canvas Flow", intent:"Saved from the workflow canvas.", start:"draft", states:[{ id:"draft", goal:"Draft it.", capabilities:["brainstorming"], needs:["drafted"], next:"done" }, { id:"done", goal:"Finish.", capabilities:[], needs:[], terminal:true }] }); const wf=loadWorkflow(root, "canvas-flow", { source:"project" }); console.log(`${r.source}:${r.file}:${wf.id}:${wf.states.length}:${wf.states[0].next}`);' "$T")"
-eq "canvas can save project workflow yaml" "$CANVAS_SAVE" "project:.hikspine/workflows/canvas-flow.yaml:canvas-flow:2:done"
+NO_BUILTIN_COPY="$(run workflows --json >/dev/null && test ! -f "$T/.hikspine/workflows/feature.yaml" && echo yes || echo no)"
+eq "workflow listing does not copy builtin templates into the project" "$NO_BUILTIN_COPY" "yes"
+CANVAS_SAVE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveWorkflow(root, { id:"canvas-flow", version:1, name:"Canvas Flow", intent:"Saved from the workflow canvas.", start:"draft", states:[{ id:"draft", goal:"Draft it.", capabilities:["brainstorming"], needs:["drafted"], next:"done" }, { id:"done", goal:"Finish.", capabilities:[], needs:[], terminal:true }] }, { source:"local" }); const wf=loadWorkflow(root, "canvas-flow", { source:"local" }); console.log(`${r.source}:${r.file}:${wf.id}:${wf.states.length}:${wf.states[0].next}`);' "$T")"
+eq "canvas can save local workflow yaml" "$CANVAS_SAVE" "local:.hikspine/workflows/canvas-flow.yaml:canvas-flow:2:done"
+WORKFLOW_SCOPE_CONFLICT="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; process.env.HIKSPINE_HOME = `${root}/.hikspine-home`; const wf={ id:"scope-conflict", version:1, name:"Scope Conflict", intent:"Test scopes.", start:"one", states:[{ id:"one", goal:"One.", capabilities:[], needs:["ok"], terminal:true }] }; const { saveWorkflow, loadWorkflow, listWorkflows } = await import("./src/store.mjs"); saveWorkflow(root, wf, { source:"local" }); saveWorkflow(root, { ...wf, name:"User Scope Conflict" }, { source:"user" }); let conflict=""; try { loadWorkflow(root, "scope-conflict"); } catch (err) { conflict=err.message; } const local=loadWorkflow(root, "scope-conflict", { source:"local" }); const user=loadWorkflow(root, "scope-conflict", { source:"user" }); const listed=listWorkflows(root).filter(w=>w.id==="scope-conflict").map(w=>`${w.source}:${w.conflictSources.join("|")}`).sort().join(","); console.log(`${/multiple scopes/.test(conflict)}:${local.__source}:${user.__source}:${listed}`);' "$T")"
+eq "workflow id conflicts require an explicit scope" "$WORKFLOW_SCOPE_CONFLICT" "true:local:user:local:user|local,user:user|local"
 CANVAS_API="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { createBoardServer } = await import("./src/server.mjs"); const server=createBoardServer(root); await new Promise((resolve,reject)=>{ server.once("error", reject); server.listen(0, "127.0.0.1", resolve); }); const port=server.address().port; const res=await fetch(`http://127.0.0.1:${port}/api/workflows`, { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ workflow:{ id:"canvas-api", version:1, name:"Canvas API", intent:"Saved through UI API.", start:"one", states:[{ id:"one", goal:"One.", capabilities:[], needs:["ok"], terminal:true }] } }) }); const j=await res.json(); await new Promise(resolve=>server.close(resolve)); console.log(`${res.status}:${j.source}:${j.file}:${j.id}:${j.workflow.states.length}`);' "$T")"
-eq "canvas API saves project workflow yaml" "$CANVAS_API" "200:project:.hikspine/workflows/canvas-api.yaml:canvas-api:1"
+eq "canvas API saves local workflow yaml by default" "$CANVAS_API" "200:local:.hikspine/workflows/canvas-api.yaml:canvas-api:1"
+CANVAS_API_USER="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; process.env.HIKSPINE_HOME = `${root}/.hikspine-home-api`; const { createBoardServer } = await import("./src/server.mjs"); const server=createBoardServer(root); await new Promise((resolve,reject)=>{ server.once("error", reject); server.listen(0, "127.0.0.1", resolve); }); const port=server.address().port; const res=await fetch(`http://127.0.0.1:${port}/api/workflows`, { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ scope:"user", workflow:{ id:"canvas-api-user", version:1, name:"Canvas API User", intent:"Saved through UI API.", start:"one", states:[{ id:"one", goal:"One.", capabilities:[], needs:["ok"], terminal:true }] } }) }); const j=await res.json(); await new Promise(resolve=>server.close(resolve)); console.log(`${res.status}:${j.source}:${j.id}:${j.workflow.__source}`);' "$T")"
+eq "canvas API can save user workflow yaml" "$CANVAS_API_USER" "200:user:canvas-api-user:user"
 BOARD_API_FAST="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { createBoardServer } = await import("./src/server.mjs"); const server=createBoardServer(root); await new Promise((resolve,reject)=>{ server.once("error", reject); server.listen(0, "127.0.0.1", resolve); }); const port=server.address().port; const [state, labels] = await Promise.all([fetch(`http://127.0.0.1:${port}/api/state`).then(r=>r.json()), fetch(`http://127.0.0.1:${port}/api/ui-labels`).then(r=>r.json())]); await new Promise(resolve=>server.close(resolve)); console.log(`${Array.isArray(state.skills)}:${state.skills.length}:${labels && labels.stages && typeof labels.stages === "object" ? "labels" : "missing"}`);' "$T")"
 eq "board API keeps polling fast by omitting skills and serving labels separately" "$BOARD_API_FAST" "true:0:labels"
 
@@ -521,7 +526,7 @@ eq "workflow list uses zh names with --locale zh" \
   "$(printf '%s' "$ZH_LIST" | json_get "j.workflows.find(w=>w.id==='feature').name")" "功能开发"
 ZH_EXPLICIT_ROOT="$(cd "$REPO" && "$NODE_BIN" "$ENGINE_RUN" workflows --project-root "$(node_path "$T")" --locale zh --json)"
 eq "zh workflow command does not rely on inherited locale env" \
-  "$(printf '%s' "$ZH_EXPLICIT_ROOT" | json_get "j.workflows.find(w=>w.id==='new').name")" "新项目"
+  "$(printf '%s' "$ZH_EXPLICIT_ROOT" | json_get "j.workflows.find(w=>w.id==='new').name")" "新建项目"
 ZH_NEXT="$(run next zh-feature --workflow feature --locale zh --json)"
 eq "zh next records workflowLocale" \
   "$(printf '%s' "$ZH_NEXT" | json_get 'j.workflowLocale')" "zh"
@@ -534,8 +539,8 @@ has "existing zh change keeps zh goal without --locale" \
   "$(printf '%s' "$ZH_RESUME" | json_get 'j.goal')" "澄清"
 LEGACY_LOCALE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { ensureDir, writeText } = await import("./src/utils.mjs"); const { openSpecStateFile, loadState, loadWorkflow } = await import("./src/store.mjs"); ensureDir(`${root}/openspec/changes/legacy-locale/specs`); writeText(openSpecStateFile(root, "legacy-locale"), "version: 1\nchange: legacy-locale\nworkflow: feature\nworkflowVersion: \"17\"\nstorage: openspec\ncurrent: open\ndecisions: {}\nhistory:\n  - at: 2026-07-02T00:00:00.000Z\n    type: started\n    workflow: feature\n    state: open\n"); const state=loadState(root, "legacy-locale"); const wf=loadWorkflow(root, state.workflow, { locale: state.workflowLocale }); console.log(`${state.workflowLocale}:${wf.__locale}:${wf.states[0].goal}`);' "$T")"
 has "legacy state without workflowLocale defaults to zh" "$LEGACY_LOCALE" "zh:zh:澄清"
-CANVAS_ZH="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveProjectWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveProjectWorkflow(root, { id:"canvas-zh", version:1, name:"中文画布", intent:"中文编排保存。", start:"draft", states:[{ id:"draft", goal:"写草稿。", capabilities:[], needs:["drafted"], terminal:true }] }, { locale:"zh" }); const wf=loadWorkflow(root, "canvas-zh", { locale:"zh", source:"project" }); console.log(`${r.file}:${wf.__locale}:${wf.__source}:${wf.name}`);' "$T")"
-eq "canvas can save zh project workflow yaml" "$CANVAS_ZH" ".hikspine/workflows/zh/canvas-zh.yaml:zh:project:中文画布"
+CANVAS_ZH="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveWorkflow(root, { id:"canvas-zh", version:1, name:"中文画布", intent:"中文编排保存。", start:"draft", states:[{ id:"draft", goal:"写草稿。", capabilities:[], needs:["drafted"], terminal:true }] }, { locale:"zh", source:"local" }); const wf=loadWorkflow(root, "canvas-zh", { locale:"zh", source:"local" }); console.log(`${r.file}:${wf.__locale}:${wf.__source}:${wf.name}`);' "$T")"
+eq "canvas can save zh local workflow yaml" "$CANVAS_ZH" ".hikspine/workflows/zh/canvas-zh.yaml:zh:local:中文画布"
 
 rm -rf "$T"
 
@@ -573,7 +578,7 @@ eq "editor-style workflow loads and starts" \
 eq "editor-style workflow resolves capability skill name" \
   "$(printf '%s' "$EF_NEXT" | json_test "j.capabilities.some(c=>c.id==='systematic-debugging')" && echo yes || echo no)" "yes"
 eq "editor-style workflow appears in workflows listing with intent" \
-  "$(run workflows --json | json_test "j.workflows.some(w=>w.id==='edit-flow' && w.source==='project' && w.intent.length>0)" && echo yes || echo no)" "yes"
+  "$(run workflows --json | json_test "j.workflows.some(w=>w.id==='edit-flow' && w.source==='local' && w.intent.length>0)" && echo yes || echo no)" "yes"
 EF_DONE="$(run decide done_a --json && run decide done_b --json)"
 eq "editor-style workflow advances to terminal" \
   "$(printf '%s' "$(run board --json)" | json_test "j.changes.find(c=>c.change==='ef-change').complete" && echo yes || echo no)" "yes"

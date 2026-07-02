@@ -49,7 +49,7 @@ Use the workflow id the user or project names. If `.hikspine/config.yaml` sets `
 
 Run engine commands from the project root, or pass `--project-root <root>`. The engine anchors to an existing Hikspine project (the nearest ancestor with `openspec/` or `.hikspine/`), so resuming from a code subdirectory still targets the right place. But the **first** `next` of a brand-new project creates state at the current directory — start it at the project root so `openspec/` and `.hikspine/` land there, not inside a subfolder.
 
-`workflows`, `next`, `board`, and `ui` copy Hikspine's built-in workflow templates into the current project `.hikspine/workflows/` when files are missing. They never overwrite an existing project workflow. Treat plugin workflows as templates only; project workflows are the editable and executable source of truth.
+Workflow scope is explicit: `builtin` means read-only plugin templates, `user` means the local machine's `~/.hikspine/workflows` directory (available to new projects), and `local` means the current project's `.hikspine/workflows` directory. If the same workflow id exists in multiple scopes, ask the user which one to use and pass `--workflow-source user|local|builtin` on `next`; do not guess.
 
 ## Choosing A Workflow
 
@@ -175,4 +175,4 @@ feature   open -> design -> build -> review -> verify -> archive    (new require
 fix       inspect -> fix -> verify                                  (bug / lightweight change)
 ```
 
-Put a custom workflow in the current project at `.hikspine/workflows/<id>.yaml` (or `.hikspine/workflows/zh/<id>.yaml` for Chinese workflow text) and pass `--workflow <id>`. Do not edit plugin template workflows directly. The engine maintains the state file — do not hand-edit it.
+Put a custom workflow in user scope at `~/.hikspine/workflows/<id>.yaml` (or `~/.hikspine/workflows/zh/<id>.yaml` for Chinese workflow text), or in project scope at `.hikspine/workflows/<id>.yaml` (or `.hikspine/workflows/zh/<id>.yaml`). Then pass `--workflow <id>`. Built-in plugin workflows are read-only templates; copy one into user or project scope before customizing it. If the id conflicts across scopes, ask the user and pass `--workflow-source`. The engine maintains the state file — do not hand-edit it.

@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureProjectWorkflows, getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
+import { getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
 import { skillCatalog, normalizeCapability } from './skills.mjs';
 import { readNotifications } from './notifications.mjs';
@@ -226,7 +226,7 @@ export function changeSummary(root, entryOrChange, active, opts = {}) {
       stages,
       stageIndex: stages.indexOf(sum.current),
       stageDurations: stageDurations(workflow, state),
-      artifacts: changeArtifacts(root, state, stages),
+      artifacts: opts.includeArtifacts === false ? [] : changeArtifacts(root, state, stages),
       decisions: state.decisions || {},
       history,
       startedAt: history.length ? history[0].at : null,
@@ -278,16 +278,16 @@ function readProjectBuild(root) {
 }
 
 export function boardState(root, opts = {}) {
-  ensureProjectWorkflows(root);
   const active = getActive(root);
   const workflows = listWorkflows(root, opts);
   const includeSkills = opts.includeSkills !== false;
+  const includeWorkflowDetails = opts.includeWorkflowDetails !== false;
   return {
     mode: 'project',
     root,
     active,
     changes: listChangeSummaries(root, active, opts),
-    workflows: workflows.map((workflow) => workflowDetails(root, workflow, opts)),
+    workflows: includeWorkflowDetails ? workflows.map((workflow) => workflowDetails(root, workflow, opts)) : workflows,
     skills: includeSkills ? skillCatalog(root) : [],
     notifications: readNotifications(root),
     projectBuild: readProjectBuild(root),
@@ -329,7 +329,7 @@ export function allProjectsBoardState(opts = {}) {
       const active = getActive(project.root);
       const state = {
         active,
-        changes: listChangeSummaries(project.root, active, opts),
+        changes: listChangeSummaries(project.root, active, { ...opts, includeArtifacts: false }),
         notifications: readNotifications(project.root),
       };
       const projectChanges = (state.changes || []).map((change) => ({

@@ -13,6 +13,7 @@ import {
   writeText,
 } from './utils.mjs';
 import { readYamlFile, writeYamlFile } from './yaml.mjs';
+import { hikspineHome } from './project-registry.mjs';
 
 export function readConfig(root) {
   const yaml = path.join(root, '.hikspine', 'config.yaml');
@@ -33,8 +34,9 @@ export function workflowLocale(opts = {}) {
 }
 
 export function workflowSource(opts = {}) {
-  const raw = String(opts.source || '').trim().toLowerCase();
-  return ['project', 'builtin'].includes(raw) ? raw : '';
+  const raw = String(opts.source || opts['workflow-source'] || '').trim().toLowerCase();
+  if (raw === 'project') return 'local';
+  return ['local', 'user', 'builtin'].includes(raw) ? raw : '';
 }
 
 function workflowDisplayPath(root, file, source) {
@@ -45,30 +47,8 @@ export function projectWorkflowsDir(root) {
   return path.join(root, '.hikspine', 'workflows');
 }
 
-export function ensureProjectWorkflows(root) {
-  const targetRoot = projectWorkflowsDir(root);
-  const result = { copied: 0, skipped: 0, dir: rel(root, targetRoot) };
-  const copyDir = (fromDir, relDir = '') => {
-    if (!fs.existsSync(fromDir)) return;
-    for (const name of fs.readdirSync(fromDir).sort()) {
-      const from = path.join(fromDir, name);
-      const stat = fs.statSync(from);
-      if (stat.isDirectory()) {
-        copyDir(from, path.join(relDir, name));
-        continue;
-      }
-      if (!/\.ya?ml$/i.test(name)) continue;
-      const to = path.join(targetRoot, relDir, name);
-      if (fs.existsSync(to)) {
-        result.skipped += 1;
-        continue;
-      }
-      writeText(to, readText(from));
-      result.copied += 1;
-    }
-  };
-  copyDir(BUILTIN_WORKFLOWS_DIR);
-  return result;
+export function userWorkflowsDir() {
+  return path.join(hikspineHome(), 'workflows');
 }
 
 function addWorkflowCandidates(out, root, id, opts, source, baseDir) {
@@ -80,7 +60,8 @@ function addWorkflowCandidates(out, root, id, opts, source, baseDir) {
 function workflowFileCandidates(root, id, opts = {}) {
   const source = workflowSource(opts);
   const all = [];
-  if (!source || source === 'project') addWorkflowCandidates(all, root, id, opts, 'project', projectWorkflowsDir(root));
+  if (!source || source === 'local') addWorkflowCandidates(all, root, id, opts, 'local', projectWorkflowsDir(root));
+  if (!source || source === 'user') addWorkflowCandidates(all, root, id, opts, 'user', userWorkflowsDir());
   if (!source || source === 'builtin') addWorkflowCandidates(all, root, id, opts, 'builtin', BUILTIN_WORKFLOWS_DIR);
   const seen = new Set();
   return all.filter((candidate) => {
@@ -97,8 +78,18 @@ export function workflowFile(root, id, opts = {}) {
   if (opts.hash) {
     const byHash = candidates.find((candidate) => sha256(readText(candidate.file)) === opts.hash);
     if (byHash) return byHash;
+    if (workflowSource(opts)) {
+      const fallback = workflowFileCandidates(root, id, { ...opts, source: '', 'workflow-source': '' })
+        .find((candidate) => sha256(readText(candidate.file)) === opts.hash);
+      if (fallback) return fallback;
+    }
   }
-  if (!candidates.length) die(`Workflow '${id}' not found. Expected .hikspine/workflows/${id}.yaml or builtin/workflows/${id}.yaml.`);
+  if (!candidates.length) die(`Workflow '${id}' not found. Expected user ~/.hikspine/workflows/${id}.yaml, local .hikspine/workflows/${id}.yaml, or builtin workflows/${id}.yaml.`);
+  const sources = [...new Set(candidates.map((candidate) => candidate.source))];
+  const requestedSource = workflowSource(opts);
+  if (!requestedSource && sources.length > 1) {
+    die(`Workflow '${id}' exists in multiple scopes (${sources.join(', ')}). Ask the user which one to use, then pass --workflow-source <${sources.join('|')}>.`);
+  }
   return candidates[0];
 }
 
@@ -163,9 +154,10 @@ export function validateWorkflow(workflow) {
   for (const s of workflow.states) if (s.needs == null) s.needs = [];
 }
 
-// List every available workflow (builtin + project), project overriding
-// builtin by id. Used for the orchestration board and for auto-selection;
-// each workflow may declare an `intent` describing when it applies.
+// List every available workflow. Builtins are read-only templates; user and
+// local scopes are editable custom workflows. Duplicated ids are intentionally
+// returned as separate entries so the agent/UI can surface scope conflicts
+// instead of silently choosing one.
 export function listWorkflows(root, opts = {}) {
   const locale = workflowLocale({ ...opts, root });
   const map = new Map();
@@ -173,14 +165,17 @@ export function listWorkflows(root, opts = {}) {
     try {
       const w = readYamlFile(file);
       const id = w.id || path.basename(file).replace(/\.ya?ml$/, '');
-      map.set(id, {
+      const key = `${source}:${id}`;
+      map.set(key, {
         id,
         name: w.name || id,
         intent: w.intent || '',
         source,
+        scope: source,
         locale: sourceLocale,
         file: workflowDisplayPath(root, file, source),
-        editable: source === 'project',
+        editable: source !== 'builtin',
+        readonly: source === 'builtin',
       });
     } catch {
       // Skip unparseable files rather than failing the whole listing.
@@ -199,42 +194,74 @@ export function listWorkflows(root, opts = {}) {
       }
     }
   }
+  const userDir = userWorkflowsDir();
+  if (fs.existsSync(userDir)) {
+    for (const name of fs.readdirSync(userDir).sort()) {
+      if (/\.ya?ml$/.test(name)) add(path.join(userDir, name), 'user');
+    }
+    if (locale) {
+      const dir = path.join(userDir, locale);
+      if (fs.existsSync(dir)) {
+        for (const name of fs.readdirSync(dir).sort()) {
+          if (/\.ya?ml$/.test(name)) add(path.join(dir, name), 'user', locale);
+        }
+      }
+    }
+  }
   const projDir = projectWorkflowsDir(root);
   if (fs.existsSync(projDir)) {
     for (const name of fs.readdirSync(projDir).sort()) {
-      if (/\.ya?ml$/.test(name)) add(path.join(projDir, name), 'project');
+      if (/\.ya?ml$/.test(name)) add(path.join(projDir, name), 'local');
     }
     if (locale) {
       const dir = path.join(projDir, locale);
       if (fs.existsSync(dir)) {
         for (const name of fs.readdirSync(dir).sort()) {
-          if (/\.ya?ml$/.test(name)) add(path.join(dir, name), 'project', locale);
+          if (/\.ya?ml$/.test(name)) add(path.join(dir, name), 'local', locale);
         }
       }
     }
   }
-  return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const byId = new Map();
+  for (const workflow of map.values()) {
+    const sources = byId.get(workflow.id) || new Set();
+    sources.add(workflow.source);
+    byId.set(workflow.id, sources);
+  }
+  const order = { builtin: 0, user: 1, local: 2 };
+  return [...map.values()].map((workflow) => {
+    const sources = [...(byId.get(workflow.id) || [])];
+    return { ...workflow, conflictSources: sources.length > 1 ? sources : [] };
+  }).sort((a, b) => a.id.localeCompare(b.id) || (order[a.source] ?? 9) - (order[b.source] ?? 9));
 }
 
-export function saveProjectWorkflow(root, workflow, opts = {}) {
+export function saveWorkflow(root, workflow, opts = {}) {
   const id = String(workflow?.id || '').trim();
   if (!/^[A-Za-z0-9_-]+$/.test(id)) die('Workflow id must use letters, numbers, dash, or underscore.');
+  const source = workflowSource({ source: opts.scope || opts.source || 'local' }) || 'local';
+  if (source === 'builtin') die('Built-in workflows are read-only templates. Copy one into user or local scope before editing.');
   const locale = workflowLocale({ ...opts, root });
   const copy = clone(workflow);
   copy.id = id;
   copy.version = Number(copy.version || 1);
   validateWorkflow(copy);
+  const baseDir = source === 'user' ? userWorkflowsDir() : projectWorkflowsDir(root);
   const file = locale
-    ? path.join(projectWorkflowsDir(root), locale, `${id}.yaml`)
-    : path.join(projectWorkflowsDir(root), `${id}.yaml`);
+    ? path.join(baseDir, locale, `${id}.yaml`)
+    : path.join(baseDir, `${id}.yaml`);
   writeYamlFile(file, copy);
   return {
     id,
     locale,
-    source: 'project',
+    source,
+    scope: source,
     file: rel(root, file),
-    workflow: loadWorkflow(root, id, { locale, source: 'project' }),
+    workflow: loadWorkflow(root, id, { locale, source }),
   };
+}
+
+export function saveProjectWorkflow(root, workflow, opts = {}) {
+  return saveWorkflow(root, workflow, { ...opts, source: 'local' });
 }
 
 export function stateById(workflow, id) {

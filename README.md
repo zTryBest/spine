@@ -24,7 +24,7 @@ It is distributed as a Claude Code plugin. Users normally start it through skill
 - **OpenSpec-backed state**: changes default to `openspec/changes/<change>/.hikspine.yaml`, so specs, artifacts, and board data stay in one place.
 - **Localized workflows**: built-in workflow YAML exists in default and Chinese variants. `hikspine-zh` sets `HIKSPINE_WORKFLOW_LOCALE=zh`, and legacy state files without `workflowLocale` default to Chinese for compatibility.
 - **Local and global boards**: `hikspine-ui` opens the current project board; `hikspine-global-ui` opens a board across all locally registered projects.
-- **Workflow canvas**: the board can edit and save project workflows under `.hikspine/workflows/` or `.hikspine/workflows/zh/`; plugin built-in workflows are only templates.
+- **Workflow studio**: the board previews read-only built-in workflow templates and lets users copy them into user scope or project scope before editing.
 - **Safety hooks**: Claude Code hooks can block source writes in forbidden stages, record attention-needed notifications, and clean up UI processes on session end.
 - **Project rules sync**: the engine syncs plugin rules into `.claude/rules` and tells the agent which newly synced files to read in the current session.
 
@@ -75,14 +75,19 @@ guard:
     - app/
 ```
 
-Custom workflows can be saved at:
+Custom workflows can be saved at two editable scopes:
 
 ```text
+User scope, shared by new projects on this machine:
+~/.hikspine/workflows/<workflow-id>.yaml
+~/.hikspine/workflows/zh/<workflow-id>.yaml
+
+Project scope, stored with the current project:
 .hikspine/workflows/<workflow-id>.yaml
 .hikspine/workflows/zh/<workflow-id>.yaml
 ```
 
-The first `workflows`, `next`, `board`, or `ui` command copies Hikspine's built-in workflow templates into the current project's `.hikspine/workflows/`. It only fills missing files and never overwrites team-customized workflows.
+Built-in workflows live in the plugin and are read-only templates. Hikspine does not copy them into every project automatically. If the same workflow id exists in multiple scopes, the agent must ask which one to use and pass `--workflow-source user`, `--workflow-source local`, or `--workflow-source builtin`.
 
 Useful engine commands:
 
