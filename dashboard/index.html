@@ -475,7 +475,7 @@ const I18N = {
     live:'实时 · 每 2 秒刷新', demo:'示例数据 · 启动 hikspine ui 看真实状态',
     stTotal:'任务总数', stWork:'进行中', stConfirm:'待用户确认', stDone:'已完成',
     secTasks:'进行中的任务', secProjectTasks:'项目任务', secWf:'工作流', secSkills:'技能',
-    secMetrics:'总览指标', secProjectMetrics:'项目耗时指标',
+    secMetrics:'总览指标', secProjectMetrics:'项目指标',
     mProjects:'项目总数', mActive:'活跃项目', mWork:'进行中任务', mConfirm:'待确认', mNotif:'待处理通知', mDone:'已完成/归档',
     tWorkflowTime:'工作流耗时（最慢在前）', tStageTime:'阶段耗时（最慢在前）', tTasks:'任务', tAvg:'平均', tTotal:'总计',
     tNoTiming:'暂无耗时数据 — 任务产生阶段流转后才有时间统计。',
@@ -503,7 +503,7 @@ const I18N = {
     live:'Live · refreshes every 2s', demo:'Demo data · run hikspine ui for live state',
     stTotal:'Tasks', stWork:'In progress', stConfirm:'Awaiting user', stDone:'Done',
     secTasks:'In-progress tasks', secProjectTasks:'Project tasks', secWf:'Workflows', secSkills:'Skills',
-    secMetrics:'Overview metrics', secProjectMetrics:'Project timing',
+    secMetrics:'Overview metrics', secProjectMetrics:'Project metrics',
     mProjects:'Projects', mActive:'Active projects', mWork:'In-progress tasks', mConfirm:'Awaiting confirm', mNotif:'Pending notifications', mDone:'Done / archived',
     tWorkflowTime:'Workflow duration (slowest first)', tStageTime:'Stage duration (slowest first)', tTasks:'Tasks', tAvg:'Avg', tTotal:'Total',
     tNoTiming:'No timing data yet — appears once tasks accumulate stage-transition time.',
@@ -997,6 +997,19 @@ function renderMetrics(state) {
     card('attn', confirm, t('mConfirm')) +
     card('attn', notifs.length, t('mNotif')) +
     card('done', done, t('mDone'));
+}
+function renderProjectMetrics(state) {
+  const changes = Array.isArray(state.changes) ? state.changes : [];
+  const notifs = (Array.isArray(state.notifications) ? state.notifications : []).filter(n => !n.handled);
+  const total = changes.filter(c => !c.error).length;
+  const work = changes.filter(c => !c.error && !c.complete && !c.archived).length;
+  const done = changes.filter(c => !c.error && (c.complete || c.archived)).length;
+  const card = (cls, n, l) => '<div class="stat '+cls+'"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>';
+  $('metricsPanel').innerHTML =
+    card('total', total, t('stTotal')) +
+    card('work', work, t('mWork')) +
+    card('attn', notifs.length, t('mNotif')) +
+    card('done', done, t('stDone'));
 }
 async function openArtifact(path, projectId) {
   let data;
@@ -1891,7 +1904,7 @@ function renderAll() {
   // and are shown only when drilled into one.
   $('stats').hidden = true;
   $('secMetrics').hidden = false;
-  $('metricsPanel').hidden = !allMode;
+  $('metricsPanel').hidden = false;
   $('timingPanel').hidden = false;
   $('secBuild').hidden = allMode;
   $('projectBuild').hidden = allMode;
@@ -1917,6 +1930,7 @@ function renderAll() {
     const active = (last.changes || []).filter(c => c.error || (!c.complete && !c.archived));
     renderChanges(active, t('emptyActive'));
   } else {
+    renderProjectMetrics(last);
     renderTiming(last, { showTaskCount: false });
     renderChanges(last.changes || []);
     renderProjectBuild(last.projectBuild);
