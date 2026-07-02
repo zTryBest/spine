@@ -17,6 +17,8 @@ description: "Use when the user speaks Chinese and wants Hikspine to run or resu
 
 Bash 工具每次调用都是新 shell。定位 runtime 和执行 `node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ...` 必须放在同一次 Bash 调用里。
 
+**硬性要求：** 使用本中文入口时，所有 Hikspine 引擎命令都必须同时显式传 `--project-root "$PROJECT_ROOT"` 和 `--locale zh`。不要只依赖 `HIKSPINE_WORKFLOW_LOCALE=zh`，也不要先单独打印 `HIKSPINE_ENGINE`，再在后续 Bash 调用里直接 `node <打印出的路径>`；后续 Bash 不会继承前一次的环境变量，容易回落到英文 workflow 或错误项目目录。
+
 ```bash
 _hs_norm_root() { local r="${1:-}"; r="${r//\\//}"; while [ "${#r}" -gt 1 ] && [ "${r%/}" != "$r" ]; do r="${r%/}"; done; printf '%s\n' "$r"; }
 _hs_env_file=""
@@ -41,16 +43,24 @@ unset _hs_env_file f r b
 unset -f _hs_norm_root
 ```
 
-`HIKSPINE_WORKFLOW_LOCALE=zh` 会让新建 change 优先加载项目级 `.hikspine/workflows/zh/<workflow-id>.yaml`。`workflows`、`next`、`board`、`ui` 会把插件内置 workflow 模板补齐到当前项目 `.hikspine/workflows/`，只复制缺失文件，不覆盖项目已有定制。已有 change 使用状态文件里记录的 `workflowLocale`，不会因为之后切换入口而改变。
+把目标项目根目录写入 `PROJECT_ROOT` 后再执行引擎命令：
 
-引擎命令在项目根目录运行，或传 `--project-root <项目根目录>`。全新项目第一次 `next` 必须在项目根目录运行，确保 `openspec/` 和 `.hikspine/` 落在根目录。
+```bash
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --project-root "$PROJECT_ROOT" --locale zh --json
+```
+
+`--locale zh` 会让新建 change 优先加载项目级 `.hikspine/workflows/zh/<workflow-id>.yaml`。`workflows`、`next`、`board`、`ui` 会把插件内置 workflow 模板补齐到当前项目 `.hikspine/workflows/`，只复制缺失文件，不覆盖项目已有定制。已有 change 使用状态文件里记录的 `workflowLocale`，不会因为之后切换入口而改变。
+
+引擎命令必须传 `--project-root "$PROJECT_ROOT"`。全新项目第一次 `next` 必须显式指向项目根目录，确保 `openspec/` 和 `.hikspine/` 落在根目录。
 
 ## 选择 Workflow
 
 用户没有指定 workflow，且项目没有 `.hikspine/config.yaml` 的 `defaultWorkflow` 时，先列出候选：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --json
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" workflows --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
 选择前必须真实检查项目是否已有源码，不要凭需求名称猜测：
@@ -69,19 +79,22 @@ ls -A <项目根目录>
 两个 workflow 都合理时，先向用户确认。选定后启动：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --workflow <workflow-id> --json
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --workflow <workflow-id> --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
 恢复已有 change：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --json
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change> --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
 多个 change 并行时：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" changes --json
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" changes --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
 ## 主循环
@@ -89,8 +102,9 @@ node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" chang
 只用两个动作推进流程：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next [change] [--json]
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <key> [value] [--change <change>] [--json]
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next [change] --project-root "$PROJECT_ROOT" --locale zh --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <key> [value] --change <change> --project-root "$PROJECT_ROOT" --locale zh --json
 ```
 
 执行顺序：
@@ -143,13 +157,15 @@ when: <说明>      条件成立时加载
 当前项目看板：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --project-root <项目根目录>
+PROJECT_ROOT="<项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --project-root "$PROJECT_ROOT" --locale zh
 ```
 
 全局看板：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --all --project-root <任一项目根目录>
+PROJECT_ROOT="<任一项目根目录>"
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" ui --all --project-root "$PROJECT_ROOT" --locale zh
 ```
 
 ## Workflow 路由参考

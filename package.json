@@ -1,6 +1,6 @@
 {
   "name": "hikspine",
-  "version": "0.6.42",
+  "version": "0.6.43",
   "private": true,
   "description": "Skill-first Claude Code workflow kernel plugin (not published to npm)",
   "type": "module",

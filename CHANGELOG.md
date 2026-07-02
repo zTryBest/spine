@@ -1,3 +1,13 @@
+## What's Changed [0.6.43] - 2026-07-02
+
+### Fixed
+
+- **中文入口 workflow 回落英文**: `hikspine-zh` 的引擎命令示例和执行规范改为每次显式传 `--project-root "$PROJECT_ROOT"` 与 `--locale zh`，不再只依赖 `HIKSPINE_WORKFLOW_LOCALE=zh`。这样即使 Claude Code 把 runtime 定位和后续 `node` 调用拆成多个 Bash，也不会因为环境变量丢失而列出/启动英文 workflow，空项目第一次运行也会落到正确项目根。
+
+### Tests
+
+- **中文 workflow 显式 locale 回归**: 新增断言验证直接使用 `workflows --project-root <root> --locale zh --json` 时，即使没有继承 `HIKSPINE_WORKFLOW_LOCALE`，也能返回中文 `new` workflow。
+
 ## What's Changed [0.6.42] - 2026-07-02
 
 ### Changed

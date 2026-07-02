@@ -519,6 +519,9 @@ eq "zh workflow keeps engine schema and decision keys aligned" "$LOCALE_SHAPE" "
 ZH_LIST="$(run workflows --locale zh --json)"
 eq "workflow list uses zh names with --locale zh" \
   "$(printf '%s' "$ZH_LIST" | json_get "j.workflows.find(w=>w.id==='feature').name")" "功能开发"
+ZH_EXPLICIT_ROOT="$(cd "$REPO" && "$NODE_BIN" "$ENGINE_RUN" workflows --project-root "$(node_path "$T")" --locale zh --json)"
+eq "zh workflow command does not rely on inherited locale env" \
+  "$(printf '%s' "$ZH_EXPLICIT_ROOT" | json_get "j.workflows.find(w=>w.id==='new').name")" "新项目"
 ZH_NEXT="$(run next zh-feature --workflow feature --locale zh --json)"
 eq "zh next records workflowLocale" \
   "$(printf '%s' "$ZH_NEXT" | json_get 'j.workflowLocale')" "zh"

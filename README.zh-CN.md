@@ -47,14 +47,16 @@ Use hikspine to start <change-name>
 Agent 加载 skill 后，会定位 runtime 并运行引擎：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change-name> --workflow <workflow-id> --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change-name> --workflow <workflow-id> --project-root /path/to/project --locale zh --json
 ```
+
+中文入口不要只依赖环境变量；`hikspine-zh` 会要求每次引擎命令显式传 `--project-root` 与 `--locale zh`，避免 Claude Code 分多次 Bash 调用时丢失环境，导致回落到英文 workflow 或写错项目目录。
 
 当前阶段完成后，记录每个需要的决策：
 
 ```bash
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <decision-key> <value> --change <change-name> --json
-node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change-name> --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" decide <decision-key> <value> --change <change-name> --project-root /path/to/project --locale zh --json
+node "${HIKSPINE_ENGINE:?source the locator block in this same Bash call}" next <change-name> --project-root /path/to/project --locale zh --json
 ```
 
 常用 workflow id：
@@ -87,12 +89,12 @@ guard:
 常用引擎命令：
 
 ```bash
-node "$HIKSPINE_ENGINE" workflows --json
-node "$HIKSPINE_ENGINE" skills --json
-node "$HIKSPINE_ENGINE" changes --json
-node "$HIKSPINE_ENGINE" board --json
-node "$HIKSPINE_ENGINE" ui --project-root /path/to/project
-node "$HIKSPINE_ENGINE" ui --all --project-root /path/to/project
+node "$HIKSPINE_ENGINE" workflows --project-root /path/to/project --locale zh --json
+node "$HIKSPINE_ENGINE" skills --project-root /path/to/project --json
+node "$HIKSPINE_ENGINE" changes --project-root /path/to/project --locale zh --json
+node "$HIKSPINE_ENGINE" board --project-root /path/to/project --locale zh --json
+node "$HIKSPINE_ENGINE" ui --project-root /path/to/project --locale zh
+node "$HIKSPINE_ENGINE" ui --all --project-root /path/to/project --locale zh
 ```
 
 ## 快速开始
