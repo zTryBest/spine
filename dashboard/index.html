@@ -464,6 +464,7 @@ let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 let selectedProjectId = null;   // global board: which project is drilled into (null = overview)
 let projectOptions = [];
+let refreshSeq = 0;             // only the latest refresh() may apply its result (drops stale slow fetches)
 let canvasWorkflow = null;
 let selectedCanvasStage = '';
 let canvasSourceId = '';
@@ -1987,6 +1988,10 @@ $('canvasClose').onclick = () => closeWorkflowCanvas(false);
 $('workflowCanvasModal').onclick = (event) => { if (event.target.id === 'workflowCanvasModal') closeWorkflowCanvas(false); };
 
 async function refresh() {
+  // Only the newest refresh may apply. Clicking a project starts a fresh
+  // refresh; any slower in-flight poll (e.g. an overview fetch begun before the
+  // click) must NOT overwrite the drill-in view when it finally resolves.
+  const seq = ++refreshSeq;
   try {
     const labels = await api('/api/ui-labels');
     uiLabels = labels && typeof labels === 'object' ? labels : { stages:{} };
@@ -1995,10 +2000,15 @@ async function refresh() {
   }
   let s;
   if (selectedProjectId) {
-    try {
-      const overview = await api('/api/state');
-      if (overview && overview.mode === 'all') projectOptions = Array.isArray(overview.projects) ? overview.projects : [];
-    } catch (e) {}
+    // Drill-in: fetch only this project's board. The project list for the
+    // "switch project" dropdown is loaded lazily (once), not on every poll, so
+    // we don't pay the full overview scan while viewing one project.
+    if (!projectOptions.length) {
+      try {
+        const overview = await api('/api/state');
+        if (overview && overview.mode === 'all') projectOptions = Array.isArray(overview.projects) ? overview.projects : [];
+      } catch (e) {}
+    }
     try { s = await api('/api/state?projectId='+encodeURIComponent(selectedProjectId)); }
     catch (e) { s = null; }
     if (!s || s.error) { selectedProjectId = null; try { s = await api('/api/state'); } catch (e2) { s = DEMO; } }
@@ -2008,6 +2018,7 @@ async function refresh() {
       projectOptions = Array.isArray(s.projects) ? s.projects : [];
     }
   }
+  if (seq !== refreshSeq) return;   // a newer refresh started while we awaited — drop this stale result
   if (!s.demo && (!s.changes)) s.demo = true;
   const renderKey = JSON.stringify(s) + '|' + JSON.stringify(uiLabels) + '|' + lang + '|' + Math.floor(Date.now() / 60000);
   if (renderKey === lastRenderKey) return;

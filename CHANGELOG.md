@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- **点"查看详情"下钻不动(被慢轮询覆盖)**: 总览每 2 秒轮询,且下钻状态下每次轮询还会顺带拉一次完整总览(慢)。没有过期保护——点卡片前就已在途的那次慢总览请求会在 ~10s 后返回并把刚下钻的详情视图**覆盖回总览**,看起来就像"点不动"。修复:`refresh()` 加请求序号,只有最新一次刷新能应用结果,过期请求直接丢弃;下钻时不再每轮询都拉整份总览(项目下拉列表改为**懒加载一次**)。这样即便服务端还没重启(总览仍慢),点击也能稳定下钻。纯前端改动,浏览器刷新即生效。
 - **总项目看板加载慢(~10s)**: `--all` 全局看板对**每个**已登记项目都调用了完整的 `boardState()`,其中 `discoverSkills()` 会递归遍历 `~/.claude/plugins/marketplaces`(深度 6)、`workflowDetails()` 会逐个加载 workflow——而这些结果在总览里根本用不到(总览只需要每个项目的 changes/notifications/计数,`workflows`/`skills` 返回空)。项目多、marketplace 目录大时,这个"每项目一次深度扫描"就是 ~10s 的来源。改为总览只计算实际用到的轻量部分(`getActive` + `listChangeSummaries` + `readNotifications`),不再每项目跑 `discoverSkills`/`workflowDetails`;单项目下钻(`/api/state?projectId=`)仍走完整 `boardState`(需要技能/工作流面板)。
 
 ### Tests
