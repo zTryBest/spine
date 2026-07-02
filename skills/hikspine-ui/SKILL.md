@@ -80,9 +80,12 @@ PROJECT_ROOT="/path/to/project"
 
 ```text
 Hikspine UI: http://127.0.0.1:<port>
+Workflow 编排: http://127.0.0.1:<port>/workflows
 Project root: <project-root>
 Log: <project-root>/.hikspine/hikspine-ui.log
 PID: <project-root>/.hikspine/hikspine-ui.pid
 ```
+
+Workflow 编排是独立页面，不在项目看板主体里。内置 workflow 只读；需要定制时在 `/workflows` 里复制为自定义 workflow，再保存到用户级或项目级。
 
 如果启动失败，读取日志并说明失败原因。常见原因是端口被占用，建议换端口重试。

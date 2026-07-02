@@ -178,7 +178,7 @@ function changeArtifacts(root, state, stages) {
   });
 }
 
-function workflowDetails(root, summary, opts = {}) {
+export function workflowDetails(root, summary, opts = {}) {
   try {
     const workflow = loadWorkflow(root, summary.id, { ...opts, source: summary.source });
     return {
@@ -212,6 +212,7 @@ export function changeSummary(root, entryOrChange, active, opts = {}) {
     return {
       change,
       workflow: state.workflow,
+      workflowSource: workflow.__source || state.workflowSource || '',
       workflowLocale: state.workflowLocale || workflow.__locale || '',
       active: change === active,
       archived: !!state.__archived,

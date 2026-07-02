@@ -1,3 +1,20 @@
+## What's Changed [0.6.45] - 2026-07-02
+
+### Added
+
+- **独立 Workflow 编排页**: 新增 `/workflows` 页面作为单独入口，支持从看板顶部进入，不再把编排工具放在项目看板主体里；全局看板模式下可选择项目后编排。
+- **Workflow 管理 API**: 新增 `GET /api/workflows` 读取 workflow 列表与阶段详情，新增 `DELETE /api/workflows` 删除用户级或项目级自定义 workflow，内置模板仍保持只读不可删。
+- **项目详情：编辑/编排 local workflow 入口**: 项目详情的工作流区新增两个入口——当前任务所用 workflow 若是 `local`（项目级）类型，显示"在画布中编辑此工作流"，点按跳到 `/workflows` 并预选该 workflow 直接编辑；另加"＋ 编排项目级 workflow"入口，进入编排页并默认保存到项目级。两个入口都带上当前 `projectId` 深链，编排页复用已有的 localStorage 预选逻辑，`workflows.html` 无需改动。
+
+### Changed
+
+- **项目详情只展示当前任务的 workflow**: 项目详情下方的"工作流"和"工作流阶段与技能"改为只读取当前项目当前任务（活动 change）实际使用的 workflow（按 workflow id + 来源匹配），不再罗列所有 workflow；`changeSummary` 为此新增 `workflowSource` 字段，暴露该 change 的 workflow 作用域（builtin/user/local）。
+- **编排交互边界**: 看板保留 workflow 阶段展示，但隐藏旧的项目详情内嵌编排入口；独立编排页中内置 workflow 只能复制为自定义 workflow，自定义 workflow 支持新建、复制、编辑、保存和删除。
+
+### Tests
+
+- **独立编排页回归**: 增加测试覆盖 `/workflows` 页面加载、`GET /api/workflows` 返回内置只读 workflow 阶段详情，以及删除项目级自定义 workflow 的 API 行为。
+
 ## What's Changed [0.6.44] - 2026-07-02
 
 ### Changed

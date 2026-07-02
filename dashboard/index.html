@@ -212,7 +212,9 @@
   .workflow-detail-head b { font-size:15px; }
   .workflow-detail-head .tag { font-size:10px; color:#d9f4e7; font-family:ui-monospace,monospace; border:1px solid rgba(98,210,162,.32); border-radius:5px; padding:1px 6px; background:rgba(98,210,162,.08); white-space:nowrap; }
   .workflow-detail-head .it { color:var(--muted); font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .workflow-actionbar { display:flex; justify-content:flex-end; align-items:center; margin:-4px 0 10px; }
+  .workflow-actionbar { display:flex; justify-content:flex-end; align-items:center; gap:8px; margin:-4px 0 10px; }
+  .canvas-open.ghost { color:#cbd5e8; background:var(--panel2); border-color:var(--line2); }
+  .canvas-open.ghost:hover { border-color:var(--accent); color:#fff; filter:none; }
   .workflow-stage { display:grid; grid-template-columns:120px 1fr; gap:12px; border-top:1px solid var(--line); padding:12px 0; }
   .workflow-stage:first-of-type { border-top:none; }
   .stage-id { display:flex; align-items:center; gap:8px; min-width:0; }
@@ -398,6 +400,7 @@
     </div>
     <div class="hbar">
       <button class="back-btn" id="backBtn" type="button" hidden></button>
+      <button class="back-btn" id="workflowStudioBtn" type="button"></button>
       <div class="lang"><button data-lang="zh" id="lzh">中文</button><button data-lang="en" id="len">EN</button></div>
       <div class="live"><span class="dot" id="dot"></span> <span id="livetext"></span></div>
       <button class="quit-btn" id="quitBtn" type="button" hidden></button>
@@ -1349,13 +1352,26 @@ function selectedWorkflow(workflows) {
     || null;
 }
 
+// The workflow(s) to show in the project-detail sections: only the one the
+// current task (active change) actually runs — not every available workflow.
+// Falls back to all workflows when there is no identifiable current task.
+function activeTaskWorkflows(state) {
+  const all = Array.isArray(state?.workflows) ? state.workflows : [];
+  const changes = Array.isArray(state?.changes) ? state.changes : [];
+  const task = changes.find(c => c.active) || changes.find(c => c.change === state?.active) || changes[0] || null;
+  if (!task || !task.workflow) return all;
+  const byId = all.filter(w => w.id === task.workflow);
+  if (!byId.length) return all;
+  const bySource = task.workflowSource ? byId.filter(w => (w.source || '') === task.workflowSource) : [];
+  return bySource.length ? bySource : byId;
+}
+
 function renderWorkflows(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
-  $('workflowActionbar').hidden = !workflows.length;
-  $('canvasOpen').textContent = lang === 'zh' ? '工作流编排中心' : 'Workflow studio';
   if (!workflows.length) {
     closeWorkflowCanvas(false);
     $('legend').innerHTML = '';
+    $('workflowActionbar').hidden = true;
     $('workflowDetail').innerHTML = '<div class="empty">'+(lang==='zh'?'暂无工作流。':'No workflows found.')+'</div>';
     return;
   }
@@ -1383,7 +1399,35 @@ function renderWorkflows(workflows) {
     };
   });
   renderWorkflowDetail(workflows);
+  renderWorkflowActionbar(selected);
   if (canvasOpen) renderWorkflowCanvas(workflows);
+}
+
+// Entry points from the project detail into the workflow studio (/workflows):
+// edit the current task's workflow in the canvas (only meaningful for an
+// editable project-level `local` workflow), and author a new project-level
+// workflow. Deep-links via localStorage keys the studio already reads.
+function renderWorkflowActionbar(selected) {
+  const bar = $('workflowActionbar');
+  const zh = lang === 'zh';
+  const projParam = selectedProjectId ? '?projectId=' + encodeURIComponent(selectedProjectId) : '';
+  const isLocal = selected && selected.source === 'local';
+  const gotoStudio = () => { location.href = '/workflows' + projParam; };
+  bar.innerHTML =
+    (isLocal ? '<button class="canvas-open" id="wfEditLocal" type="button">' + (zh ? '在画布中编辑此工作流' : 'Edit this workflow in canvas') + '</button>' : '') +
+    '<button class="canvas-open ghost" id="wfAuthorLocal" type="button">' + (zh ? '＋ 编排项目级 workflow' : '+ Author project workflow') + '</button>';
+  bar.hidden = false;
+  const editBtn = $('wfEditLocal');
+  if (editBtn) editBtn.onclick = () => {
+    localStorage.setItem('hikspine-workflow-key', workflowKey(selected));
+    localStorage.setItem('hikspine-workflow', selected.id || '');
+    localStorage.setItem('hikspine-workflow-save-scope', 'local');
+    gotoStudio();
+  };
+  $('wfAuthorLocal').onclick = () => {
+    localStorage.setItem('hikspine-workflow-save-scope', 'local');
+    gotoStudio();
+  };
 }
 
 function renderWorkflowDetail(workflows) {
@@ -2298,6 +2342,7 @@ function renderAll() {
   const backBtn = $('backBtn');
   backBtn.textContent = t('backAll');
   backBtn.hidden = true;
+  $('workflowStudioBtn').textContent = lang === 'zh' ? 'Workflow 编排' : 'Workflows';
   renderScopeBar();
   // Global overview: show aggregate KPIs and the project grid; the per-project
   // panels (build info, workflows, stages & skills) belong to a single project
@@ -2311,7 +2356,7 @@ function renderAll() {
   $('secWf').hidden = allMode;
   $('legend').hidden = allMode;
   $('secWorkflowDetail').hidden = allMode;
-  $('workflowActionbar').hidden = allMode;
+  $('workflowActionbar').hidden = true;
   $('workflowDetail').hidden = allMode;
   if (allMode) closeWorkflowCanvas(false);
   $('dot').className = 'dot' + (last.demo?' demo':'');
@@ -2346,7 +2391,7 @@ function renderAll() {
     renderTiming(last, { showTaskCount: false });
     renderChanges(last.changes || []);
     renderProjectBuild(last.projectBuild);
-    renderWorkflows(last.workflows || []);
+    renderWorkflows(activeTaskWorkflows(last));
   }
   renderProjects(last.projects || []);
   hasRendered = true;
@@ -2371,6 +2416,10 @@ $('quitBtn').onclick = async () => {
   }
 };
 $('backBtn').onclick = goProjectOverview;
+$('workflowStudioBtn').onclick = () => {
+  const target = selectedProjectId ? '/workflows?projectId=' + encodeURIComponent(selectedProjectId) : '/workflows';
+  location.href = target;
+};
 $('artifactClose').onclick = closeArtifact;
 $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal') closeArtifact(); };
 $('canvasOpen').onclick = openWorkflowCanvas;

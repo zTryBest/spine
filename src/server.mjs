@@ -7,14 +7,15 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { allProjectsBoardState, boardState } from './board.mjs';
+import { allProjectsBoardState, boardState, workflowDetails } from './board.mjs';
 import { skillCatalog } from './skills.mjs';
 import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
-import { saveWorkflow, setActive } from './store.mjs';
+import { deleteWorkflow, listWorkflows, saveWorkflow, setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
 import { findRegisteredProject, readRegisteredProjects } from './project-registry.mjs';
 
 const DASHBOARD_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'index.html');
+const WORKFLOWS_HTML = path.join(PLUGIN_ROOT, 'dashboard', 'workflows.html');
 const DASHBOARD_LABELS = path.join(PLUGIN_ROOT, 'dashboard', 'ui-labels.json');
 const UI_PID_NAME = 'hikspine-ui.pid';
 const UI_PID_REGISTRY_NAME = 'hikspine-ui-pids.json';
@@ -154,6 +155,11 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
         res.end(fs.readFileSync(DASHBOARD_HTML));
         return;
       }
+      if (req.method === 'GET' && (url.pathname === '/workflows' || url.pathname === '/workflows.html')) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end(fs.readFileSync(WORKFLOWS_HTML));
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const fast = url.searchParams.get('fast') === '1' || url.searchParams.get('fast') === 'true';
         if (all) {
@@ -282,6 +288,17 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
         sendJson(res, 200, result);
         return;
       }
+      if (req.method === 'GET' && url.pathname === '/api/workflows') {
+        try {
+          const targetRoot = all ? rootForRequest(root, url) : root;
+          const workflows = listWorkflows(targetRoot, { locale: requestLocale })
+            .map((workflow) => workflowDetails(targetRoot, workflow, { locale: requestLocale }));
+          sendJson(res, 200, { root: targetRoot, workflows });
+        } catch (err) {
+          sendJson(res, 400, { error: err.message });
+        }
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/api/workflows') {
         const body = await readBody(req);
         try {
@@ -289,6 +306,19 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
           const result = saveWorkflow(targetRoot, body.workflow || body, {
             locale: localeForRequest(url, body) || locale,
             scope: body.scope || body.source || 'local',
+          });
+          sendJson(res, 200, result);
+        } catch (err) {
+          sendJson(res, 400, { error: err.message });
+        }
+        return;
+      }
+      if (req.method === 'DELETE' && url.pathname === '/api/workflows') {
+        try {
+          const targetRoot = all ? rootForRequest(root, url) : root;
+          const result = deleteWorkflow(targetRoot, url.searchParams.get('id'), {
+            locale: requestLocale,
+            source: url.searchParams.get('source') || url.searchParams.get('scope') || '',
           });
           sendJson(res, 200, result);
         } catch (err) {

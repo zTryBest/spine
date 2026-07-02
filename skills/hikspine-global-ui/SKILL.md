@@ -77,10 +77,13 @@ After a successful start, report the URL, launch project root, registry behavior
 
 ```text
 Hikspine global UI: http://127.0.0.1:<port>
+Workflow studio: http://127.0.0.1:<port>/workflows
 Launch project root: <project-root>
 Scope: all locally registered projects
 Log: <project-root>/.hikspine/hikspine-global-ui.log
 PID: <project-root>/.hikspine/hikspine-ui.pid
 ```
+
+The workflow studio is a standalone page. In global mode it lets the user select a registered project before saving project-scope workflows; built-in workflows are read-only and must be copied before editing.
 
 If no projects appear, explain that the global board only shows projects that have already run Hikspine once on this machine.

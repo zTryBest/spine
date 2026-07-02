@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hikspine Workflow Studio</title>
+<style>
+  :root { color-scheme:dark; --bg:#090d12; --panel:#111821; --panel2:#161f2a; --text:#edf3fb; --muted:#9aa9bd; --dim:#68788d; --line:#263242; --line2:#344357; --accent:#62d2a2; --warn:#e7bd53; --err:#ff7b7b; --shadow:0 24px 70px -48px #000; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; color:var(--text); background:linear-gradient(180deg,#0c1118,#070a0e 70%); font:14px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  button,input,textarea,select { font:inherit; }
+  button { cursor:pointer; }
+  button:disabled,input:disabled,textarea:disabled,select:disabled { opacity:.52; cursor:default; }
+  .page { min-height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:14px; padding:16px 20px; border-bottom:1px solid var(--line); background:rgba(9,13,18,.9); position:sticky; top:0; z-index:5; }
+  .logo { width:34px; height:34px; border-radius:8px; display:grid; place-items:center; color:#07100b; background:linear-gradient(135deg,var(--accent),#d7e17d); font-weight:950; }
+  .title { min-width:0; }
+  h1 { margin:0; font-size:20px; letter-spacing:0; }
+  .sub { color:var(--muted); font-size:12px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .btn { border:1px solid var(--line2); border-radius:7px; background:rgba(255,255,255,.035); color:var(--text); padding:7px 11px; font-weight:760; }
+  .btn:hover { border-color:rgba(98,210,162,.52); }
+  .btn.primary { color:#07100b; border-color:transparent; background:linear-gradient(135deg,var(--accent),#d7e17d); }
+  .btn.danger { color:#ffd0d0; border-color:rgba(255,120,120,.45); background:rgba(255,90,90,.08); }
+  .lang { display:flex; border:1px solid var(--line2); border-radius:7px; overflow:hidden; }
+  .lang button { border:0; color:var(--muted); background:transparent; padding:7px 9px; font-size:12px; }
+  .lang button.on { color:#07100b; background:var(--accent); font-weight:850; }
+  .project-select { min-width:220px; max-width:360px; color:var(--text); background:#0b1017; border:1px solid var(--line2); border-radius:7px; padding:7px 9px; }
+  main { flex:1; display:grid; grid-template-columns:320px minmax(0,1fr) 390px; min-height:0; }
+  aside,.inspector { min-height:0; overflow:auto; }
+  aside { border-right:1px solid var(--line); background:rgba(13,18,25,.72); padding:14px; }
+  .side-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .side-title { font-weight:900; }
+  .side-count { color:var(--muted); font-size:12px; margin-left:auto; }
+  .tools { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+  .search { width:100%; color:var(--text); background:#0b1017; border:1px solid var(--line2); border-radius:7px; padding:8px 9px; margin-bottom:10px; }
+  .wf-list { display:grid; gap:8px; }
+  .wf-item { width:100%; text-align:left; border:1px solid var(--line); border-radius:8px; background:linear-gradient(180deg,rgba(21,27,36,.96),rgba(13,18,25,.98)); color:var(--text); padding:11px 12px; box-shadow:var(--shadow); }
+  .wf-item.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(98,210,162,.28),var(--shadow); }
+  .wf-name { display:flex; align-items:center; gap:7px; font-weight:860; min-width:0; }
+  .tag { display:inline-flex; align-items:center; border:1px solid var(--line2); border-radius:5px; color:var(--dim); padding:1px 6px; font-size:10px; font-family:ui-monospace,Menlo,Consolas,monospace; white-space:nowrap; }
+  .tag.warn { color:#ffe0a0; border-color:rgba(231,189,83,.52); }
+  .wf-intent { color:var(--muted); font-size:12px; margin-top:6px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .studio { min-width:0; min-height:0; overflow:auto; padding:18px; }
+  .notice { border:1px solid rgba(231,189,83,.35); background:rgba(231,189,83,.08); color:#f0d38a; border-radius:8px; padding:10px 12px; margin-bottom:12px; }
+  .canvas { position:relative; min-height:520px; border:1px solid var(--line); border-radius:8px; background:radial-gradient(circle at 16px 16px, rgba(255,255,255,.055) 1px, transparent 1px), rgba(12,16,22,.82); background-size:24px 24px; overflow:auto; padding:28px; }
+  .nodes { display:flex; flex-wrap:wrap; gap:54px 62px; align-items:stretch; min-width:860px; }
+  .node { position:relative; width:250px; min-height:128px; border:1px solid var(--line2); border-radius:8px; background:rgba(19,25,34,.96); padding:14px; text-align:left; color:var(--text); box-shadow:0 18px 38px -30px #000; }
+  .node.selected { border-color:var(--accent); box-shadow:0 0 0 1px rgba(98,210,162,.28),0 18px 38px -30px #000; }
+  .node.terminal { border-color:rgba(182,144,240,.6); }
+  .node.confirm { border-color:rgba(231,189,83,.6); }
+  .node-num { width:28px; height:28px; border-radius:7px; display:inline-grid; place-items:center; color:var(--accent); background:var(--panel2); border:1px solid var(--line2); font-weight:900; margin-right:8px; }
+  .node-title { font-weight:900; }
+  .node-goal { color:var(--muted); font-size:12px; margin-top:10px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .node-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .node::after { content:""; position:absolute; right:-43px; top:50%; width:30px; height:2px; background:rgba(98,210,162,.58); }
+  .node:last-child::after { display:none; }
+  .node-actions { position:absolute; right:-16px; bottom:-16px; display:flex; gap:6px; }
+  .round { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; border:1px solid var(--line2); background:var(--panel2); color:var(--text); font-weight:950; }
+  .round.add { color:#07100b; border-color:rgba(98,210,162,.9); background:var(--accent); }
+  .round.del { color:#ffc4c4; border-color:rgba(255,120,120,.5); background:#2a1217; }
+  .empty { color:var(--dim); font-style:italic; padding:20px; }
+  .inspector { border-left:1px solid var(--line); background:rgba(13,18,25,.76); padding:16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:13px; }
+  .tabs .btn.active { border-color:var(--accent); background:rgba(98,210,162,.11); }
+  .form { display:grid; gap:12px; }
+  .row { display:grid; gap:6px; }
+  label { color:var(--muted); font-size:12px; font-weight:780; }
+  input,textarea,select { width:100%; color:var(--text); background:#0b1017; border:1px solid var(--line2); border-radius:7px; padding:8px 9px; }
+  textarea { min-height:82px; resize:vertical; font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .checks { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .checks label { display:flex; gap:7px; align-items:center; background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:7px; padding:8px; }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; padding-top:4px; }
+  .status { color:var(--muted); font-size:12px; white-space:pre-wrap; }
+  @media (max-width:1100px) { main { grid-template-columns:280px minmax(0,1fr); } .inspector { grid-column:1/-1; border-left:0; border-top:1px solid var(--line); } }
+  @media (max-width:760px) { header { align-items:flex-start; flex-wrap:wrap; } .bar { width:100%; margin-left:0; justify-content:flex-start; flex-wrap:wrap; } main { grid-template-columns:1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } .project-select { width:100%; max-width:none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="logo">H</div>
+    <div class="title">
+      <h1 id="title"></h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <div class="bar">
+      <select class="project-select" id="projectSelect" hidden></select>
+      <button class="btn" id="boardBtn" type="button"></button>
+      <div class="lang"><button id="lzh" type="button">中文</button><button id="len" type="button">EN</button></div>
+    </div>
+  </header>
+  <main>
+    <aside>
+      <div class="side-head"><div class="side-title" id="listTitle"></div><div class="side-count" id="wfCount"></div></div>
+      <div class="tools">
+        <button class="btn primary" id="newBtn" type="button"></button>
+        <button class="btn" id="copyBtn" type="button"></button>
+      </div>
+      <input class="search" id="search" placeholder="Search">
+      <div class="wf-list" id="workflowList"></div>
+    </aside>
+    <section class="studio">
+      <div class="notice" id="notice" hidden></div>
+      <div class="canvas"><div class="nodes" id="nodes"></div></div>
+    </section>
+    <section class="inspector">
+      <div class="tabs">
+        <button class="btn active" id="workflowTab" type="button"></button>
+        <button class="btn" id="stageTab" type="button"></button>
+      </div>
+      <div id="inspector"></div>
+    </section>
+  </main>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let lang = localStorage.getItem('hikspine-lang') || 'zh';
+const qs = new URLSearchParams(location.search);
+let selectedProjectId = qs.get('projectId') || '';
+let projects = [];
+let workflows = [];
+let selectedKey = localStorage.getItem('hikspine-workflow-key') || '';
+let editor = null;
+let selectedStageId = '';
+let dirty = false;
+let inspectorMode = 'workflow';
+let saveScope = localStorage.getItem('hikspine-workflow-save-scope') || 'user';
+let searchText = '';
+
+const I18N = {
+  zh: {
+    title:'Workflow 编排', subtitle:'独立编排入口：内置模板只读，自定义 workflow 可新建、复制、编辑和删除。',
+    board:'返回看板', list:'Workflow 列表', new:'新建', copy:'复制当前', copyBuiltin:'复制为自定义 workflow',
+    builtin:'内置模板', user:'用户级', local:'项目级', readonly:'内置 workflow 是只读模板，请复制后再编辑。',
+    conflict:'同名冲突', saveTo:'保存到', save:'保存', delete:'删除', saved:'已保存', deleted:'已删除',
+    workflow:'工作流', stage:'阶段', id:'ID', name:'名称', intent:'适用场景', start:'起始阶段',
+    goal:'阶段目标', caps:'技能加载（每行一个 skill 或 JSON）', rules:'阶段规则（每行一条）', needs:'流转决策（每行一个 key 或 key=value）',
+    next:'下一阶段', confirm:'需要用户确认', terminal:'终止阶段', addAfter:'在此阶段后添加', deleteStage:'删除阶段',
+    noWorkflow:'暂无 workflow。', noStage:'请选择一个阶段。', project:'项目', loading:'正在加载...',
+    cannotDelete:'只能删除用户级或项目级自定义 workflow。', copied:'已复制为可编辑 workflow，选择保存位置后保存。'
+  },
+  en: {
+    title:'Workflow Studio', subtitle:'Standalone workflow authoring: built-ins are read-only, custom workflows can be created, copied, edited, and deleted.',
+    board:'Back to board', list:'Workflows', new:'New', copy:'Copy selected', copyBuiltin:'Copy as custom workflow',
+    builtin:'Builtin template', user:'User scope', local:'Project scope', readonly:'Built-in workflows are read-only. Copy one before editing.',
+    conflict:'Name conflict', saveTo:'Save to', save:'Save', delete:'Delete', saved:'Saved', deleted:'Deleted',
+    workflow:'Workflow', stage:'Stage', id:'ID', name:'Name', intent:'Intent', start:'Start stage',
+    goal:'Stage goal', caps:'Skill loading (one skill or JSON per line)', rules:'Stage rules (one per line)', needs:'Transition decisions (key or key=value per line)',
+    next:'Next stage', confirm:'Needs user confirmation', terminal:'Terminal stage', addAfter:'Add after this stage', deleteStage:'Delete stage',
+    noWorkflow:'No workflows found.', noStage:'Select a stage.', project:'Project', loading:'Loading...',
+    cannotDelete:'Only user or project custom workflows can be deleted.', copied:'Copied as an editable workflow. Choose a save scope and save it.'
+  },
+};
+const t = (k) => I18N[lang][k] || k;
+function localizedPath(p) {
+  if (!p.startsWith('/api/')) return p;
+  const sep = p.includes('?') ? '&' : '?';
+  return p + sep + 'locale=' + encodeURIComponent(lang === 'zh' ? 'zh' : 'en');
+}
+async function api(p, options) {
+  const res = await fetch(localizedPath(p), options);
+  return res.json();
+}
+function workflowKey(w) {
+  return [w?.source || '', w?.locale || '', w?.id || ''].join(':');
+}
+function sourceLabel(source) {
+  if (source === 'builtin') return t('builtin');
+  if (source === 'user') return t('user');
+  if (source === 'local' || source === 'project') return t('local');
+  return source || '';
+}
+function sourceClass(source) {
+  return source === 'builtin' ? 'tag warn' : 'tag';
+}
+function isReadonly(w) {
+  return w?.readonly || w?.source === 'builtin';
+}
+function normalizeLines(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(normalizeLines);
+  return String(value).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+}
+function lineText(value) {
+  return (Array.isArray(value) ? value : []).map(item => typeof item === 'string' ? item : JSON.stringify(item)).join('\n');
+}
+function parseLineValue(line) {
+  const s = String(line || '').trim();
+  if (!s) return null;
+  if (s.startsWith('{') || s.startsWith('[')) {
+    try { return JSON.parse(s); } catch {}
+  }
+  return s;
+}
+function parseTextArea(value) {
+  return String(value || '').split(/\r?\n/).map(parseLineValue).filter(v => v != null && v !== '');
+}
+function uniqueWorkflowId(base) {
+  const used = new Set(workflows.map(w => w.id));
+  let id = String(base || 'custom-workflow').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'custom-workflow';
+  let out = id, n = 2;
+  while (used.has(out)) out = id + '-' + n++;
+  return out;
+}
+function blankWorkflow() {
+  return {
+    id: uniqueWorkflowId('custom-workflow'),
+    version: 1,
+    name: lang === 'zh' ? '自定义工作流' : 'Custom Workflow',
+    intent: '',
+    start: 'start',
+    states: [{ id:'start', goal:'', capabilities:[], rules:[], needs:['done'], terminal:true }],
+    source: '',
+  };
+}
+function workflowToEditor(w) {
+  const states = (w?.stages || []).map(s => ({
+    id: s.id,
+    goal: s.goal || '',
+    capabilities: s.capabilities || [],
+    rules: s.rules || [],
+    needs: s.needs || [],
+    next: s.next || '',
+    requires_user: !!s.requiresUser,
+    terminal: !!s.terminal,
+  }));
+  return {
+    id: w?.id || uniqueWorkflowId('custom-workflow'),
+    version: Number(w?.version || 1),
+    name: w?.name || w?.id || 'Workflow',
+    intent: w?.intent || '',
+    start: w?.start || states[0]?.id || '',
+    states,
+    source: w?.source || '',
+    locale: w?.locale || '',
+    readonly: isReadonly(w),
+  };
+}
+function editorToWorkflow(w) {
+  return {
+    id: w?.id || '',
+    version: Number(w?.version || 1),
+    name: w?.name || w?.id || '',
+    intent: w?.intent || '',
+    start: w?.start || w?.states?.[0]?.id || '',
+    source: w?.source || '',
+    locale: w?.locale || '',
+    stages: (w?.states || []).map(s => ({
+      id: s.id,
+      goal: s.goal || '',
+      capabilities: s.capabilities || [],
+      rules: s.rules || [],
+      needs: s.needs || [],
+      next: s.next || '',
+      requiresUser: !!s.requires_user,
+      terminal: !!s.terminal,
+    })),
+  };
+}
+function prepareWorkflow() {
+  return {
+    id: String(editor.id || '').trim(),
+    version: Number(editor.version || 1),
+    name: String(editor.name || editor.id || '').trim(),
+    intent: String(editor.intent || '').trim(),
+    start: String(editor.start || editor.states?.[0]?.id || '').trim(),
+    states: (editor.states || []).map(s => {
+      const out = {
+        id: String(s.id || '').trim(),
+        goal: String(s.goal || '').trim(),
+        capabilities: Array.isArray(s.capabilities) ? s.capabilities : [],
+        rules: Array.isArray(s.rules) ? s.rules : [],
+        needs: Array.isArray(s.needs) ? s.needs : [],
+      };
+      if (s.next) out.next = s.next;
+      if (s.requires_user) out.requires_user = true;
+      if (s.terminal) out.terminal = true;
+      return out;
+    }),
+  };
+}
+function selectedStage() {
+  return (editor?.states || []).find(s => s.id === selectedStageId) || editor?.states?.[0] || null;
+}
+function setDirty(value = true) {
+  dirty = value;
+  render();
+}
+function selectWorkflow(w) {
+  editor = workflowToEditor(w);
+  selectedKey = workflowKey(w);
+  localStorage.setItem('hikspine-workflow-key', selectedKey);
+  selectedStageId = editor.start || editor.states[0]?.id || '';
+  dirty = false;
+  inspectorMode = 'workflow';
+  render();
+}
+function copyWorkflow(w = editor) {
+  const source = w?.states ? editorToWorkflow(w) : (w?.stages ? w : workflows.find(item => workflowKey(item) === selectedKey));
+  const copy = workflowToEditor(source);
+  copy.id = uniqueWorkflowId((source?.id || copy.id || 'workflow') + '-custom');
+  copy.name = (lang === 'zh' ? '自定义 ' : 'Custom ') + (source?.name || source?.id || 'Workflow');
+  copy.source = '';
+  copy.readonly = false;
+  editor = copy;
+  selectedKey = 'draft:' + copy.id;
+  selectedStageId = copy.start || copy.states[0]?.id || '';
+  dirty = true;
+  inspectorMode = 'workflow';
+  notice(t('copied'));
+  render();
+}
+function addStage(afterId = selectedStageId) {
+  if (!editor || editor.readonly) return;
+  const states = editor.states;
+  const idx = Math.max(0, states.findIndex(s => s.id === afterId));
+  let id = 'stage-' + (idx + 2);
+  let n = idx + 2;
+  while (states.some(s => s.id === id)) id = 'stage-' + (++n);
+  const prev = states[idx];
+  const stage = { id, goal:'', capabilities:[], rules:[], needs:[], next:prev?.next || '', terminal:false };
+  if (prev) { prev.next = id; prev.terminal = false; }
+  states.splice(idx + 1, 0, stage);
+  selectedStageId = id;
+  inspectorMode = 'stage';
+  setDirty();
+}
+function deleteStage(id = selectedStageId) {
+  if (!editor || editor.readonly || editor.states.length <= 1) return;
+  const removed = editor.states.find(s => s.id === id);
+  const next = removed?.next || '';
+  editor.states = editor.states.filter(s => s.id !== id);
+  for (const s of editor.states) if (s.next === id) s.next = next;
+  if (editor.start === id) editor.start = editor.states[0]?.id || '';
+  selectedStageId = editor.start || editor.states[0]?.id || '';
+  inspectorMode = 'stage';
+  setDirty();
+}
+function notice(text) {
+  $('notice').textContent = text || '';
+  $('notice').hidden = !text;
+}
+function errors() {
+  const e = [];
+  const ids = new Set();
+  if (!/^[A-Za-z0-9_-]+$/.test(editor?.id || '')) e.push('Workflow id must use letters, numbers, dash, or underscore.');
+  if (!editor?.states?.length) e.push('Workflow needs at least one stage.');
+  for (const s of editor?.states || []) {
+    if (!s.id) e.push('Stage id is required.');
+    if (ids.has(s.id)) e.push('Duplicate stage id: ' + s.id);
+    ids.add(s.id);
+  }
+  if (editor?.start && !ids.has(editor.start)) e.push('Start stage is not in the stage list.');
+  for (const s of editor?.states || []) {
+    if (s.next && !ids.has(s.next)) e.push(s.id + ' next does not exist: ' + s.next);
+    if (!s.terminal && !s.next) e.push(s.id + ' is not terminal but has no next.');
+  }
+  return e;
+}
+function filteredWorkflows() {
+  const q = searchText.trim().toLowerCase();
+  const list = q
+    ? workflows.filter(w => [w.id, w.name, w.intent, w.source].some(v => String(v || '').toLowerCase().includes(q)))
+    : workflows;
+  return list;
+}
+function renderList() {
+  const list = filteredWorkflows();
+  $('wfCount').textContent = String(list.length);
+  $('workflowList').innerHTML = list.length ? list.map(w => {
+    const conflict = Array.isArray(w.conflictSources) && w.conflictSources.length > 1
+      ? '<span class="tag warn">'+esc(t('conflict'))+'</span>' : '';
+    return '<button class="wf-item '+(workflowKey(w)===selectedKey?'active':'')+'" data-key="'+esc(workflowKey(w))+'" type="button">'+
+      '<div class="wf-name"><span>'+esc(w.name || w.id)+'</span><span class="tag">'+esc(w.id)+'</span><span class="'+sourceClass(w.source)+'">'+esc(sourceLabel(w.source))+'</span>'+conflict+'</div>'+
+      '<div class="wf-intent">'+esc(w.intent || '')+'</div></button>';
+  }).join('') : '<div class="empty">'+esc(t('noWorkflow'))+'</div>';
+  $('workflowList').querySelectorAll('[data-key]').forEach(btn => {
+    btn.onclick = () => {
+      const wf = workflows.find(w => workflowKey(w) === btn.dataset.key);
+      if (wf) selectWorkflow(wf);
+    };
+  });
+}
+function renderCanvas() {
+  if (!editor) { $('nodes').innerHTML = '<div class="empty">'+esc(t('noWorkflow'))+'</div>'; return; }
+  $('nodes').innerHTML = editor.states.map((s, i) => {
+    const cls = ['node', s.id === selectedStageId ? 'selected' : '', s.terminal ? 'terminal' : '', s.requires_user ? 'confirm' : ''].filter(Boolean).join(' ');
+    return '<article class="'+cls+'" data-stage="'+esc(s.id)+'">'+
+      '<div><span class="node-num">'+(i+1)+'</span><span class="node-title">'+esc(s.id)+'</span></div>'+
+      '<div class="node-goal">'+esc(s.goal || t('goal'))+'</div>'+
+      '<div class="node-meta">'+(s.requires_user?'<span class="tag warn">'+esc(t('confirm'))+'</span>':'')+
+      (s.terminal?'<span class="tag">'+esc(t('terminal'))+'</span>':'')+
+      '<span class="tag">'+(s.capabilities?.length || 0)+' skills</span></div>'+
+      '<div class="node-actions"><button class="round add" data-add="'+esc(s.id)+'" '+(editor.readonly?'disabled':'')+' title="'+esc(t('addAfter'))+'">+</button>'+
+      '<button class="round del" data-del="'+esc(s.id)+'" '+(editor.readonly || editor.states.length<=1?'disabled':'')+' title="'+esc(t('deleteStage'))+'">-</button></div></article>';
+  }).join('');
+  $('nodes').querySelectorAll('[data-stage]').forEach(node => {
+    node.onclick = (event) => {
+      if (event.target.closest('button')) return;
+      selectedStageId = node.dataset.stage;
+      inspectorMode = 'stage';
+      render();
+    };
+  });
+  $('nodes').querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => addStage(btn.dataset.add));
+  $('nodes').querySelectorAll('[data-del]').forEach(btn => btn.onclick = () => deleteStage(btn.dataset.del));
+}
+function renderInspector() {
+  $('workflowTab').textContent = t('workflow');
+  $('stageTab').textContent = t('stage');
+  $('workflowTab').classList.toggle('active', inspectorMode === 'workflow');
+  $('stageTab').classList.toggle('active', inspectorMode === 'stage');
+  if (!editor) { $('inspector').innerHTML = '<div class="empty">'+esc(t('noWorkflow'))+'</div>'; return; }
+  const readonly = !!editor.readonly;
+  const disabled = readonly ? 'disabled' : '';
+  const err = errors();
+  const source = editor.source || saveScope;
+  if (inspectorMode === 'workflow') {
+    $('inspector').innerHTML =
+      (readonly ? '<div class="notice">'+esc(t('readonly'))+'</div>' : '')+
+      '<div class="form">'+
+      '<div class="row"><label>'+esc(t('saveTo'))+'</label><select id="saveScope" '+disabled+'><option value="user" '+(saveScope==='user'?'selected':'')+'>'+esc(t('user'))+'</option><option value="local" '+(saveScope==='local'?'selected':'')+'>'+esc(t('local'))+'</option></select></div>'+
+      '<div class="row"><label>'+esc(t('id'))+'</label><input id="wfId" value="'+esc(editor.id)+'" '+disabled+'></div>'+
+      '<div class="row"><label>'+esc(t('name'))+'</label><input id="wfName" value="'+esc(editor.name || '')+'" '+disabled+'></div>'+
+      '<div class="row"><label>'+esc(t('intent'))+'</label><textarea id="wfIntent" '+disabled+'>'+esc(editor.intent || '')+'</textarea></div>'+
+      '<div class="row"><label>'+esc(t('start'))+'</label><select id="wfStart" '+disabled+'>'+editor.states.map(s=>'<option value="'+esc(s.id)+'" '+(editor.start===s.id?'selected':'')+'>'+esc(s.id)+'</option>').join('')+'</select></div>'+
+      '<div class="actions"><button class="btn primary" id="saveBtn" '+(readonly?'disabled':'')+'>'+esc(t('save'))+'</button>'+
+      '<button class="btn" id="copyCurrentBtn">'+esc(readonly ? t('copyBuiltin') : t('copy'))+'</button>'+
+      '<button class="btn danger" id="deleteBtn" '+((source==='user'||source==='local')&&!dirty&&!readonly?'':'disabled')+'>'+esc(t('delete'))+'</button></div>'+
+      '<div class="status">'+esc(err.join('\n'))+'</div></div>';
+    bind('saveScope', el => { saveScope = el.value === 'local' ? 'local' : 'user'; localStorage.setItem('hikspine-workflow-save-scope', saveScope); });
+    bind('wfId', el => { editor.id = el.value.trim(); });
+    bind('wfName', el => { editor.name = el.value; });
+    bind('wfIntent', el => { editor.intent = el.value; });
+    bind('wfStart', el => { editor.start = el.value; });
+    $('saveBtn').onclick = saveEditor;
+    $('copyCurrentBtn').onclick = () => copyWorkflow();
+    $('deleteBtn').onclick = deleteEditor;
+  } else {
+    const s = selectedStage();
+    if (!s) { $('inspector').innerHTML = '<div class="empty">'+esc(t('noStage'))+'</div>'; return; }
+    const nextOptions = [''].concat(editor.states.map(item => item.id)).map(id => '<option value="'+esc(id)+'" '+(s.next===id?'selected':'')+'>'+(id?esc(id):'-')+'</option>').join('');
+    $('inspector').innerHTML =
+      (readonly ? '<div class="notice">'+esc(t('readonly'))+'</div>' : '')+
+      '<div class="form">'+
+      '<div class="row"><label>'+esc(t('id'))+'</label><input id="stId" value="'+esc(s.id)+'" '+disabled+'></div>'+
+      '<div class="row"><label>'+esc(t('goal'))+'</label><textarea id="stGoal" '+disabled+'>'+esc(s.goal || '')+'</textarea></div>'+
+      '<div class="row"><label>'+esc(t('caps'))+'</label><textarea id="stCaps" '+disabled+'>'+esc(lineText(s.capabilities || []))+'</textarea></div>'+
+      '<div class="row"><label>'+esc(t('rules'))+'</label><textarea id="stRules" '+disabled+'>'+esc(lineText(s.rules || []))+'</textarea></div>'+
+      '<div class="row"><label>'+esc(t('needs'))+'</label><textarea id="stNeeds" '+disabled+'>'+esc(lineText(s.needs || []))+'</textarea></div>'+
+      '<div class="row"><label>'+esc(t('next'))+'</label><select id="stNext" '+disabled+'>'+nextOptions+'</select></div>'+
+      '<div class="checks"><label><input id="stUser" type="checkbox" '+(s.requires_user?'checked':'')+' '+disabled+'> '+esc(t('confirm'))+'</label><label><input id="stTerminal" type="checkbox" '+(s.terminal?'checked':'')+' '+disabled+'> '+esc(t('terminal'))+'</label></div>'+
+      '<div class="actions"><button class="btn primary" id="saveBtn" '+(readonly?'disabled':'')+'>'+esc(t('save'))+'</button><button class="btn" id="copyCurrentBtn">'+esc(readonly ? t('copyBuiltin') : t('copy'))+'</button></div>'+
+      '<div class="status">'+esc(err.join('\n'))+'</div></div>';
+    bind('stId', el => {
+      const old = s.id;
+      s.id = el.value.trim();
+      for (const item of editor.states) if (item.next === old) item.next = s.id;
+      if (editor.start === old) editor.start = s.id;
+      selectedStageId = s.id;
+    });
+    bind('stGoal', el => { s.goal = el.value; });
+    bind('stCaps', el => { s.capabilities = parseTextArea(el.value); });
+    bind('stRules', el => { s.rules = parseTextArea(el.value); });
+    bind('stNeeds', el => { s.needs = parseTextArea(el.value); });
+    bind('stNext', el => { s.next = el.value; if (s.next) s.terminal = false; });
+    bind('stUser', el => { s.requires_user = el.checked; });
+    bind('stTerminal', el => { s.terminal = el.checked; if (s.terminal) s.next = ''; });
+    $('saveBtn').onclick = saveEditor;
+    $('copyCurrentBtn').onclick = () => copyWorkflow();
+  }
+}
+function bind(id, fn) {
+  const el = $(id);
+  if (!el || el.disabled) return;
+  el.oninput = () => {
+    fn(el);
+    dirty = true;
+    const status = document.querySelector('.status');
+    if (status) status.textContent = errors().join('\n');
+  };
+  el.onchange = () => { fn(el); dirty = true; render(); };
+}
+function render() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  $('title').textContent = t('title');
+  $('subtitle').textContent = t('subtitle');
+  $('boardBtn').textContent = t('board');
+  $('listTitle').textContent = t('list');
+  $('newBtn').textContent = t('new');
+  $('copyBtn').textContent = t('copy');
+  $('search').placeholder = 'Search';
+  $('lzh').classList.toggle('on', lang === 'zh');
+  $('len').classList.toggle('on', lang === 'en');
+  renderList();
+  renderCanvas();
+  renderInspector();
+}
+async function loadProjects() {
+  const state = await api('/api/state?fast=1');
+  if (state.mode !== 'all') return;
+  projects = Array.isArray(state.projects) ? state.projects : [];
+  const select = $('projectSelect');
+  select.hidden = false;
+  if (!selectedProjectId && projects[0]) selectedProjectId = projects[0].id;
+  select.innerHTML = projects.map(p => '<option value="'+esc(p.id)+'" '+(p.id===selectedProjectId?'selected':'')+'>'+esc(p.name || p.root)+'</option>').join('');
+  select.onchange = () => {
+    selectedProjectId = select.value;
+    qs.set('projectId', selectedProjectId);
+    history.replaceState(null, '', '/workflows?' + qs.toString());
+    loadWorkflows();
+  };
+}
+async function loadWorkflows() {
+  notice(t('loading'));
+  const projectParam = selectedProjectId ? '?projectId=' + encodeURIComponent(selectedProjectId) : '';
+  const data = await api('/api/workflows' + projectParam);
+  if (data.error) { notice(data.error); return; }
+  workflows = Array.isArray(data.workflows) ? data.workflows : [];
+  const selected = workflows.find(w => workflowKey(w) === selectedKey) || workflows[0] || null;
+  if (selected) selectWorkflow(selected);
+  else { editor = null; render(); }
+  notice('');
+}
+async function saveEditor() {
+  const err = errors();
+  if (err.length) { notice(err[0]); return; }
+  const payload = { workflow: prepareWorkflow(), scope: saveScope, locale: lang === 'zh' ? 'zh' : 'en' };
+  if (selectedProjectId) payload.projectId = selectedProjectId;
+  const result = await api('/api/workflows', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
+  if (result.error) { notice(result.error); return; }
+  notice(t('saved') + ': ' + sourceLabel(result.source || saveScope));
+  dirty = false;
+  selectedKey = workflowKey({ id: result.id, source: result.source || saveScope, locale: result.locale || '' });
+  await loadWorkflows();
+}
+async function deleteEditor() {
+  if (!editor || editor.readonly || dirty) return;
+  if (editor.source !== 'user' && editor.source !== 'local') { notice(t('cannotDelete')); return; }
+  const projectParam = selectedProjectId ? '&projectId=' + encodeURIComponent(selectedProjectId) : '';
+  const p = '/api/workflows?id=' + encodeURIComponent(editor.id) + '&source=' + encodeURIComponent(editor.source) + projectParam;
+  const result = await api(p, { method:'DELETE' });
+  if (result.error) { notice(result.error); return; }
+  notice(t('deleted') + ': ' + editor.id);
+  selectedKey = '';
+  await loadWorkflows();
+}
+$('boardBtn').onclick = () => { location.href = '/'; };
+$('newBtn').onclick = () => { editor = blankWorkflow(); selectedKey = 'draft:' + editor.id; selectedStageId = editor.start; dirty = true; inspectorMode = 'workflow'; render(); };
+$('copyBtn').onclick = () => copyWorkflow();
+$('workflowTab').onclick = () => { inspectorMode = 'workflow'; render(); };
+$('stageTab').onclick = () => { inspectorMode = 'stage'; render(); };
+$('search').oninput = (event) => { searchText = event.target.value; renderList(); };
+$('lzh').onclick = () => { lang = 'zh'; localStorage.setItem('hikspine-lang', lang); render(); loadWorkflows(); };
+$('len').onclick = () => { lang = 'en'; localStorage.setItem('hikspine-lang', lang); render(); loadWorkflows(); };
+(async function init() {
+  render();
+  await loadProjects();
+  await loadWorkflows();
+})().catch(err => notice(err.message || String(err)));
+</script>
+</body>
+</html>

@@ -264,6 +264,23 @@ export function saveProjectWorkflow(root, workflow, opts = {}) {
   return saveWorkflow(root, workflow, { ...opts, source: 'local' });
 }
 
+export function deleteWorkflow(root, id, opts = {}) {
+  const workflowId = String(id || '').trim();
+  if (!/^[A-Za-z0-9_-]+$/.test(workflowId)) die('Workflow id must use letters, numbers, dash, or underscore.');
+  const source = workflowSource(opts);
+  if (source !== 'user' && source !== 'local') die('Only user or local custom workflows can be deleted.');
+  const found = workflowFile(root, workflowId, { ...opts, source });
+  fs.rmSync(found.file, { force: true });
+  return {
+    id: workflowId,
+    source,
+    scope: source,
+    locale: found.locale || '',
+    file: rel(root, found.file),
+    deleted: true,
+  };
+}
+
 export function stateById(workflow, id) {
   return (workflow.states || []).find((s) => s.id === id) || null;
 }
