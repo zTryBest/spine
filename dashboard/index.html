@@ -314,8 +314,15 @@
   .modal-panel.canvas-modal-panel { width:calc(100vw - 20px); height:calc(100vh - 20px); max-height:calc(100vh - 20px); box-sizing:border-box; }
   .rules-modal-panel { width:min(1000px,96vw); height:min(720px,90vh); }
   .rules-modal-body { flex:1; display:grid; grid-template-columns:1.35fr 1fr; gap:0; min-height:0; }
-  .rules-edit { padding:14px 16px; display:flex; min-height:0; }
-  .rules-edit textarea { flex:1; width:100%; resize:none; background:var(--panel2); color:#e6ecf7; border:1px solid var(--line2); border-radius:8px; padding:12px; font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .rules-edit { padding:14px 16px; display:flex; flex-direction:column; gap:10px; min-height:0; }
+  .rules-list { flex:1; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .rules-empty { color:var(--muted); font-size:12px; padding:8px 2px; }
+  .rule-row { display:flex; gap:8px; align-items:flex-start; }
+  .rule-num { flex:0 0 auto; width:18px; text-align:right; color:var(--dim); font-size:12px; padding-top:9px; }
+  .rule-input { flex:1; min-height:46px; resize:vertical; background:var(--panel2); color:#e6ecf7; border:1px solid var(--line2); border-radius:7px; padding:8px 10px; font:13px/1.6 ui-sans-serif,system-ui,sans-serif; }
+  .rule-del { flex:0 0 auto; width:30px; height:32px; border:1px solid var(--line2); border-radius:7px; background:var(--panel2); color:#ff9c9c; cursor:pointer; font-size:16px; line-height:1; }
+  .rule-del:hover { border-color:rgba(255,118,111,.6); background:rgba(255,118,111,.1); }
+  .rule-add { align-self:flex-start; }
   .rules-examples { border-left:1px solid var(--line); padding:14px 16px; overflow:auto; background:rgba(13,16,21,.5); }
   .rules-examples h4 { margin:0 0 4px; font-size:12px; color:#cbd5e8; }
   .rules-examples .ex-hint { font-size:11px; color:var(--muted); margin:0 0 12px; line-height:1.6; }
@@ -469,7 +476,8 @@
     </div>
     <div class="rules-modal-body">
       <div class="rules-edit">
-        <textarea id="rulesModalText" spellcheck="false"></textarea>
+        <div class="rules-list" id="rulesList"></div>
+        <button class="canvas-btn rule-add" id="rulesAdd" type="button"></button>
       </div>
       <aside class="rules-examples" id="rulesExamples"></aside>
     </div>
@@ -1353,27 +1361,53 @@ const RULE_EXAMPLES = [
   ]},
 ];
 
+let rulesDraft = [];   // working copy of the edited stage's rules while the modal is open
 function openRulesModal() {
   const stage = selectedStage();
   if (!stage) return;
   const zh = lang === 'zh';
   $('rulesModalTitle').textContent = (zh ? '阶段规则 · ' : 'Stage rules · ') + (label(stage.id) || stage.id);
   $('rulesModalHint').textContent = zh
-    ? '每行一条规则。规则是写给 Agent 的硬性指令（workflow 作者声明，引擎只透传、不解析）。点右侧示例可插入到光标末尾。'
-    : 'One rule per line. Rules are hard directives for the agent (workflow-authored; the engine passes them through verbatim). Click an example on the right to append it.';
-  $('rulesModalText').value = linesText(stage.rules || []);
+    ? '一条规则一行独立编辑。规则是写给 Agent 的硬性指令（workflow 作者声明，引擎只透传、不解析）。点右侧示例可新增一条。'
+    : 'Each rule is edited as its own row. Rules are hard directives for the agent (workflow-authored; the engine passes them through verbatim). Click an example on the right to add one.';
+  $('rulesAdd').textContent = zh ? '+ 添加规则' : '+ Add rule';
   $('rulesModalClose').textContent = zh ? '关闭' : 'Close';
   $('rulesModalCancel').textContent = zh ? '取消' : 'Cancel';
   $('rulesModalSave').textContent = zh ? '保存' : 'Save';
+  rulesDraft = (stage.rules || []).map(r => String(r));
+  renderRulesList();
   renderRulesExamples();
   $('rulesModal').hidden = false;
-  setTimeout(() => { try { $('rulesModalText').focus(); } catch (e) {} }, 0);
+}
+function renderRulesList() {
+  const zh = lang === 'zh';
+  const host = $('rulesList');
+  if (!rulesDraft.length) {
+    host.innerHTML = '<div class="rules-empty">' + (zh ? '还没有规则。点下方"添加规则"，或右侧示例。' : 'No rules yet. Use "Add rule" below, or an example on the right.') + '</div>';
+    return;
+  }
+  host.innerHTML = rulesDraft.map((r, i) =>
+    '<div class="rule-row"><span class="rule-num">' + (i + 1) + '</span>' +
+    '<textarea class="rule-input" data-i="' + i + '" rows="2" spellcheck="false">' + esc(r) + '</textarea>' +
+    '<button class="rule-del" type="button" data-del="' + i + '" title="' + (zh ? '删除' : 'Remove') + '">×</button></div>'
+  ).join('');
+  host.querySelectorAll('.rule-input').forEach(ta => {
+    ta.oninput = () => { rulesDraft[Number(ta.dataset.i)] = ta.value; };   // no re-render — keeps caret
+  });
+  host.querySelectorAll('.rule-del').forEach(btn => {
+    btn.onclick = () => { rulesDraft.splice(Number(btn.dataset.del), 1); renderRulesList(); };
+  });
+}
+function focusLastRule() {
+  const rows = $('rulesList').querySelectorAll('.rule-input');
+  const el = rows[rows.length - 1];
+  if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
 }
 function closeRulesModal() { $('rulesModal').hidden = true; }
 function saveRulesModal() {
   const stage = selectedStage();
   if (stage) {
-    stage.rules = parseLines($('rulesModalText').value);
+    stage.rules = rulesDraft.map(s => s.trim()).filter(Boolean);
     markCanvasDirty(true);
     renderWorkflowCanvas(last?.workflows || []);
   }
@@ -1397,10 +1431,9 @@ function renderRulesExamples() {
   host.querySelectorAll('.rules-ex').forEach(btn => { btn.onclick = () => insertRuleExample(btn.dataset.rule); });
 }
 function insertRuleExample(text) {
-  const ta = $('rulesModalText');
-  const cur = ta.value.replace(/\s*$/, '');
-  ta.value = (cur ? cur + '\n' : '') + text + '\n';
-  ta.focus();
+  rulesDraft.push(text);
+  renderRulesList();
+  focusLastRule();
 }
 
 function capId(c) {
@@ -2123,6 +2156,7 @@ $('workflowCanvasModal').onclick = (event) => { if (event.target.id === 'workflo
 $('rulesModalClose').onclick = closeRulesModal;
 $('rulesModalCancel').onclick = closeRulesModal;
 $('rulesModalSave').onclick = saveRulesModal;
+$('rulesAdd').onclick = () => { rulesDraft.push(''); renderRulesList(); focusLastRule(); };
 $('rulesModal').onclick = (event) => { if (event.target.id === 'rulesModal') closeRulesModal(); };
 
 async function refresh() {
