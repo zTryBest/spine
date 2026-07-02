@@ -1143,7 +1143,22 @@ function renderChanges(changes, emptyMsg) {
     btn.onclick = (event) => { event.stopPropagation(); openArtifact(btn.dataset.artifact, btn.dataset.projectId || selectedProjectId || ''); };
   });
   $('changes').querySelectorAll('.card.clickable').forEach(card => {
-    card.onclick = async () => { try { await api('/api/active',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({change:card.dataset.change,projectId:card.dataset.projectId||selectedProjectId||undefined})}); } catch(e){} refresh(); };
+    card.onclick = async () => {
+      const projectId = card.dataset.projectId || selectedProjectId || '';
+      try {
+        await api('/api/active', {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({ change:card.dataset.change, projectId:projectId || undefined }),
+        });
+      } catch(e) {}
+      if (last?.mode === 'all' && projectId) {
+        selectedProjectId = projectId;
+        closeWorkflowCanvas(false);
+        lastRenderKey = '';
+      }
+      refresh();
+    };
   });
 }
 
