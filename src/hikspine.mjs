@@ -62,7 +62,7 @@ function cmdDecide(args) {
   const root = resolveRegisteredProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const state = loadState(root, opts.change);
-  const workflow = loadWorkflow(root, state.workflow);
+  const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale });
   recordDecision(state, key, value);
   const action = computeNext(root, workflow, state);
   action.projectRules = projectRules;
@@ -77,7 +77,7 @@ function cmdChanges(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
   const active = getActive(root);
-  const changes = listChangeSummaries(root, active);
+  const changes = listChangeSummaries(root, active, opts);
   if (opts.json) { printJson({ active, changes }); return; }
   if (!changes.length) { process.stdout.write('No Hikspine changes yet. Start one with: next <change> --workflow <id>\n'); return; }
   const lines = ['HIKSPINE changes:'];
@@ -95,7 +95,7 @@ function cmdChanges(args) {
 function cmdWorkflows(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
-  const workflows = listWorkflows(root);
+  const workflows = listWorkflows(root, opts);
   if (opts.json) { printJson({ workflows }); return; }
   const lines = ['HIKSPINE workflows:'];
   for (const w of workflows) lines.push(`- ${w.id} [${w.source}]: ${w.intent || w.name}`);
@@ -121,14 +121,14 @@ function cmdBoard(args) {
   const opts = parseOptions(args);
   if (opts.all) {
     try { resolveRegisteredProjectRoot(opts); } catch {}
-    const state = allProjectsBoardState();
+    const state = allProjectsBoardState(opts);
     if (opts.json) { printJson(state); return; }
     const lines = [`HIKSPINE all-project board`, `projects: ${(state.projects || []).length}`, `changes: ${(state.changes || []).length}`];
     process.stdout.write(`${lines.join('\n')}\n`);
     return;
   }
   const root = resolveRegisteredProjectRoot(opts);
-  const state = boardState(root);
+  const state = boardState(root, opts);
   if (opts.json) { printJson(state); return; }
   const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
   for (const c of state.changes) {
@@ -147,13 +147,13 @@ function cmdUi(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
   const port = opts.port ? Number(opts.port) : 4319;
-  startBoard(root, { port, all: !!opts.all }).catch((err) => die(`Cannot start board: ${err.message}`));
+  startBoard(root, { port, all: !!opts.all, locale: opts.locale || '' }).catch((err) => die(`Cannot start board: ${err.message}`));
 }
 
 function help() {
   process.stdout.write(`Usage:
-  hikspine next [change] [--workflow <id>] [--storage openspec|standalone] [--json]
-  hikspine decide <key> [value] [--change <change>] [--json]
+  hikspine next [change] [--workflow <id>] [--storage openspec|standalone] [--locale zh] [--json]
+  hikspine decide <key> [value] [--change <change>] [--locale zh] [--json]
   hikspine changes [--json]
   hikspine workflows [--json]
   hikspine skills [--json]
@@ -163,6 +163,8 @@ function help() {
 Global options:
   --project-root <dir>  Read/write Hikspine state for this project instead of the current directory.
   HIKSPINE_PROJECT_ROOT may also be set in the environment.
+  --locale zh           Use localized workflow YAML when available. Existing changes keep their recorded workflowLocale.
+  HIKSPINE_WORKFLOW_LOCALE may also be set in the environment.
 
 Agent protocol:
   next       Show the current state: its missing decisions and the skills you may compose.
@@ -184,7 +186,8 @@ Examples:
   hikspine ui --project-root /path/to/project
   hikspine ui --all
 
-Workflows resolve from .hikspine/workflows/<id>.yaml first, then builtin/workflows/<id>.yaml.
+Workflows resolve from .hikspine/workflows/<locale>/<id>.yaml first when --locale is set,
+then .hikspine/workflows/<id>.yaml, builtin locale workflows, and builtin default workflows.
 If --workflow is omitted for a new change, Hikspine uses .hikspine/config.yaml defaultWorkflow,
 then the builtin default.
 `);

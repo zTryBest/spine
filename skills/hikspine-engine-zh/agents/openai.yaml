@@ -1,4 +1,0 @@
-interface:
-  display_name: "Hikspine 引擎中文说明"
-  short_description: "中文说明 Hikspine 引擎、状态流转、runtime 命令和跨平台路径用法。"
-  default_prompt: "用中文说明如何通过 Hikspine 引擎推进当前工作流。"

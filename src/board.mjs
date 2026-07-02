@@ -178,9 +178,9 @@ function changeArtifacts(root, state, stages) {
   });
 }
 
-function workflowDetails(root, summary) {
+function workflowDetails(root, summary, opts = {}) {
   try {
-    const workflow = loadWorkflow(root, summary.id);
+    const workflow = loadWorkflow(root, summary.id, opts);
     return {
       ...summary,
       stages: workflow.states.map((state) => ({
@@ -200,11 +200,11 @@ function workflowDetails(root, summary) {
 }
 
 // One change's status. Read-only: never auto-advances or mutates the change.
-export function changeSummary(root, entryOrChange, active) {
+export function changeSummary(root, entryOrChange, active, opts = {}) {
   try {
     const entry = typeof entryOrChange === 'string' ? { change: entryOrChange } : entryOrChange;
     const state = entry.file ? loadStateEntry(root, entry) : loadState(root, entry.change);
-    const workflow = loadWorkflow(root, state.workflow);
+    const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale });
     const sum = summarize(workflow, state);
     const stages = workflow.states.map((s) => s.id);
     const history = Array.isArray(state.history) ? state.history : [];
@@ -212,6 +212,7 @@ export function changeSummary(root, entryOrChange, active) {
     return {
       change,
       workflow: state.workflow,
+      workflowLocale: state.workflowLocale || workflow.__locale || '',
       active: change === active,
       archived: !!state.__archived,
       archivePath: state.__archivePath || '',
@@ -237,8 +238,8 @@ export function changeSummary(root, entryOrChange, active) {
   }
 }
 
-export function listChangeSummaries(root, active = getActive(root)) {
-  return listStates(root).map((entry) => changeSummary(root, entry, active));
+export function listChangeSummaries(root, active = getActive(root), opts = {}) {
+  return listStates(root).map((entry) => changeSummary(root, entry, active, opts));
 }
 
 // Build/packaging manifest the scaffold stage records at
@@ -276,15 +277,15 @@ function readProjectBuild(root) {
   return { path: rel(root, file), project, components: components.filter((c) => c && typeof c === 'object') };
 }
 
-export function boardState(root) {
+export function boardState(root, opts = {}) {
   const active = getActive(root);
-  const workflows = listWorkflows(root);
+  const workflows = listWorkflows(root, opts);
   return {
     mode: 'project',
     root,
     active,
-    changes: listChangeSummaries(root, active),
-    workflows: workflows.map((workflow) => workflowDetails(root, workflow)),
+    changes: listChangeSummaries(root, active, opts),
+    workflows: workflows.map((workflow) => workflowDetails(root, workflow, opts)),
     skills: discoverSkills(root),
     notifications: readNotifications(root),
     projectBuild: readProjectBuild(root),
@@ -306,7 +307,7 @@ function isActiveOverviewChange(change) {
   return change.error || !(change.complete || change.archived);
 }
 
-export function allProjectsBoardState() {
+export function allProjectsBoardState(opts = {}) {
   const projects = readRegisteredProjects();
   const outProjects = [];
   const changes = [];
@@ -318,7 +319,7 @@ export function allProjectsBoardState() {
       continue;
     }
     try {
-      const state = boardState(project.root);
+      const state = boardState(project.root, opts);
       const projectChanges = (state.changes || []).map((change) => ({
         ...change,
         projectId: project.id,

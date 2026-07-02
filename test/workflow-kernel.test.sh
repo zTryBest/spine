@@ -505,6 +505,24 @@ eq "canvas can save project workflow yaml" "$CANVAS_SAVE" "canvas-flow:2:done"
 CANVAS_API="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { createBoardServer } = await import("./src/server.mjs"); const server=createBoardServer(root); await new Promise((resolve,reject)=>{ server.once("error", reject); server.listen(0, "127.0.0.1", resolve); }); const port=server.address().port; const res=await fetch(`http://127.0.0.1:${port}/api/workflows`, { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ workflow:{ id:"canvas-api", version:1, name:"Canvas API", intent:"Saved through UI API.", start:"one", states:[{ id:"one", goal:"One.", capabilities:[], needs:["ok"], terminal:true }] } }) }); const j=await res.json(); await new Promise(resolve=>server.close(resolve)); console.log(`${res.status}:${j.id}:${j.workflow.states.length}`);' "$T")"
 eq "canvas API saves project workflow yaml" "$CANVAS_API" "200:canvas-api:1"
 
+LOCALE_SHAPE="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'import path from "node:path"; const { readYamlFile } = await import("./src/yaml.mjs"); const ids=["new","feature","fix"]; const scalar = (v) => JSON.stringify(v ?? null); for (const id of ids) { const en=readYamlFile(path.join("src","workflows",`${id}.yaml`)); const zh=readYamlFile(path.join("src","workflows","zh",`${id}.yaml`)); if (en.id !== zh.id || scalar(en.start) !== scalar(zh.start)) throw new Error(`${id}: root keys differ`); const es=en.states||[], zs=zh.states||[]; if (es.length !== zs.length) throw new Error(`${id}: state count differs`); for (let i=0;i<es.length;i+=1) { const a=es[i], b=zs[i]; for (const key of ["id","needs","next","fail_when","fail_to","terminal","requires_user","forbid"]) { if (scalar(a[key]) !== scalar(b[key])) throw new Error(`${id}.${a.id}: ${key} differs`); } const ac=scalar((a.capabilities||[]).map(c=>typeof c==="string"?c:{id:c.id,required:c.required,group:c.group,when:!!c.when})); const bc=scalar((b.capabilities||[]).map(c=>typeof c==="string"?c:{id:c.id,required:c.required,group:c.group,when:!!c.when})); if (ac !== bc) throw new Error(`${id}.${a.id}: capabilities differ`); } } console.log("ok");')"
+eq "zh workflow keeps engine schema and decision keys aligned" "$LOCALE_SHAPE" "ok"
+ZH_LIST="$(run workflows --locale zh --json)"
+eq "workflow list uses zh names with --locale zh" \
+  "$(printf '%s' "$ZH_LIST" | json_get "j.workflows.find(w=>w.id==='feature').name")" "功能开发"
+ZH_NEXT="$(run next zh-feature --workflow feature --locale zh --json)"
+eq "zh next records workflowLocale" \
+  "$(printf '%s' "$ZH_NEXT" | json_get 'j.workflowLocale')" "zh"
+has "zh next returns zh goal" \
+  "$(printf '%s' "$ZH_NEXT" | json_get 'j.goal')" "澄清"
+ZH_RESUME="$(run next zh-feature --json)"
+eq "existing zh change resumes with stored locale" \
+  "$(printf '%s' "$ZH_RESUME" | json_get 'j.workflowLocale')" "zh"
+has "existing zh change keeps zh goal without --locale" \
+  "$(printf '%s' "$ZH_RESUME" | json_get 'j.goal')" "澄清"
+CANVAS_ZH="$(cd "$REPO" && "$NODE_BIN" --input-type=module -e 'const root=process.argv[1]; const { saveProjectWorkflow, loadWorkflow } = await import("./src/store.mjs"); const r=saveProjectWorkflow(root, { id:"canvas-zh", version:1, name:"中文画布", intent:"中文编排保存。", start:"draft", states:[{ id:"draft", goal:"写草稿。", capabilities:[], needs:["drafted"], terminal:true }] }, { locale:"zh" }); const wf=loadWorkflow(root, "canvas-zh", { locale:"zh" }); console.log(`${r.file}:${wf.__locale}:${wf.name}`);' "$T")"
+eq "canvas can save zh project workflow yaml" "$CANVAS_ZH" ".hikspine/workflows/zh/canvas-zh.yaml:zh:中文画布"
+
 rm -rf "$T"
 
 # ─── block-style YAML roundtrip (writeYamlFile output) ─────────────────────

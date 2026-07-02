@@ -81,6 +81,11 @@ function rootForRequest(defaultRoot, url, body = {}) {
   return project.root;
 }
 
+function localeForRequest(url, body = {}) {
+  if (url.searchParams?.has('locale')) return url.searchParams.get('locale') || '';
+  return body.locale || '';
+}
+
 function uiStateDir(root) {
   return path.join(root, '.hikspine');
 }
@@ -138,9 +143,10 @@ function unregisterUiPid(root) {
   } catch {}
 }
 
-export function createBoardServer(root, { all = false } = {}) {
+export function createBoardServer(root, { all = false, locale = '' } = {}) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    const requestLocale = localeForRequest(url, { locale });
     try {
       if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -160,17 +166,17 @@ export function createBoardServer(root, { all = false } = {}) {
               sendJson(res, 404, { error: 'Registered project not found.' });
               return;
             }
-            const detail = boardState(project.root);
+            const detail = boardState(project.root, { locale: requestLocale });
             detail.fromAll = true;
             detail.projectId = project.id;
             detail.projectName = project.name;
             sendJson(res, 200, detail);
             return;
           }
-          sendJson(res, 200, allProjectsBoardState());
+          sendJson(res, 200, allProjectsBoardState({ locale: requestLocale }));
           return;
         }
-        sendJson(res, 200, boardState(root));
+        sendJson(res, 200, boardState(root, { locale: requestLocale }));
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
@@ -253,7 +259,7 @@ export function createBoardServer(root, { all = false } = {}) {
         const body = await readBody(req);
         try {
           const targetRoot = all ? rootForRequest(root, url, body) : root;
-          const result = saveProjectWorkflow(targetRoot, body.workflow || body);
+          const result = saveProjectWorkflow(targetRoot, body.workflow || body, { locale: localeForRequest(url, body) || locale });
           sendJson(res, 200, result);
         } catch (err) {
           sendJson(res, 400, { error: err.message });
@@ -277,8 +283,8 @@ export function createBoardServer(root, { all = false } = {}) {
   });
 }
 
-export function startBoard(root, { port = 4319, host = '127.0.0.1', all = false } = {}) {
-  const server = createBoardServer(root, { all });
+export function startBoard(root, { port = 4319, host = '127.0.0.1', all = false, locale = '' } = {}) {
+  const server = createBoardServer(root, { all, locale });
   // The engine writes its OWN pid (process.pid = the real OS pid) so the
   // SessionEnd cleanup hook can terminate it. Do NOT rely on a shell's `$!`:
   // in Git Bash on Windows that is the MSYS pid, not the node.exe Windows pid,
