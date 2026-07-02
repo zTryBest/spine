@@ -319,7 +319,17 @@ export function allProjectsBoardState(opts = {}) {
       continue;
     }
     try {
-      const state = boardState(project.root, opts);
+      // Overview only needs each project's changes + notifications. Do NOT call
+      // the full boardState() here: it runs discoverSkills() (a recursive
+      // ~/.claude/plugins/marketplaces walk) and workflowDetails() per project,
+      // both of which the overview discards — that repeated deep scan is what
+      // made the global board take ~10s. Compute just the light parts instead.
+      const active = getActive(project.root);
+      const state = {
+        active,
+        changes: listChangeSummaries(project.root, active, opts),
+        notifications: readNotifications(project.root),
+      };
       const projectChanges = (state.changes || []).map((change) => ({
         ...change,
         projectId: project.id,

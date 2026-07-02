@@ -1,3 +1,17 @@
+## What's Changed [0.6.40] - 2026-07-02
+
+### Changed
+
+- **README 信息架构重写**: 中英文 README 统一改为“项目介绍、使用场景、项目亮点、如何使用、快速开始、后续计划”的结构，移除旧版 `next-only` / `exit.checks` 叙述，改为描述当前 `next`/`decide`、中文 workflow、看板、hooks 和自定义 workflow 能力。
+
+### Fixed
+
+- **总项目看板加载慢(~10s)**: `--all` 全局看板对**每个**已登记项目都调用了完整的 `boardState()`,其中 `discoverSkills()` 会递归遍历 `~/.claude/plugins/marketplaces`(深度 6)、`workflowDetails()` 会逐个加载 workflow——而这些结果在总览里根本用不到(总览只需要每个项目的 changes/notifications/计数,`workflows`/`skills` 返回空)。项目多、marketplace 目录大时,这个"每项目一次深度扫描"就是 ~10s 的来源。改为总览只计算实际用到的轻量部分(`getActive` + `listChangeSummaries` + `readNotifications`),不再每项目跑 `discoverSkills`/`workflowDetails`;单项目下钻(`/api/state?projectId=`)仍走完整 `boardState`(需要技能/工作流面板)。
+
+### Tests
+
+- **测试沙箱锚定与隔离**: `run` 现在通过 `HIKSPINE_PROJECT_ROOT` 把项目根显式锚定到沙箱,不再依赖 `findProjectRoot` 向上走时祖先目录干净——OS 临时目录(在用户主目录下)和本仓库都可能残留 dogfooding 产生的 `.hikspine`/`openspec`,否则会把沙箱错误锚定过去;专门的 findProjectRoot 用例仍走真实祖先遍历。`.claude/rules/`、`.claude/worktrees/` 加入 `.gitignore`(生成产物/临时 worktree,非插件源码)。
+
 ## What's Changed [0.6.39] - 2026-07-02
 
 ### Fixed

@@ -78,7 +78,12 @@ json_test() {
 }
 
 run() {
-  ( cd "$T" && "$NODE_BIN" "$ENGINE_RUN" "$@" )
+  # Anchor the project root to the sandbox explicitly, so general tests do not
+  # depend on findProjectRoot's ancestor walk being clean. The OS temp dir and
+  # even this repo can accumulate stray .hikspine/openspec (dogfooding, prior
+  # runs) that would otherwise capture the sandbox. The dedicated findProjectRoot
+  # test below intentionally does NOT use run(), so it still exercises the walk.
+  ( cd "$T" && HIKSPINE_PROJECT_ROOT="$(node_path "$T")" "$NODE_BIN" "$ENGINE_RUN" "$@" )
 }
 
 node_path() {

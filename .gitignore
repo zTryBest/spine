@@ -7,6 +7,10 @@ hikspine-vendor-*/
 # Claude Code personal settings (machine-local permission allowlist, not shared).
 # The shared .claude/settings.json stays tracked.
 .claude/settings.local.json
+# Generated per-project rule-sync output and transient Agent worktrees — never
+# plugin source (they appear in this repo only from dogfooding hikspine in-repo).
+.claude/rules/
+.claude/worktrees/
 
 # Vendored skills (skills/ from upstream) ARE committed on purpose —
 # they are the pinned, team-shared snapshot. Do not ignore them.
