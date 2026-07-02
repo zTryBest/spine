@@ -1,3 +1,9 @@
+## What's Changed [0.6.39] - 2026-07-02
+
+### Fixed
+
+- **写入守卫按 workflowLocale 加载 workflow**: `guard.mjs` 在 PreToolUse 写入检查时使用状态文件里的 `workflowLocale` 加载 workflow，旧状态缺字段时沿用默认 `zh` 兼容逻辑，避免中英文 workflow 分叉后守卫读取错误版本。
+
 ## What's Changed [0.6.38] - 2026-07-02
 
 ### Fixed

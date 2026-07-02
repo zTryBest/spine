@@ -34,7 +34,7 @@ let result;
 try {
   const root = process.cwd();
   const state = loadState(root);
-  const workflow = loadWorkflow(root, state.workflow);
+  const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale });
   result = checkGuard(root, state, workflow, target);
 } catch {
   result = { allow: true, reason: 'no_active_change', target };
