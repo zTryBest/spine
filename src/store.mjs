@@ -32,17 +32,74 @@ export function workflowLocale(opts = {}) {
   return normalizeWorkflowLocale(opts.locale || process.env.HIKSPINE_WORKFLOW_LOCALE || readConfig(opts.root || '')?.workflowLocale);
 }
 
-export function workflowFile(root, id, opts = {}) {
+export function workflowSource(opts = {}) {
+  const raw = String(opts.source || '').trim().toLowerCase();
+  return ['project', 'builtin'].includes(raw) ? raw : '';
+}
+
+function workflowDisplayPath(root, file, source) {
+  return rel(root, file);
+}
+
+export function projectWorkflowsDir(root) {
+  return path.join(root, '.hikspine', 'workflows');
+}
+
+export function ensureProjectWorkflows(root) {
+  const targetRoot = projectWorkflowsDir(root);
+  const result = { copied: 0, skipped: 0, dir: rel(root, targetRoot) };
+  const copyDir = (fromDir, relDir = '') => {
+    if (!fs.existsSync(fromDir)) return;
+    for (const name of fs.readdirSync(fromDir).sort()) {
+      const from = path.join(fromDir, name);
+      const stat = fs.statSync(from);
+      if (stat.isDirectory()) {
+        copyDir(from, path.join(relDir, name));
+        continue;
+      }
+      if (!/\.ya?ml$/i.test(name)) continue;
+      const to = path.join(targetRoot, relDir, name);
+      if (fs.existsSync(to)) {
+        result.skipped += 1;
+        continue;
+      }
+      writeText(to, readText(from));
+      result.copied += 1;
+    }
+  };
+  copyDir(BUILTIN_WORKFLOWS_DIR);
+  return result;
+}
+
+function addWorkflowCandidates(out, root, id, opts, source, baseDir) {
   const locale = workflowLocale({ ...opts, root });
-  const candidates = [];
-  if (locale) candidates.push({ file: path.join(root, '.hikspine', 'workflows', locale, `${id}.yaml`), locale, source: 'project' });
-  candidates.push({ file: path.join(root, '.hikspine', 'workflows', `${id}.yaml`), locale: '', source: 'project' });
-  if (locale) candidates.push({ file: path.join(BUILTIN_WORKFLOWS_DIR, locale, `${id}.yaml`), locale, source: 'builtin' });
-  candidates.push({ file: path.join(BUILTIN_WORKFLOWS_DIR, `${id}.yaml`), locale: '', source: 'builtin' });
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate.file)) return candidate;
+  if (locale) out.push({ file: path.join(baseDir, locale, `${id}.yaml`), locale, source });
+  out.push({ file: path.join(baseDir, `${id}.yaml`), locale: '', source });
+}
+
+function workflowFileCandidates(root, id, opts = {}) {
+  const source = workflowSource(opts);
+  const all = [];
+  if (!source || source === 'project') addWorkflowCandidates(all, root, id, opts, 'project', projectWorkflowsDir(root));
+  if (!source || source === 'builtin') addWorkflowCandidates(all, root, id, opts, 'builtin', BUILTIN_WORKFLOWS_DIR);
+  const seen = new Set();
+  return all.filter((candidate) => {
+    if (!fs.existsSync(candidate.file)) return false;
+    const key = path.resolve(candidate.file).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function workflowFile(root, id, opts = {}) {
+  const candidates = workflowFileCandidates(root, id, opts);
+  if (opts.hash) {
+    const byHash = candidates.find((candidate) => sha256(readText(candidate.file)) === opts.hash);
+    if (byHash) return byHash;
   }
-  die(`Workflow '${id}' not found. Expected .hikspine/workflows/${id}.yaml or builtin/workflows/${id}.yaml.`);
+  if (!candidates.length) die(`Workflow '${id}' not found. Expected .hikspine/workflows/${id}.yaml or builtin/workflows/${id}.yaml.`);
+  return candidates[0];
 }
 
 export function loadWorkflow(root, id, opts = {}) {
@@ -116,7 +173,15 @@ export function listWorkflows(root, opts = {}) {
     try {
       const w = readYamlFile(file);
       const id = w.id || path.basename(file).replace(/\.ya?ml$/, '');
-      map.set(id, { id, name: w.name || id, intent: w.intent || '', source, locale: sourceLocale, file: rel(root, file) });
+      map.set(id, {
+        id,
+        name: w.name || id,
+        intent: w.intent || '',
+        source,
+        locale: sourceLocale,
+        file: workflowDisplayPath(root, file, source),
+        editable: source === 'project',
+      });
     } catch {
       // Skip unparseable files rather than failing the whole listing.
     }
@@ -134,7 +199,7 @@ export function listWorkflows(root, opts = {}) {
       }
     }
   }
-  const projDir = path.join(root, '.hikspine', 'workflows');
+  const projDir = projectWorkflowsDir(root);
   if (fs.existsSync(projDir)) {
     for (const name of fs.readdirSync(projDir).sort()) {
       if (/\.ya?ml$/.test(name)) add(path.join(projDir, name), 'project');
@@ -160,10 +225,16 @@ export function saveProjectWorkflow(root, workflow, opts = {}) {
   copy.version = Number(copy.version || 1);
   validateWorkflow(copy);
   const file = locale
-    ? path.join(root, '.hikspine', 'workflows', locale, `${id}.yaml`)
-    : path.join(root, '.hikspine', 'workflows', `${id}.yaml`);
+    ? path.join(projectWorkflowsDir(root), locale, `${id}.yaml`)
+    : path.join(projectWorkflowsDir(root), `${id}.yaml`);
   writeYamlFile(file, copy);
-  return { id, locale, file: rel(root, file), workflow: loadWorkflow(root, id, { locale }) };
+  return {
+    id,
+    locale,
+    source: 'project',
+    file: rel(root, file),
+    workflow: loadWorkflow(root, id, { locale, source: 'project' }),
+  };
 }
 
 export function stateById(workflow, id) {
@@ -294,6 +365,7 @@ export function initializeState(root, change, workflow, storage) {
     workflowVersion: String(workflow.version ?? ''),
     workflowHash: workflow.__hash,
     workflowLocale: workflow.__locale || '',
+    workflowSource: workflow.__source || '',
     storage,
     current: start,
     decisions: {},
@@ -368,7 +440,7 @@ export function loadOrCreatePair(root, changeArg, opts = {}) {
       if (opts.workflow && state.workflow !== opts.workflow) {
         die(`Change '${change}' already uses workflow '${state.workflow}', not '${opts.workflow}'. Use a different change name or resume without --workflow.`);
       }
-      const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale });
+      const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale, source: state.workflowSource, hash: state.workflowHash });
       setActive(root, state.change);
       return { state, workflow, created: false };
     }
@@ -383,6 +455,7 @@ export function publicState(root, state) {
     change: state.change,
     workflow: state.workflow,
     workflowLocale: state.workflowLocale || '',
+    workflowSource: state.workflowSource || '',
     current: state.current,
     decisions: state.decisions || {},
     stateFile: rel(root, state.__file),

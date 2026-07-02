@@ -41,7 +41,7 @@ unset _hs_env_file f r b
 unset -f _hs_norm_root
 ```
 
-`HIKSPINE_WORKFLOW_LOCALE=zh` 会让新建 change 优先加载 `src/workflows/zh/<workflow-id>.yaml` 或 `.hikspine/workflows/zh/<workflow-id>.yaml`。已有 change 使用状态文件里记录的 `workflowLocale`，不会因为之后切换入口而改变。
+`HIKSPINE_WORKFLOW_LOCALE=zh` 会让新建 change 优先加载项目级 `.hikspine/workflows/zh/<workflow-id>.yaml`。`workflows`、`next`、`board`、`ui` 会把插件内置 workflow 模板补齐到当前项目 `.hikspine/workflows/`，只复制缺失文件，不覆盖项目已有定制。已有 change 使用状态文件里记录的 `workflowLocale`，不会因为之后切换入口而改变。
 
 引擎命令在项目根目录运行，或传 `--project-root <项目根目录>`。全新项目第一次 `next` 必须在项目根目录运行，确保 `openspec/` 和 `.hikspine/` 落在根目录。
 
@@ -162,4 +162,4 @@ feature   open -> design -> build -> review -> verify -> archive
 fix       inspect -> fix -> verify
 ```
 
-新增中文 workflow 放 `.hikspine/workflows/zh/<id>.yaml`，默认语言 workflow 放 `.hikspine/workflows/<id>.yaml`，传 `--workflow <id>`。
+新增中文 workflow 放当前项目 `.hikspine/workflows/zh/<id>.yaml`，默认语言 workflow 放当前项目 `.hikspine/workflows/<id>.yaml`，传 `--workflow <id>`。插件内置 workflow 只是模板来源，不要直接编辑插件目录里的 workflow。

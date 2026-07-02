@@ -505,6 +505,7 @@ let hasRendered = false;
 let uiLabels = { stages:{} };
 let pollTimer = null;
 let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
+let selectedWorkflowKey = localStorage.getItem('hikspine-workflow-key') || '';
 let selectedProjectId = null;   // global board: which project is drilled into (null = overview)
 let projectOptions = [];
 let refreshSeq = 0;             // only the latest refresh() may apply its result (drops stale slow fetches)
@@ -1246,27 +1247,46 @@ function renderProjectBuild(pb) {
   host.innerHTML = projHtml + table;
 }
 
+function workflowKey(w) {
+  return [w?.source || '', w?.locale || '', w?.id || ''].join(':');
+}
+function selectedWorkflow(workflows) {
+  workflows = Array.isArray(workflows) ? workflows : [];
+  return workflows.find(w => workflowKey(w) === selectedWorkflowKey)
+    || workflows.find(w => w.id === selectedWorkflowId)
+    || workflows[0]
+    || null;
+}
+
 function renderWorkflows(workflows) {
   workflows = Array.isArray(workflows) ? workflows : [];
   $('workflowActionbar').hidden = !workflows.length;
-  $('canvasOpen').textContent = lang === 'zh' ? '打开编排画布' : 'Open canvas';
+  $('canvasOpen').textContent = lang === 'zh' ? '自定义工作流' : 'Custom workflow';
   if (!workflows.length) {
     closeWorkflowCanvas(false);
     $('legend').innerHTML = '';
     $('workflowDetail').innerHTML = '<div class="empty">'+(lang==='zh'?'暂无工作流。':'No workflows found.')+'</div>';
     return;
   }
-  if (!selectedWorkflowId || !workflows.some(w => w.id === selectedWorkflowId)) selectedWorkflowId = workflows[0].id;
-  $('legend').innerHTML = workflows.map(w=>'<button type="button" class="wf-chip '+(w.id===selectedWorkflowId?'active':'')+'" data-workflow="'+esc(w.id)+'"><div class="id">'+esc(wfName(w))+
-    '<span class="tag">'+esc(w.id)+'</span></div><div class="it">'+esc(wfIntent(w))+'</div></button>').join('');
-  $('legend').querySelectorAll('[data-workflow]').forEach(btn => {
+  const selected = selectedWorkflow(workflows);
+  selectedWorkflowId = selected?.id || '';
+  selectedWorkflowKey = selected ? workflowKey(selected) : '';
+  $('legend').innerHTML = workflows.map(w=>{
+    const key = workflowKey(w);
+    const sourceTag = w.source ? '<span class="tag">'+esc(w.source)+(w.conflictsBuiltin?' !':'')+'</span>' : '';
+    return '<button type="button" class="wf-chip '+(key===selectedWorkflowKey?'active':'')+'" data-workflow-key="'+esc(key)+'"><div class="id">'+esc(wfName(w))+
+      '<span class="tag">'+esc(w.id)+'</span>'+sourceTag+'</div><div class="it">'+esc(wfIntent(w))+'</div></button>';
+  }).join('');
+  $('legend').querySelectorAll('[data-workflow-key]').forEach(btn => {
     btn.onclick = () => {
-      selectedWorkflowId = btn.dataset.workflow;
+      selectedWorkflowKey = btn.dataset.workflowKey;
+      selectedWorkflowId = (workflows.find(w => workflowKey(w) === selectedWorkflowKey) || {}).id || '';
       canvasWorkflow = null;
       canvasSourceId = '';
       canvasSourceKey = '';
       canvasDirty = false;
       localStorage.setItem('hikspine-workflow', selectedWorkflowId);
+      localStorage.setItem('hikspine-workflow-key', selectedWorkflowKey);
       renderWorkflows(workflows);
     };
   });
@@ -1275,7 +1295,8 @@ function renderWorkflows(workflows) {
 }
 
 function renderWorkflowDetail(workflows) {
-  const w = workflows.find(x => x.id === selectedWorkflowId) || workflows[0];
+  const w = selectedWorkflow(workflows);
+  if (!w) return;
   const skillIndex = new Map((last?.skills || []).map(s => [s.name, s]));
   const stages = Array.isArray(w.stages) ? w.stages : [];
   const stageHtml = stages.length ? stages.map((s, i) => {
@@ -1310,8 +1331,8 @@ async function openWorkflowCanvas() {
   if (!last || last.mode === 'all') return;
   canvasOpen = true;
   canvasInspectorMode = 'stage';
-  $('workflowCanvasTitle').textContent = lang === 'zh' ? 'Workflow 编排画布' : 'Workflow orchestration canvas';
-  $('workflowCanvasHint').textContent = lang === 'zh' ? '编辑后会保存为当前项目的 .hikspine/workflows/<id>.yaml' : 'Saves to the current project .hikspine/workflows/<id>.yaml';
+  $('workflowCanvasTitle').textContent = lang === 'zh' ? '自定义 workflow 编排' : 'Custom workflow canvas';
+  $('workflowCanvasHint').textContent = lang === 'zh' ? '保存会写入当前项目 .hikspine/workflows；插件内置 workflow 只作为模板，项目副本才可编辑。' : 'Saves to the current project .hikspine/workflows. Plugin built-in workflows are templates; project copies are editable.';
   $('canvasClose').textContent = lang === 'zh' ? '关闭' : 'Close';
   renderWorkflowCanvas(last.workflows || []);
   $('workflowCanvasModal').hidden = false;
@@ -1587,6 +1608,28 @@ function readDecisionEditor() {
     );
   }).filter(Boolean);
 }
+function existingWorkflowIds() {
+  return new Set((last?.workflows || []).map(w => w.id).filter(Boolean));
+}
+function uniqueWorkflowId(base) {
+  const ids = existingWorkflowIds();
+  let id = String(base || 'custom-workflow').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'custom-workflow';
+  if (!ids.has(id)) return id;
+  let n = 2;
+  while (ids.has(id + '-' + n)) n += 1;
+  return id + '-' + n;
+}
+function newBlankWorkflow() {
+  const id = uniqueWorkflowId('custom-workflow');
+  return {
+    id,
+    version: 1,
+    name: lang === 'zh' ? '自定义工作流' : 'Custom Workflow',
+    intent: '',
+    start: 'start',
+    states: [{ id: 'start', goal: '', capabilities: [], rules: [], needs: ['done'], terminal: true }],
+  };
+}
 function workflowToCanvas(w) {
   const states = (w.stages || []).map(s => ({
     id: s.id,
@@ -1599,7 +1642,7 @@ function workflowToCanvas(w) {
     next: s.next || '',
   }));
   return {
-    id: w.id || 'custom-workflow',
+    id: w.id || uniqueWorkflowId('custom-workflow'),
     version: Number(w.version || 1),
     name: w.name || w.id || 'Custom Workflow',
     intent: w.intent || '',
@@ -1647,12 +1690,13 @@ function canvasErrors(w) {
   return errors;
 }
 function canvasEnsure(workflows) {
-  const selected = (workflows || []).find(w => w.id === selectedWorkflowId) || (workflows || [])[0];
+  const selected = selectedWorkflow(workflows);
   if (!selected) return null;
   const selectedKey = JSON.stringify(selected);
-  if (!canvasWorkflow || (!canvasDirty && (canvasSourceId !== selected.id || canvasSourceKey !== selectedKey))) {
+  const selectedKeyId = workflowKey(selected);
+  if (!canvasWorkflow || (!canvasDirty && (canvasSourceId !== selectedKeyId || canvasSourceKey !== selectedKey))) {
     canvasWorkflow = workflowToCanvas(selected);
-    canvasSourceId = selected.id;
+    canvasSourceId = selectedKeyId;
     canvasSourceKey = selectedKey;
     selectedCanvasStage = canvasWorkflow.start || canvasWorkflow.states[0]?.id || '';
     canvasDirty = false;
@@ -1715,12 +1759,14 @@ async function saveCanvasWorkflow() {
     const result = await api('/api/workflows', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload) });
     if (result.error) throw new Error(result.error);
     selectedWorkflowId = workflow.id;
+    selectedWorkflowKey = workflowKey({ id: workflow.id, source: result.source || 'project', locale: result.locale || '' });
     localStorage.setItem('hikspine-workflow', selectedWorkflowId);
+    localStorage.setItem('hikspine-workflow-key', selectedWorkflowKey);
     canvasDirty = false;
-    canvasSourceId = workflow.id;
-    canvasSourceKey = JSON.stringify(workflow);
+    canvasSourceId = selectedWorkflowKey;
+    canvasSourceKey = JSON.stringify(result.workflow || workflow);
     lastRenderKey = '';
-    status.textContent = lang === 'zh' ? '已保存到项目 workflow' : 'Saved to project workflow';
+    status.textContent = lang === 'zh' ? '已保存到当前项目 .hikspine/workflows' : 'Saved to current project .hikspine/workflows';
     await refresh();
   } catch (err) {
     status.textContent = err.message || String(err);
@@ -1811,9 +1857,11 @@ function renderWorkflowCanvas(workflows) {
   const inspectorBody = canvasInspectorMode === 'workflow' ? workflowPanel : stagePanel;
   host.innerHTML =
     '<div class="canvas-toolbar"><div class="canvas-title">'+(lang==='zh'?'工作流编排画布':'Workflow orchestration canvas')+'</div>'+
+    '<button class="canvas-btn" id="canvasNewBlank" type="button">'+(lang==='zh'?'新建空白':'New blank')+'</button>'+
+    '<button class="canvas-btn" id="canvasCopySelected" type="button">'+(lang==='zh'?'复制当前':'Copy selected')+'</button>'+
     '<button class="canvas-btn '+(canvasInspectorMode==='workflow'?'active':'')+'" id="canvasWorkflowSettings" type="button">'+(lang==='zh'?'工作流设置':'Workflow settings')+'</button>'+
     '<button class="canvas-btn primary" id="canvasSave" type="button">'+(lang==='zh'?'保存为项目 workflow':'Save project workflow')+'</button>'+
-    '<span class="canvas-status" id="canvasStatus">'+(canvasDirty ? (lang==='zh'?'未保存':'Unsaved') : (w.source==='project'?'Project':'Ready'))+'</span></div>'+
+    '<span class="canvas-status" id="canvasStatus">'+(canvasDirty ? (lang==='zh'?'未保存':'Unsaved') : (lang==='zh'?'项目 workflow':'Project workflow'))+'</span></div>'+
     '<div class="canvas-main '+(canvasInspectorOpen?'':'inspector-closed')+'"><div class="canvas-board" style="min-height:'+boardH+'px">'+
     '<svg class="canvas-svg" width="'+boardW+'" height="'+boardH+'" viewBox="0 0 '+boardW+' '+boardH+'"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="rgba(98,210,162,.72)"></path></marker></defs>'+edges+'</svg>'+nodes+'</div>'+
     '<aside class="canvas-inspector"><div class="canvas-inspector-head"><h3>'+esc(inspectorTitle)+'</h3><button class="canvas-panel-close" id="canvasInspectorCollapse" type="button">'+(lang==='zh'?'收起':'Collapse')+'</button></div>'+
@@ -1850,6 +1898,28 @@ function renderWorkflowCanvas(workflows) {
     canvasInspectorMode = 'workflow';
     canvasInspectorOpen = true;
     renderWorkflowCanvas(workflows);
+  };
+  $('canvasNewBlank').onclick = () => {
+    canvasWorkflow = newBlankWorkflow();
+    canvasSourceId = 'blank:' + canvasWorkflow.id;
+    canvasSourceKey = JSON.stringify(canvasWorkflow);
+    selectedCanvasStage = canvasWorkflow.start;
+    canvasInspectorMode = 'workflow';
+    canvasInspectorOpen = true;
+    markCanvasDirty(true);
+  };
+  $('canvasCopySelected').onclick = () => {
+    const source = selectedWorkflow(last?.workflows || []);
+    if (!source) return;
+    canvasWorkflow = workflowToCanvas(source);
+    canvasWorkflow.id = uniqueWorkflowId(`${source.id || 'workflow'}-custom`);
+    canvasWorkflow.name = (lang === 'zh' ? '自定义 ' : 'Custom ') + (source.name || source.id || 'Workflow');
+    canvasSourceId = 'copy:' + workflowKey(source);
+    canvasSourceKey = JSON.stringify(source);
+    selectedCanvasStage = canvasWorkflow.start || canvasWorkflow.states[0]?.id || '';
+    canvasInspectorMode = 'workflow';
+    canvasInspectorOpen = true;
+    markCanvasDirty(true);
   };
   $('canvasSave').onclick = saveCanvasWorkflow;
   const bind = (id, fn) => {

@@ -24,7 +24,7 @@ It is distributed as a Claude Code plugin. Users normally start it through skill
 - **OpenSpec-backed state**: changes default to `openspec/changes/<change>/.hikspine.yaml`, so specs, artifacts, and board data stay in one place.
 - **Localized workflows**: built-in workflow YAML exists in default and Chinese variants. `hikspine-zh` sets `HIKSPINE_WORKFLOW_LOCALE=zh`, and legacy state files without `workflowLocale` default to Chinese for compatibility.
 - **Local and global boards**: `hikspine-ui` opens the current project board; `hikspine-global-ui` opens a board across all locally registered projects.
-- **Workflow canvas**: the board can edit and save project workflows under `.hikspine/workflows/` or `.hikspine/workflows/zh/`.
+- **Workflow canvas**: the board can edit and save project workflows under `.hikspine/workflows/` or `.hikspine/workflows/zh/`; plugin built-in workflows are only templates.
 - **Safety hooks**: Claude Code hooks can block source writes in forbidden stages, record attention-needed notifications, and clean up UI processes on session end.
 - **Project rules sync**: the engine syncs plugin rules into `.claude/rules` and tells the agent which newly synced files to read in the current session.
 
@@ -81,6 +81,8 @@ Custom workflows can be saved at:
 .hikspine/workflows/<workflow-id>.yaml
 .hikspine/workflows/zh/<workflow-id>.yaml
 ```
+
+The first `workflows`, `next`, `board`, or `ui` command copies Hikspine's built-in workflow templates into the current project's `.hikspine/workflows/`. It only fills missing files and never overwrites team-customized workflows.
 
 Useful engine commands:
 

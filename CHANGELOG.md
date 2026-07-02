@@ -1,3 +1,14 @@
+## What's Changed [0.6.41] - 2026-07-02
+
+### Changed
+
+- **项目级 workflow 模板化**: `workflows`、`next`、`board`、`ui` 会把插件内置 workflow 模板补齐到当前项目 `.hikspine/workflows/`，只复制缺失文件，不覆盖团队定制；看板和引擎继续以项目级 workflow 作为可编辑、可执行来源，插件目录只承担模板兜底。
+- **Workflow 编排画布保存位置**: 画布新建、复制和保存的 workflow 重新落到当前项目 `.hikspine/workflows/` 或 `.hikspine/workflows/zh/`，并在保存后选中项目级 workflow，避免通过 Claude plugin 使用时写入插件目录或用户全局目录。
+
+### Tests
+
+- **项目 workflow 初始化与画布保存回归**: 新增断言验证内置模板会复制到项目目录且不会覆盖已修改 workflow，并覆盖画布保存 API、中文 workflow 保存和项目级加载路径。
+
 ## What's Changed [0.6.40] - 2026-07-02
 
 ### Changed

@@ -18,6 +18,7 @@ import {
 } from './utils.mjs';
 import {
   getActive,
+  ensureProjectWorkflows,
   listWorkflows,
   loadOrCreatePair,
   loadState,
@@ -46,6 +47,7 @@ function resolveRegisteredProjectRoot(opts) {
 function cmdNext(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
+  ensureProjectWorkflows(root);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const { state, workflow, created } = loadOrCreatePair(root, opts._[0], opts);
   const action = computeNext(root, workflow, state);
@@ -62,7 +64,7 @@ function cmdDecide(args) {
   const root = resolveRegisteredProjectRoot(opts);
   const projectRules = publicRuleSync(syncProjectRules(root));
   const state = loadState(root, opts.change);
-  const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale });
+  const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale, source: state.workflowSource, hash: state.workflowHash });
   recordDecision(state, key, value);
   const action = computeNext(root, workflow, state);
   action.projectRules = projectRules;
@@ -95,6 +97,7 @@ function cmdChanges(args) {
 function cmdWorkflows(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
+  ensureProjectWorkflows(root);
   const workflows = listWorkflows(root, opts);
   if (opts.json) { printJson({ workflows }); return; }
   const lines = ['HIKSPINE workflows:'];
@@ -128,6 +131,7 @@ function cmdBoard(args) {
     return;
   }
   const root = resolveRegisteredProjectRoot(opts);
+  ensureProjectWorkflows(root);
   const state = boardState(root, opts);
   if (opts.json) { printJson(state); return; }
   const lines = [`HIKSPINE board — ${state.root}`, `active: ${state.active || '—'}`, '', `changes (${state.changes.length}):`];
@@ -146,6 +150,7 @@ function cmdBoard(args) {
 function cmdUi(args) {
   const opts = parseOptions(args);
   const root = resolveRegisteredProjectRoot(opts);
+  ensureProjectWorkflows(root);
   const port = opts.port ? Number(opts.port) : 4319;
   startBoard(root, { port, all: !!opts.all, locale: opts.locale || '' }).catch((err) => die(`Cannot start board: ${err.message}`));
 }

@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
+import { ensureProjectWorkflows, getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
 import { skillCatalog, normalizeCapability } from './skills.mjs';
 import { readNotifications } from './notifications.mjs';
@@ -180,7 +180,7 @@ function changeArtifacts(root, state, stages) {
 
 function workflowDetails(root, summary, opts = {}) {
   try {
-    const workflow = loadWorkflow(root, summary.id, opts);
+    const workflow = loadWorkflow(root, summary.id, { ...opts, source: summary.source });
     return {
       ...summary,
       stages: workflow.states.map((state) => ({
@@ -204,7 +204,7 @@ export function changeSummary(root, entryOrChange, active, opts = {}) {
   try {
     const entry = typeof entryOrChange === 'string' ? { change: entryOrChange } : entryOrChange;
     const state = entry.file ? loadStateEntry(root, entry) : loadState(root, entry.change);
-    const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale });
+    const workflow = loadWorkflow(root, state.workflow, { locale: state.workflowLocale || opts.locale, source: state.workflowSource, hash: state.workflowHash });
     const sum = summarize(workflow, state);
     const stages = workflow.states.map((s) => s.id);
     const history = Array.isArray(state.history) ? state.history : [];
@@ -278,6 +278,7 @@ function readProjectBuild(root) {
 }
 
 export function boardState(root, opts = {}) {
+  ensureProjectWorkflows(root);
   const active = getActive(root);
   const workflows = listWorkflows(root, opts);
   return {
