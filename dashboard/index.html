@@ -465,6 +465,7 @@ let selectedWorkflowId = localStorage.getItem('hikspine-workflow') || '';
 let selectedProjectId = null;   // global board: which project is drilled into (null = overview)
 let projectOptions = [];
 let refreshSeq = 0;             // only the latest refresh() may apply its result (drops stale slow fetches)
+let skillCatalogList = [];      // discoverable skills for the canvas picker, from cached /api/skills
 let canvasWorkflow = null;
 let selectedCanvasStage = '';
 let canvasSourceId = '';
@@ -1262,7 +1263,7 @@ function renderWorkflowDetail(workflows) {
     '<span class="it">'+esc(wfIntent(w))+'</span></div>'+stageHtml;
 }
 
-function openWorkflowCanvas() {
+async function openWorkflowCanvas() {
   if (!last || last.mode === 'all') return;
   canvasOpen = true;
   canvasInspectorMode = 'stage';
@@ -1271,6 +1272,9 @@ function openWorkflowCanvas() {
   $('canvasClose').textContent = lang === 'zh' ? '关闭' : 'Close';
   renderWorkflowCanvas(last.workflows || []);
   $('workflowCanvasModal').hidden = false;
+  // Refresh the skill catalog for the picker, then re-render if still open.
+  await loadSkillCatalog();
+  if (canvasOpen) renderWorkflowCanvas(last.workflows || []);
 }
 function closeWorkflowCanvas(clearDirty) {
   canvasOpen = false;
@@ -1322,8 +1326,19 @@ function capabilityModeLabel(mode) {
   };
   return (lang === 'zh' ? zh : en)[mode] || mode;
 }
+// The canvas skill picker pulls from the cached /api/skills catalog (falling
+// back to whatever the current board state carried). This keeps the picker
+// working regardless of mode and independent of the board's per-project scan.
+async function loadSkillCatalog() {
+  try {
+    const q = selectedProjectId ? '?projectId=' + encodeURIComponent(selectedProjectId) : '';
+    const r = await api('/api/skills' + q);
+    if (r && Array.isArray(r.skills)) skillCatalogList = r.skills;
+  } catch (e) {}
+}
 function skillOptions() {
-  const names = new Set((last?.skills || []).map(s => s.name).filter(Boolean));
+  const src = skillCatalogList.length ? skillCatalogList : (last?.skills || []);
+  const names = new Set(src.map(s => s.name).filter(Boolean));
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 function skillOptionHtml(selected) {

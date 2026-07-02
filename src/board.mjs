@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getActive, listStates, listWorkflows, loadState, loadStateEntry, loadWorkflow } from './store.mjs';
 import { summarize } from './transitions.mjs';
-import { discoverSkills, normalizeCapability } from './skills.mjs';
+import { skillCatalog, normalizeCapability } from './skills.mjs';
 import { readNotifications } from './notifications.mjs';
 import { rel, toPosix } from './utils.mjs';
 import { projectRegistryFile, readRegisteredProjects } from './project-registry.mjs';
@@ -286,7 +286,7 @@ export function boardState(root, opts = {}) {
     active,
     changes: listChangeSummaries(root, active, opts),
     workflows: workflows.map((workflow) => workflowDetails(root, workflow, opts)),
-    skills: discoverSkills(root),
+    skills: skillCatalog(root),
     notifications: readNotifications(root),
     projectBuild: readProjectBuild(root),
   };

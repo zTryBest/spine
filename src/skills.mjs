@@ -93,6 +93,22 @@ export function skillIndex(root) {
   return map;
 }
 
+// Cached skill discovery for hot paths (the board polls every 2s; the canvas
+// skill picker pulls the catalog). discoverSkills() walks ~/.claude/plugins/
+// marketplaces recursively, which is expensive, and skills rarely change during
+// a session — so cache per root with a short TTL. The CLI `skills` command uses
+// the uncached discoverSkills() so it always reflects the current filesystem.
+const skillCache = new Map(); // root -> { at, value }
+export function skillCatalog(root, { ttlMs = 15000 } = {}) {
+  const key = String(root || '');
+  const now = Date.now();
+  const hit = skillCache.get(key);
+  if (hit && now - hit.at < ttlMs) return hit.value;
+  const value = discoverSkills(root);
+  skillCache.set(key, { at: now, value });
+  return value;
+}
+
 // Resolve a capability (a skill name) to display info. Unknown names still
 // pass through — a workflow may reference a skill that is not installed here.
 export function skillInfo(index, name) {

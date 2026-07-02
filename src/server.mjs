@@ -8,6 +8,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { allProjectsBoardState, boardState } from './board.mjs';
+import { skillCatalog } from './skills.mjs';
 import { markAllNotificationsHandled, markNotificationsHandled } from './notifications.mjs';
 import { saveProjectWorkflow, setActive } from './store.mjs';
 import { PLUGIN_ROOT, rel, validateChangeName } from './utils.mjs';
@@ -181,6 +182,16 @@ export function createBoardServer(root, { all = false, locale = '' } = {}) {
       }
       if (req.method === 'GET' && url.pathname === '/api/ui-labels') {
         sendJson(res, 200, readUiLabels(root));
+        return;
+      }
+      // Discoverable skill catalog for the canvas skill picker. Cached, on
+      // demand — kept OUT of /api/state so the (possibly all-projects) board
+      // never pays a per-project skill scan. In --all mode an optional
+      // projectId scopes it to that project's root; otherwise the launch root
+      // (plugin + user + marketplace skills, which is what a picker wants).
+      if (req.method === 'GET' && url.pathname === '/api/skills') {
+        const targetRoot = all ? rootForRequest(root, url) : root;
+        sendJson(res, 200, { skills: skillCatalog(targetRoot) });
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/artifact') {
