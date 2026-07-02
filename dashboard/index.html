@@ -312,6 +312,19 @@
   .modal[hidden] { display:none; }
   .modal-panel { width:min(900px,96vw); max-height:86vh; background:var(--bg2); border:1px solid var(--line2); border-radius:8px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
   .modal-panel.canvas-modal-panel { width:calc(100vw - 20px); height:calc(100vh - 20px); max-height:calc(100vh - 20px); box-sizing:border-box; }
+  .rules-modal-panel { width:min(1000px,96vw); height:min(720px,90vh); }
+  .rules-modal-body { flex:1; display:grid; grid-template-columns:1.35fr 1fr; gap:0; min-height:0; }
+  .rules-edit { padding:14px 16px; display:flex; min-height:0; }
+  .rules-edit textarea { flex:1; width:100%; resize:none; background:var(--panel2); color:#e6ecf7; border:1px solid var(--line2); border-radius:8px; padding:12px; font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .rules-examples { border-left:1px solid var(--line); padding:14px 16px; overflow:auto; background:rgba(13,16,21,.5); }
+  .rules-examples h4 { margin:0 0 4px; font-size:12px; color:#cbd5e8; }
+  .rules-examples .ex-hint { font-size:11px; color:var(--muted); margin:0 0 12px; line-height:1.6; }
+  .rules-examples .ex-group { font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--dim); margin:12px 0 6px; }
+  .rules-ex { display:block; width:100%; text-align:left; cursor:pointer; margin:0 0 6px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--panel2); color:#d7deea; font-size:12px; line-height:1.55; transition:border-color .12s, background .12s; }
+  .rules-ex:hover { border-color:var(--accent); background:rgba(98,210,162,.08); }
+  .rules-ex .ex-tag { display:inline-block; margin-right:6px; padding:0 6px; border-radius:999px; font-size:10px; background:rgba(98,210,162,.16); color:#8ee6bd; }
+  .rules-modal-foot { display:flex; justify-content:flex-end; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+  .rules-field-expand { margin-top:6px; }
   .modal-head { display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid var(--line); }
   .modal-title-row { display:flex; align-items:center; gap:8px; min-width:0; }
   .modal-title { font-weight:750; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -442,6 +455,28 @@
       <button class="modal-close" id="canvasClose" type="button"></button>
     </div>
     <div class="canvas-shell" id="workflowCanvas"></div>
+  </div>
+</div>
+
+<div class="modal" id="rulesModal" style="z-index:40" hidden>
+  <div class="modal-panel rules-modal-panel">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title-row"><div class="modal-title" id="rulesModalTitle"></div></div>
+        <div class="modal-path" id="rulesModalHint"></div>
+      </div>
+      <button class="modal-close" id="rulesModalClose" type="button"></button>
+    </div>
+    <div class="rules-modal-body">
+      <div class="rules-edit">
+        <textarea id="rulesModalText" spellcheck="false"></textarea>
+      </div>
+      <aside class="rules-examples" id="rulesExamples"></aside>
+    </div>
+    <div class="rules-modal-foot">
+      <button class="canvas-btn" id="rulesModalCancel" type="button"></button>
+      <button class="canvas-btn primary" id="rulesModalSave" type="button"></button>
+    </div>
   </div>
 </div>
 
@@ -1287,6 +1322,87 @@ function closeWorkflowCanvas(clearDirty) {
   }
 }
 
+// Example stage rules to guide authoring. Rules are free text — each line is
+// one hard directive the agent must follow (the engine passes them through).
+const RULE_EXAMPLES = [
+  { group:'Skill loading', zhGroup:'技能加载', items:[
+    { en:'Whenever you write frontend UI, you MUST load and use the hui-pro skill to build the components; do not hand-write components or use another UI library.',
+      zh:'只要编写前端 UI，就必须加载并使用 hui-pro skill 构建组件；不要手写组件，也不要使用其它 UI 库。' },
+    { en:'Load skills where the code is written: the main session under executing-plans, or each implementer subagent (via its brief) under subagent-driven-development. The orchestrator does not load per-task skills.',
+      zh:'技能在写代码的地方加载：executing-plans 下是主 session，subagent-driven-development 下是各 implementer subAgent（经 brief）。编排者不加载按任务技能。' },
+  ]},
+  { group:'Subagents', zhGroup:'子代理', items:[
+    { en:'A subagent only sees what its brief contains — build rules do NOT reach it automatically. Write every applicable per-task requirement into each subagent brief.',
+      zh:'subAgent 只看得到自己 brief 里的内容——规则不会自动传到它那里。把每一条适用的按任务要求写进每个 subAgent 的 brief。' },
+    { en:'Run at most 3 implementer subagents concurrently (company concurrency limit); split extra modules into batches of 3 and wait for each batch before the next.',
+      zh:'最多同时跑 3 个实现 subAgent（公司并发限制）；模块更多时按每批 3 个分批跑，每批跑完再开下一批。' },
+    { en:'Do not depend on git worktree isolation; if a worktree-isolated dispatch errors, retry it WITHOUT isolation, giving each subagent a disjoint set of files.',
+      zh:'不要依赖 git worktree 隔离；带隔离的派发报错时，改成不带隔离重派，给每个 subAgent 划分互不重叠的文件。' },
+  ]},
+  { group:'Context / exploration', zhGroup:'上下文 / 探索', items:[
+    { en:'Before modifying code, use the codegraph MCP tool `codegraph_explore` to locate files and trace call paths (run `codegraph init` if the graph is missing). Fall back to normal search if codegraph is unavailable.',
+      zh:'改代码前，用 codegraph MCP 工具 `codegraph_explore` 定位文件、追踪调用路径（图谱缺失时先 `codegraph init`）；codegraph 不可用时回退普通搜索。' },
+  ]},
+  { group:'Documents', zhGroup:'文档', items:[
+    { en:'Write workflow-authored documents and Markdown artifacts in the same language as the user\'s original request, unless the user asks otherwise. Keep code identifiers, commands, paths, and API names verbatim.',
+      zh:'workflow 生成的文档和 Markdown 产物默认使用用户原始请求的语言，除非用户另有要求。代码标识、命令、路径、API 名称保持原文。' },
+  ]},
+  { group:'Decisions', zhGroup:'决策', items:[
+    { en:'While getting confirmation, also ask the user whether to enable TDD mode; record the answer with `decide tdd_mode true` or `decide tdd_mode false`.',
+      zh:'征询确认时，一并询问用户是否启用 TDD 模式；用 `decide tdd_mode true` 或 `decide tdd_mode false` 记录。' },
+  ]},
+];
+
+function openRulesModal() {
+  const stage = selectedStage();
+  if (!stage) return;
+  const zh = lang === 'zh';
+  $('rulesModalTitle').textContent = (zh ? '阶段规则 · ' : 'Stage rules · ') + (label(stage.id) || stage.id);
+  $('rulesModalHint').textContent = zh
+    ? '每行一条规则。规则是写给 Agent 的硬性指令（workflow 作者声明，引擎只透传、不解析）。点右侧示例可插入到光标末尾。'
+    : 'One rule per line. Rules are hard directives for the agent (workflow-authored; the engine passes them through verbatim). Click an example on the right to append it.';
+  $('rulesModalText').value = linesText(stage.rules || []);
+  $('rulesModalClose').textContent = zh ? '关闭' : 'Close';
+  $('rulesModalCancel').textContent = zh ? '取消' : 'Cancel';
+  $('rulesModalSave').textContent = zh ? '保存' : 'Save';
+  renderRulesExamples();
+  $('rulesModal').hidden = false;
+  setTimeout(() => { try { $('rulesModalText').focus(); } catch (e) {} }, 0);
+}
+function closeRulesModal() { $('rulesModal').hidden = true; }
+function saveRulesModal() {
+  const stage = selectedStage();
+  if (stage) {
+    stage.rules = parseLines($('rulesModalText').value);
+    markCanvasDirty(true);
+    renderWorkflowCanvas(last?.workflows || []);
+  }
+  closeRulesModal();
+}
+function renderRulesExamples() {
+  const zh = lang === 'zh';
+  const host = $('rulesExamples');
+  host.innerHTML =
+    '<h4>' + (zh ? '示例规则（点按插入）' : 'Example rules (click to insert)') + '</h4>' +
+    '<p class="ex-hint">' + (zh
+      ? '规则是自由文本，写清"什么时候 → 必须做什么"。下面是常见范式，插入后按需改写。'
+      : 'Rules are free text — state "when X → you MUST do Y". These are common patterns; insert and adapt.') + '</p>' +
+    RULE_EXAMPLES.map(g =>
+      '<div class="ex-group">' + esc(zh ? g.zhGroup : g.group) + '</div>' +
+      g.items.map(it => {
+        const text = zh ? it.zh : it.en;
+        return '<button type="button" class="rules-ex" data-rule="' + esc(text) + '"><span class="ex-tag">' + esc(zh ? g.zhGroup : g.group) + '</span>' + esc(text) + '</button>';
+      }).join('')
+    ).join('');
+  host.querySelectorAll('.rules-ex').forEach(btn => { btn.onclick = () => insertRuleExample(btn.dataset.rule); });
+}
+function insertRuleExample(text) {
+  const ta = $('rulesModalText');
+  const cur = ta.value.replace(/\s*$/, '');
+  ta.value = (cur ? cur + '\n' : '') + text + '\n';
+  ta.focus();
+}
+
 function capId(c) {
   return typeof c === 'string' ? c : (c?.id || '');
 }
@@ -1652,7 +1768,8 @@ function renderWorkflowCanvas(workflows) {
     ? '<div class="form-row"><label>'+esc(L.stageId)+'</label><input id="csId" value="'+esc(current.id)+'"></div>'+
       '<div class="form-row"><label>'+esc(L.goal)+'</label><textarea id="csGoal">'+esc(current.goal||'')+'</textarea></div>'+
       '<div class="form-row"><label>'+esc(L.caps)+'</label>'+capabilityEditorHtml(current.capabilities||[])+'</div>'+
-      '<div class="form-row"><label>'+esc(L.rules)+'</label><textarea id="csRules">'+esc(linesText(current.rules||[]))+'</textarea></div>'+
+      '<div class="form-row"><label>'+esc(L.rules)+'</label><textarea id="csRules">'+esc(linesText(current.rules||[]))+'</textarea>'+
+      '<button type="button" class="canvas-btn rules-field-expand" id="csRulesExpand">'+esc(lang==='zh'?'展开编辑 / 查看示例':'Expand / examples')+'</button></div>'+
       '<div class="form-row"><label>'+esc(L.needs)+'</label>'+decisionEditorHtml(current.needs||[])+'</div>'+
       '<div class="form-row"><label>'+esc(L.next)+'</label><select id="csNext">'+options+'</select></div>'+
       '<div class="form-checks"><label><input type="checkbox" id="csUser" '+(current.requires_user?'checked':'')+'> '+esc(L.confirm)+'</label><label><input type="checkbox" id="csTerminal" '+(current.terminal?'checked':'')+'> '+esc(L.terminal)+'</label></div>'
@@ -1721,6 +1838,8 @@ function renderWorkflowCanvas(workflows) {
   });
   bind('csGoal', el => { current.goal = el.value; });
   bind('csRules', el => { current.rules = parseLines(el.value); });
+  const csRulesExpand = $('csRulesExpand');
+  if (csRulesExpand) csRulesExpand.onclick = openRulesModal;
   bind('csNext', el => { current.next = el.value; current.terminal = !el.value ? current.terminal : false; });
   bind('csUser', el => { current.requires_user = el.checked; });
   bind('csTerminal', el => { current.terminal = el.checked; if (el.checked) current.next = ''; });
@@ -2001,6 +2120,10 @@ $('artifactModal').onclick = (event) => { if (event.target.id === 'artifactModal
 $('canvasOpen').onclick = openWorkflowCanvas;
 $('canvasClose').onclick = () => closeWorkflowCanvas(false);
 $('workflowCanvasModal').onclick = (event) => { if (event.target.id === 'workflowCanvasModal') closeWorkflowCanvas(false); };
+$('rulesModalClose').onclick = closeRulesModal;
+$('rulesModalCancel').onclick = closeRulesModal;
+$('rulesModalSave').onclick = saveRulesModal;
+$('rulesModal').onclick = (event) => { if (event.target.id === 'rulesModal') closeRulesModal(); };
 
 async function refresh() {
   // Only the newest refresh may apply. Clicking a project starts a fresh

@@ -4,6 +4,10 @@
 
 - **README 信息架构重写**: 中英文 README 统一改为“项目介绍、使用场景、项目亮点、如何使用、快速开始、后续计划”的结构，移除旧版 `next-only` / `exit.checks` 叙述，改为描述当前 `next`/`decide`、中文 workflow、看板、hooks 和自定义 workflow 能力。
 
+### Added
+
+- **画布阶段规则弹窗编辑器(带示例引导)**: 画布里阶段规则(对应 workflow YAML 的 `rules`,是多条列表)原来只有一个小 textarea,不便编辑多条。新增"展开编辑 / 查看示例"按钮,打开一个弹窗:左侧大编辑区(每行一条规则),右侧一栏**可点击插入的示例规则**(按"技能加载 / 子代理 / 上下文探索 / 文档 / 决策"分组,中英文跟随界面语言),并有一句"什么时候 → 必须做什么"的写法引导。保存写回该阶段 `rules` 并标记未保存。纯前端,浏览器刷新即生效。
+
 ### Fixed
 
 - **画布技能选择解耦为独立缓存接口**: 总览提速后不再逐项目发现技能,画布(workflow 编排)的技能选择器需要可用的技能目录。新增 `GET /api/skills`(可选 `projectId`)返回可发现技能列表,并在 `skills.mjs` 增加带 TTL 缓存的 `skillCatalog()`(`discoverSkills` 会递归遍历 marketplaces,较贵,而技能一次会话内基本不变),`boardState` 与新接口都改用它——单项目/下钻的每 2 秒轮询也顺带省掉重复深扫。画布打开时从 `/api/skills` 拉一次目录填充选择器(不依赖 board 扫描),`skillOptions()` 优先用该目录、回退到当前 board 的 skills。CLI `skills` 命令仍用未缓存的 `discoverSkills` 保证实时。
